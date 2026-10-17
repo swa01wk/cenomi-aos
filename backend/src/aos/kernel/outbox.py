@@ -73,19 +73,17 @@ async def append_outbox(
     return seq
 
 
-async def append_outbox_many(conn: AsyncConnection, rows: list[OutboxRow]) -> list[int]:
+async def append_outbox_many(conn: AsyncConnection, rows: list[OutboxRow]) -> dict[str, int]:
     """Append several outbox rows in sorted stream order to avoid deadlocks on shared heads."""
-    seqs: list[int] = []
+    seqs: dict[str, int] = {}
     for row in sorted(rows, key=lambda r: r.stream):
-        seqs.append(
-            await append_outbox(
-                conn,
-                stream=row.stream,
-                event_type=row.event_type,
-                instance_id=row.instance_id,
-                audience=row.audience,
-                data=row.data,
-            )
+        seqs[row.stream] = await append_outbox(
+            conn,
+            stream=row.stream,
+            event_type=row.event_type,
+            instance_id=row.instance_id,
+            audience=row.audience,
+            data=row.data,
         )
     return seqs
 

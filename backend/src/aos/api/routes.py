@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, Field
 
-from ..kernel import audit_store, registry_store
+from ..kernel import audit_store, publish, registry_store
+from ..kernel.publish import PublishRefusal
+from .problems import KernelProblem
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
 from .deps import ConsoleDep, KernelDep, Principal, PrincipalDep, TxDep, needs_role
@@ -16,6 +18,10 @@ from .deps import ConsoleDep, KernelDep, Principal, PrincipalDep, TxDep, needs_r
 router = APIRouter()
 PackEditor = Annotated[Principal, Depends(needs_role("platform_admin", "process_owner", "seat_owner"))]
 Auditor = Annotated[Principal, Depends(needs_role("platform_admin", "risk"))]
+
+
+def _raise_publish_refusal(exc: PublishRefusal) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail) from exc
 
 
 @router.get("/healthz", tags=["ops"])
@@ -134,6 +140,72 @@ async def definition(version_id: str, kind: str, name: str, p: ConsoleDep, conn:
     if spec is None:
         raise HTTPException(404, f"no {kind} {name!r} in this version")
     return spec
+
+
+# ------------------------------------------------------------------ publish requests (Console, M1)
+
+@router.post("/console/pack-versions/{version_id}/publish-requests", tags=["registry"])
+async def request_publish(version_id: str, p: PackEditor, conn: TxDep, response: Response) -> dict:
+    try:
+        publish.parse_version_id(version_id)
+        body, created = await publish.request_publish(
+            conn, org_id=p.org_id, version_id=version_id, requester=p.person_id
+        )
+    except PublishRefusal as exc:
+        _raise_publish_refusal(exc)
+    response.status_code = 201 if created else 200
+    return body
+
+
+@router.get("/console/publish-requests", tags=["registry"])
+async def list_publish_requests(
+    p: ConsoleDep,
+    conn: TxDep,
+    status: Annotated[str | None, Query(enum=["open", "approved", "rejected"])] = None,
+) -> dict:
+    return {"items": await publish.list_publish_requests(conn, org_id=p.org_id, status=status)}
+
+
+class ApprovePublishPartBody(BaseModel):
+    part: Literal["policies", "seats_and_workflows"]
+    note: str | None = None
+
+
+@router.post("/console/publish-requests/{id}/approve", tags=["registry"])
+async def approve_publish_part(id: str, p: ConsoleDep, conn: TxDep, body: ApprovePublishPartBody) -> dict:
+    try:
+        publish.parse_request_id(id)
+        return await publish.approve_publish_part(
+            conn,
+            org_id=p.org_id,
+            request_id=id,
+            part=body.part,
+            actor=p.person_id,
+            roles=p.roles,
+            note=body.note,
+        )
+    except PublishRefusal as exc:
+        _raise_publish_refusal(exc)
+
+
+class RejectPublishBody(BaseModel):
+    reason: str = Field(min_length=3)
+
+
+@router.post("/console/publish-requests/{id}/reject", tags=["registry"])
+async def reject_publish(id: str, p: ConsoleDep, conn: TxDep, body: RejectPublishBody) -> dict:
+    try:
+        publish.parse_request_id(id)
+        return await publish.reject_publish(
+            conn,
+            org_id=p.org_id,
+            request_id=id,
+            actor=p.person_id,
+            roles=p.roles,
+            reason=body.reason,
+        )
+    except PublishRefusal as exc:
+        _raise_publish_refusal(exc)
 
 
 # ------------------------------------------------------------------ audit (Console)

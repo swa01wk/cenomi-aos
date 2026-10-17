@@ -162,10 +162,19 @@ paths:
       operationId: requestPublish
       x-milestone: M1
       x-screens: [Console-Packs]
-      description: Ask to publish a validated version. The kernel works out the required approvers (Risk for policies and authority profiles; the owner for Seats and workflows). Refused unless status is validated and the last simulation reached a final state.
+      description: >-
+        Ask to publish a validated version. The kernel works out the required approvers (Risk for the policies part
+        when the version has Policy objects; the pack owner for Seats and workflows). Refused unless status is
+        validated. From M2, `simulatePackVersion` must record a simulation that reached a final workflow state before
+        publish is allowed; M1 only checks validated status. At most one open request per version — if the same caller
+        repeats while their request is still open, the kernel returns that request (200); another caller gets 409.
+        Refused with segregation_of_duties when the requester is the pack owner (they could never approve the owner
+        part). The requester can never approve or reject their own request.
       parameters: [{$ref: '#/components/parameters/VersionId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
       responses:
+        '200': {description: Existing open publish request returned to the same requester, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
         '201': {description: Publish request opened, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
   /console/publish-requests:
@@ -183,21 +192,32 @@ paths:
       operationId: approvePublishPart
       x-milestone: M1
       x-screens: [Console-Packs]
-      description: Approve the part the caller is required for. When every part is approved the version becomes published and its definitions immutable. The requester can never approve.
+      description: >-
+        Approve the part the caller is required for (Risk for policies; pack owner by person id for
+        seats_and_workflows). When every part is approved the version becomes published and its definitions
+        immutable. The requester can never approve (403 segregation_of_duties); wrong person or role → 403
+        not_permitted. Approve on a closed request → 409; after the version is fully published, further approves
+        are a no-op (200). Each part exposes role `risk` or `owner` in the response.
       parameters: [{$ref: '#/components/parameters/Id'}]
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [part], properties: {part: {enum: [policies, seats_and_workflows]}, note: {type: string}}}}}}
       responses:
         '200': {description: Updated request, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
         '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /console/publish-requests/{id}/reject:
     post:
       tags: [registry]
       operationId: rejectPublish
       x-milestone: M1
+      description: >-
+        A required approver rejects the publish request; the whole request closes and the pack version returns to
+        validated. The requester cannot reject (403 segregation_of_duties). Reject on a closed request → 409.
       parameters: [{$ref: '#/components/parameters/Id'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Reason'}}}}
       responses:
         '200': {description: Rejected, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
 
   # ------------------------------------------------------------------ seats
   /console/seats:
