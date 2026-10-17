@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
@@ -145,8 +145,9 @@ async def definition(version_id: str, kind: str, name: str, p: ConsoleDep, conn:
 # ------------------------------------------------------------------ publish requests (Console, M1)
 
 @router.post("/console/pack-versions/{version_id}/publish-requests", tags=["registry"])
-async def request_publish(version_id: str, p: ConsoleDep, conn: TxDep, response: Response) -> dict:
+async def request_publish(version_id: str, p: PackEditor, conn: TxDep, response: Response) -> dict:
     try:
+        publish.parse_version_id(version_id)
         body, created = await publish.request_publish(
             conn, org_id=p.org_id, version_id=version_id, requester=p.person_id
         )
@@ -166,7 +167,7 @@ async def list_publish_requests(
 
 
 class ApprovePublishPartBody(BaseModel):
-    part: str
+    part: Literal["policies", "seats_and_workflows"]
     note: str | None = None
 
 

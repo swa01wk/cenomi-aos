@@ -46,8 +46,13 @@ def _parts_view(required: list[dict[str, Any]], approvals: list[dict[str, Any]],
         part = _part_key(req)
         role = req["role"]
         if request_status == "rejected":
-            st = "rejected"
-            by, at = None, None
+            ap = by_part.get(part)
+            if ap and ap.get("rejected"):
+                st = "rejected"
+                by, at = ap.get("by"), ap.get("at")
+            else:
+                st = "rejected"
+                by, at = None, None
         else:
             ap = by_part.get(part)
             if ap and ap.get("rejected"):
@@ -80,11 +85,7 @@ def _row_to_publish_request(row: tuple) -> dict[str, Any]:
 
 async def _has_policy_definitions(conn: AsyncConnection, pack_version_id: str) -> bool:
     cur = await conn.execute(
-        "select exists("
-        " select 1 from registry.definitions"
-        " where pack_version_id = %s and kind = 'Policy'"
-        " and coalesce(spec #>> '{spec,type}', spec->>'type') in ('authority_profile', 'gate_rules')"
-        ")",
+        "select exists(select 1 from registry.definitions where pack_version_id = %s and kind = 'Policy')",
         (pack_version_id,),
     )
     row = await cur.fetchone()
@@ -169,17 +170,18 @@ def _caller_may_approve_part(
     return False
 
 
-def _caller_is_required_approver(
+def _open_entitled_parts(
     *, required: list[dict[str, Any]], approvals: list[dict[str, Any]], person_id: str, roles: list[str]
-) -> bool:
+) -> list[str]:
     approved_parts = {a["part"] for a in approvals if a.get("part") and not a.get("rejected")}
+    parts: list[str] = []
     for req in required:
         part = _part_key(req)
         if part in approved_parts:
             continue
         if _caller_may_approve_part(part=part, required=required, person_id=person_id, roles=roles):
-            return True
-    return False
+            parts.append(part)
+    return parts
 
 
 def _all_parts_approved(required: list[dict[str, Any]], approvals: list[dict[str, Any]]) -> bool:
@@ -425,7 +427,10 @@ async def reject_publish(
     required = row[0] if isinstance(row[0], list) else json.loads(row[0])
     approvals = list(row[1] if isinstance(row[1], list) else json.loads(row[1]))
 
-    if not _caller_is_required_approver(required=required, approvals=approvals, person_id=actor, roles=roles):
+    reject_parts = _open_entitled_parts(
+        required=required, approvals=approvals, person_id=actor, roles=roles
+    )
+    if not reject_parts:
         raise PublishRefusal(
             "not_permitted",
             403,
@@ -436,9 +441,13 @@ async def reject_publish(
     cur = await conn.execute("select pack_name from registry.pack_versions where id = %s", (version_id,))
     pack_name = (await cur.fetchone())[0]
 
+    at = datetime.now(timezone.utc).isoformat()
+    for part in reject_parts:
+        approvals.append({"part": part, "by": actor, "at": at, "rejected": True})
+
     await conn.execute(
         "update registry.publish_requests set status = 'rejected', approvals = %s where id = %s",
-        (Jsonb(approvals + [{"part": _part_key(required[0]), "by": actor, "rejected": True}]), request_id),
+        (Jsonb(approvals), request_id),
     )
     await conn.execute(
         "update registry.pack_versions set status = 'validated' where id = %s and org_id = %s",
@@ -450,7 +459,12 @@ async def reject_publish(
         actor=actor,
         action="pack.publish_rejected",
         subject=f"{pack_name}@{version_id}",
-        data={"pack_version_id": version_id, "publish_request_id": request_id, "reason": reason},
+        data={
+            "pack_version_id": version_id,
+            "publish_request_id": request_id,
+            "reason": reason,
+            "part": reject_parts[0] if len(reject_parts) == 1 else reject_parts,
+        },
     )
     body, _, _ = await _lock_request_by_id(conn, org_id, request_id)
     return body
@@ -462,4 +476,13 @@ def parse_request_id(raw: str) -> UUID:
     except ValueError as exc:
         raise PublishRefusal(
             "not_found", 404, "Publish request not found", "The id is not a valid publish request id."
+        ) from exc
+
+
+def parse_version_id(raw: str) -> UUID:
+    try:
+        return UUID(raw)
+    except ValueError as exc:
+        raise PublishRefusal(
+            "not_found", 404, "Pack version not found", "The version id is not a valid pack version id."
         ) from exc

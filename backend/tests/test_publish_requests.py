@@ -5,7 +5,6 @@ from __future__ import annotations
 import shutil
 import tempfile
 import unittest
-import uuid
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -14,6 +13,10 @@ from aos.api import create_app
 from aos.kernel.settings import REPO, Settings
 
 from . import _pg
+
+OTHER_ORG_VERSION_ID = "00000000-0000-4000-8000-000000000001"
+OTHER_ORG_REQUEST_ID = "00000000-0000-4000-8000-000000000002"
+GENESIS_HASH = "0" * 64
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
@@ -57,6 +60,45 @@ class PublishRequestTests(unittest.TestCase):
     def audit_actions(self, headers: dict | None = None) -> list[str]:
         h = headers or self.login("risk")
         return [i["action"] for i in self.client.get("/api/console/audit?limit=500", headers=h).json()["items"]]
+
+    def audit_items(self, headers: dict | None = None) -> list[dict]:
+        h = headers or self.login("risk")
+        return self.client.get("/api/console/audit?limit=500", headers=h).json()["items"]
+
+    def seed_other_org_publish_request(self) -> None:
+        _pg.admin_sql(
+            self.db,
+            f"""
+            begin;
+            set constraints all deferred;
+            insert into org.organizations (id, name, data_residency)
+            values ('org_other', 'Other Org', 'EU') on conflict do nothing;
+            insert into org.departments (org_id, id, name) values ('org_other', 'd1', 'Dept')
+            on conflict do nothing;
+            insert into org.teams (org_id, department_id, id, name, owner_person_id)
+            values ('org_other', 'd1', 't1', 'Team', 'other_admin') on conflict do nothing;
+            insert into org.people (org_id, id, name, department_id, team_id, console_access)
+            values ('org_other', 'other_admin', 'Other admin', 'd1', 't1', true) on conflict do nothing;
+            insert into evidence.audit_heads (org_id, last_seq, last_hash)
+            values ('org_other', 0, '{GENESIS_HASH}') on conflict do nothing;
+            insert into registry.packs (org_id, name, owner)
+            values ('org_other', 'other_pack', 'other_admin') on conflict do nothing;
+            insert into registry.pack_versions (
+              id, org_id, pack_name, version, digest, source, status, validation, created_by
+            ) values (
+              '{OTHER_ORG_VERSION_ID}', 'org_other', 'other_pack', 1, 'digest_other', 'sql', 'validated',
+              '{{}}', 'other_admin'
+            ) on conflict do nothing;
+            insert into registry.publish_requests (
+              id, pack_version_id, requested_by, status, required_approvers, approvals
+            ) values (
+              '{OTHER_ORG_REQUEST_ID}', '{OTHER_ORG_VERSION_ID}', 'other_admin', 'open',
+              '[{{"for": "seats_and_workflows", "role": "owner", "person_id": "other_admin"}}]'::jsonb,
+              '[]'::jsonb
+            ) on conflict do nothing;
+            commit;
+            """,
+        )
 
     def test_happy_path_publish(self) -> None:
         req = self.open_request()
@@ -178,20 +220,80 @@ class PublishRequestTests(unittest.TestCase):
         self.assertEqual(r.status_code, 403, r.text)
         self.assertEqual(r.json()["code"], "segregation_of_duties")
 
-    def test_other_org_version_is_not_found(self) -> None:
+    def test_malformed_version_id_not_found(self) -> None:
         r = self.client.post(
-            f"/api/console/pack-versions/{uuid.uuid4()}/publish-requests",
+            "/api/console/pack-versions/not-a-uuid/publish-requests",
             headers=self.admin_h,
         )
         self.assertEqual(r.status_code, 404, r.text)
         self.assertEqual(r.json()["code"], "not_found")
 
-        r2 = self.client.post(
-            f"/api/console/publish-requests/{uuid.uuid4()}/reject",
-            headers=self.login("risk"),
-            json={"reason": "wrong id"},
+    def test_other_org_publish_request_isolated(self) -> None:
+        self.seed_other_org_publish_request()
+        r = self.client.post(
+            f"/api/console/pack-versions/{OTHER_ORG_VERSION_ID}/publish-requests",
+            headers=self.admin_h,
         )
-        self.assertEqual(r2.status_code, 404, r2.text)
+        self.assertEqual(r.status_code, 404, r.text)
+        self.assertEqual(r.json()["code"], "not_found")
+
+        approve = self.client.post(
+            f"/api/console/publish-requests/{OTHER_ORG_REQUEST_ID}/approve",
+            headers=self.admin_h,
+            json={"part": "seats_and_workflows"},
+        )
+        self.assertEqual(approve.status_code, 404, approve.text)
+
+        reject = self.client.post(
+            f"/api/console/publish-requests/{OTHER_ORG_REQUEST_ID}/reject",
+            headers=self.login("risk"),
+            json={"reason": "wrong org"},
+        )
+        self.assertEqual(reject.status_code, 404, reject.text)
+
+        listed = self.client.get("/api/console/publish-requests", headers=self.admin_h).json()["items"]
+        self.assertFalse(any(i["id"] == OTHER_ORG_REQUEST_ID for i in listed))
+
+    def test_wrong_part_role_not_permitted(self) -> None:
+        _pg.admin_sql(
+            self.db,
+            f"update registry.pack_versions set status = 'validated' where id = '{self.version_id}';"
+            f"delete from registry.publish_requests where pack_version_id = '{self.version_id}';",
+        )
+        req = self.open_request()
+        r = self.client.post(
+            f"/api/console/publish-requests/{req['id']}/approve",
+            headers=self.login("head_of_procurement"),
+            json={"part": "policies"},
+        )
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual(r.json()["code"], "not_permitted")
+
+    def test_owner_reject_records_seats_part(self) -> None:
+        _pg.admin_sql(
+            self.db,
+            f"update registry.pack_versions set status = 'validated' where id = '{self.version_id}';"
+            f"delete from registry.publish_requests where pack_version_id = '{self.version_id}';",
+        )
+        req = self.open_request()
+        r = self.client.post(
+            f"/api/console/publish-requests/{req['id']}/reject",
+            headers=self.login("head_of_procurement"),
+            json={"reason": "needs more review"},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        row = _pg.admin_sql(
+            self.db,
+            f"select approvals from registry.publish_requests where id = '{req['id']}';",
+        ).stdout.strip()
+        self.assertIn("seats_and_workflows", row)
+        self.assertIn("head_of_procurement", row)
+
+        audit = next(
+            i for i in self.audit_items()
+            if i["action"] == "pack.publish_rejected" and i["data"].get("publish_request_id") == req["id"]
+        )
+        self.assertEqual(audit["data"]["part"], "seats_and_workflows")
 
     def test_repeat_request_by_same_caller_returns_open_request(self) -> None:
         _pg.admin_sql(
@@ -213,7 +315,7 @@ class PublishRequestTests(unittest.TestCase):
 
         conflict = self.client.post(
             f"/api/console/pack-versions/{self.version_id}/publish-requests",
-            headers=self.login("risk"),
+            headers=self.login("head_of_procurement"),
         )
         self.assertEqual(conflict.status_code, 409, conflict.text)
         self.assertEqual(conflict.json()["code"], "conflict")
