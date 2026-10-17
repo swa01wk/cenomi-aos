@@ -65,7 +65,7 @@ the Workspace; Console URLs fall back to the Workspace for people without a Cons
 ## Local development
 
 ```bash
-make install       # pip install -e backend[dev]; npm install in web/
+make install       # pip install -e backend[dev,runtime]; npm install in web/
 make db            # Postgres only, in Docker (cp .env.example .env first so tests find it)
 make test          # 82 tests; with AOS_TEST_REQUIRE_PG=1 database tests fail instead of skipping
 make check         # test + validate: what every story keeps green

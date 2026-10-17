@@ -18,6 +18,7 @@ class WorkerConfig:
     worker_id: str
     lanes: tuple[str, ...]
     runtime: str
+    checkpoint_database_url: str
     poll_min_s: float
     poll_max_s: float
     submit_shutdown_timeout_s: float
@@ -61,6 +62,12 @@ def load_config() -> WorkerConfig:
     runtime = os.environ.get("AOS_RUNTIME", "").strip().lower()
     if not runtime:
         raise RuntimeError("AOS_RUNTIME is required (set to fake or langgraph)")
+
+    from .checkpointer import validate_checkpoint_database_url
+
+    checkpoint_url = os.environ.get("AOS_CHECKPOINT_DATABASE_URL", "").strip()
+    checkpoint_database_url = validate_checkpoint_database_url(checkpoint_url)
+
     poll_min = float(os.environ.get("AOS_WORKER_POLL_MIN_S", "1"))
     poll_max = float(os.environ.get("AOS_WORKER_POLL_MAX_S", "5"))
     submit_timeout = float(os.environ.get("AOS_WORKER_SUBMIT_SHUTDOWN_TIMEOUT_S", "30"))
@@ -71,6 +78,7 @@ def load_config() -> WorkerConfig:
         worker_id=worker_id,
         lanes=lanes,
         runtime=runtime,
+        checkpoint_database_url=checkpoint_database_url,
         poll_min_s=poll_min,
         poll_max_s=poll_max,
         submit_shutdown_timeout_s=submit_timeout,

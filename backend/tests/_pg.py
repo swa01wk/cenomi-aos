@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import unittest
 import uuid
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -67,3 +68,36 @@ def kernel_url(db: str) -> str:
         u = urlsplit(url)
         host, port = u.hostname or host, u.port or port
     return f"postgresql://aos_kernel:aos_kernel_dev@{host}:{port}/{db}"
+
+
+def role_url(db: str, role: str, *, search_path_lg: bool = False) -> str:
+    url = os.environ.get("AOS_TEST_ADMIN_URL")
+    host, port = ("127.0.0.1", 5432)
+    if url:
+        u = urlsplit(url)
+        host, port = u.hostname or host, u.port or port
+    base = f"postgresql://{role}:{role}_dev@{host}:{port}/{db}"
+    if search_path_lg:
+        return base + "?options=-c%20search_path%3Dlg_checkpoints"
+    return base
+
+
+def worker_checkpoint_url(db: str) -> str:
+    url = os.environ.get("AOS_TEST_ADMIN_URL")
+    host, port = ("127.0.0.1", 5432)
+    if url:
+        u = urlsplit(url)
+        host, port = u.hostname or host, u.port or port
+    return role_url(db, "aos_worker", search_path_lg=True)
+
+
+def require_runtime_extra() -> None:
+    try:
+        import langgraph.checkpoint.postgres.aio  # noqa: F401
+    except ImportError as exc:
+        if os.environ.get("AOS_TEST_REQUIRE_PG") == "1":
+            raise RuntimeError(
+                "AOS_TEST_REQUIRE_PG=1 but backend[runtime] is not installed "
+                "(pip install -e 'backend[dev,runtime]')"
+            ) from exc
+        raise unittest.SkipTest("backend[runtime] not installed") from exc

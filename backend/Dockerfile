@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -r
 WORKDIR /app
 COPY backend/pyproject.toml backend/pyproject.toml
 COPY backend/src backend/src
-RUN pip install --no-cache-dir ./backend
+RUN pip install --no-cache-dir './backend[runtime]'
 COPY packs packs
 COPY seed seed
 COPY backend/migrations backend/migrations

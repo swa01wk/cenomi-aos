@@ -53,6 +53,7 @@ class WorkerTokenRedactionTests(WorkerHarness, unittest.IsolatedAsyncioTestCase)
             worker_id="worker-test-1",
             lanes=("assist",),
             runtime="fake",
+            checkpoint_database_url="postgresql://aos_worker:aos_worker_dev@127.0.0.1:5432/aos",
             poll_min_s=1.0,
             poll_max_s=5.0,
             submit_shutdown_timeout_s=30.0,

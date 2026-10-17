@@ -16,7 +16,7 @@ help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
 install: ## install backend (editable, with dev tools) and web dependencies
-	$(PY) -m pip install -e 'backend[dev]'
+	$(PY) -m pip install -e 'backend[dev,runtime]'
 	cd web && npm install
 
 vendor: ## sandbox fallback: fetch FastAPI and psycopg from GitHub when PyPI is blocked

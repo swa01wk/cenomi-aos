@@ -681,7 +681,7 @@ paths:
       x-milestone: M3
       description: Record the LangGraph checkpoint taken at interrupt() and end the attempt as waiting. The Task resumes on a new attempt when the approval resolves.
       parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [checkpoint_id, waiting_for], properties: {checkpoint_id: {type: string}, waiting_for: {type: object, required: [kind, id], properties: {kind: {enum: [approval, input]}, id: {type: string}}}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [checkpoint_id, thread_id, waiting_for], properties: {checkpoint_id: {type: string}, thread_id: {type: string, description: LangGraph thread to continue; copied by the kernel from checkpointAttempt onto the next attempt resume}, waiting_for: {type: object, required: [kind, id], properties: {kind: {enum: [approval, input]}, id: {type: string}}}}}}}}
       responses:
         '200': {description: Attempt ended waiting}
   /worker/attempts/{id}/submit:
@@ -1261,7 +1261,7 @@ components:
         fencing_token: {type: integer}
         lease_seconds: {type: integer}
         kind: {enum: [assist, task]}
-        resume: {type: [object, 'null'], description: Present when resuming after an approval or input, properties: {checkpoint_id: {type: string}, signal: {type: object}}}
+        resume: {type: [object, 'null'], description: Present when resuming after an approval or input, properties: {checkpoint_id: {type: string}, thread_id: {type: string, description: LangGraph thread to continue; copied by the kernel from checkpointAttempt}, signal: {type: object}}}
         turn_id: {type: [string, 'null'], description: For assist attempts, the turn being answered}
         contract: {$ref: './schemas/task-contract.schema.json'}
     ProposedEvent:
