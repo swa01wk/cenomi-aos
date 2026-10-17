@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
-from ..kernel import audit_store, instances, publish, registry_store, seats
+from ..kernel import artifacts, audit_store, instances, publish, registry_store, seats
 from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
@@ -35,6 +35,10 @@ def _raise_seat_error(exc: SeatError) -> None:
 
 
 def _raise_instance_error(exc: instances.InstanceError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_artifact_error(exc: artifacts.ArtifactError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -579,6 +583,26 @@ async def stream_instance_events(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ------------------------------------------------------------------ artifacts (M1-BE-04 C)
+
+@router.get("/artifacts/{id}", tags=["artifacts"])
+async def get_artifact(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
+    try:
+        return await artifacts.get_artifact(conn, k.org, p.org_id, id, p.person_id)
+    except artifacts.ArtifactError as exc:
+        _raise_artifact_error(exc)
+
+
+@router.get("/artifacts/{id}/versions/{version}", tags=["artifacts"])
+async def get_artifact_version(
+    id: str, version: int, p: PrincipalDep, k: KernelDep, conn: TxDep
+) -> dict:
+    try:
+        return await artifacts.get_artifact_version(conn, k.org, p.org_id, id, version, p.person_id)
+    except artifacts.ArtifactError as exc:
+        _raise_artifact_error(exc)
 
 
 # ------------------------------------------------------------------ audit (Console)

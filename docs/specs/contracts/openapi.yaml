@@ -485,6 +485,8 @@ paths:
       parameters: [{$ref: '#/components/parameters/Id'}]
       responses:
         '200': {description: Artifact with its version list, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactSummary'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /artifacts/{id}/versions/{version}:
     get:
       tags: [artifacts]
@@ -494,6 +496,8 @@ paths:
       parameters: [{$ref: '#/components/parameters/Id'}, {name: version, in: path, required: true, schema: {type: integer}}]
       responses:
         '200': {description: Content filtered for the caller, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactVersion'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /artifacts/{id}/versions:
     post:
       tags: [artifacts]
@@ -1164,7 +1168,7 @@ components:
         latest_version: {type: integer}
         status: {enum: [draft, final, locked]}
         view: {$ref: '#/components/schemas/ArtifactView'}
-        versions: {type: array, items: {type: object, properties: {version: {type: integer}, status: {type: string}, by: {type: string}, at: {type: string, format: date-time}}}}
+        versions: {type: array, items: {type: object, required: [version, by, at], properties: {version: {type: integer}, by: {type: string}, at: {type: string, format: date-time}}}}
     ArtifactView:
       type: object
       description: >-
@@ -1187,7 +1191,7 @@ components:
               type: {enum: [string, text, integer, number, money, date, datetime, list, object, boolean]}
     ArtifactVersion:
       type: object
-      required: [artifact_id, artifact_type, version, status, content, content_hash, produced_by, created_at, hidden_fields]
+      required: [artifact_id, artifact_type, version, status, content, produced_by, created_at, hidden_fields]
       properties:
         artifact_id: {type: string}
         artifact_type: {type: string}
@@ -1195,7 +1199,8 @@ components:
         status: {enum: [draft, final, locked]}
         content: {type: object, description: Only fields the caller may see}
         hidden_fields: {type: array, items: {type: string}, description: Names of removed fields, so the UI can say "not shared with you"}
-        content_hash: {type: string}
+        content_hash: {type: string, description: SHA-256 of full stored content; present only when hidden_fields is empty}
+        projected_content_hash: {type: string, description: SHA-256 of projected content; present when hidden_fields is non-empty}
         produced_by: {type: object, properties: {kind: {enum: [attempt, person]}, id: {type: string}, name: {type: string}}}
         inputs: {type: array, items: {type: object, properties: {artifact_id: {type: string}, version: {type: integer}, content_hash: {type: string}}}}
         sources: {type: array, items: {type: object, properties: {source_ref: {type: string}, label: {type: string}}}}

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from psycopg import AsyncConnection, errors as pg_errors
-from . import contracts, ids
+from . import artifacts, contracts, ids
 from .admission import (
     AdmissionContext,
     check_admission,
@@ -369,7 +369,9 @@ async def build_snapshot(
         "participants": participants,
         "my_roles": my_roles,
         "pending": [],
-        "artifacts": [],
+        "artifacts": await artifacts.summaries_for_instance(
+            conn, org, instance_id, my_roles, defs
+        ),
         "turns": turns,
         "cursor": cursor,
     }
