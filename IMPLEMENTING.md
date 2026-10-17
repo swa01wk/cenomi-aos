@@ -25,7 +25,7 @@ Prerequisites: Git, Docker Desktop (Compose v2), Python 3.12+ (3.13 is what CI u
 
 ```bash
 git clone https://github.com/swa01wk/cenomi-aos && cd cenomi-aos
-cp .env.example .env              # add ANTHROPIC_API_KEY only when you need the real model
+cp .env.example .env              # add OPENAI_API_KEY only when you need the real model
 python3 -m venv .venv && source .venv/bin/activate
 make install                      # backend (editable, dev tools) + web dependencies
 make db                           # Postgres in Docker on :5432 (the tests use it)
@@ -36,7 +36,8 @@ make up                           # full M0 stack: web http://localhost:8080, AP
 Sign in as **Platform admin**, open *Domain packs*, **Validate**, then **Sync from folder**. If that works, the
 machine is ready.
 
-From M1-AG-01 on, install the agent runtime too: `python -m pip install -e 'backend[dev,runtime]'`.
+From M1-AG-01 on, install the agent runtime too: `python -m pip install -e 'backend[dev,runtime]'` (includes the
+OpenAI client; add `anthropic` to the extras to use Claude instead).
 
 ## 2. Set up Cursor (once)
 
@@ -148,7 +149,8 @@ and line; don't change code.
 - **Generated types only.** Never hand-write API request or response types in `web/`; run `npm run gen:api`
   after any `openapi.yaml` change. (M1-FE-01 adds that script with `openapi-typescript`.)
 - **Fake model by default.** Tests never call the real model or the network. Real-model runs are manual (the M1
-  gate, M4 evals) and need `ANTHROPIC_API_KEY` in `.env`.
+  gate, M4 evals) and need `OPENAI_API_KEY` in `.env` (model `OPENAI_MODEL`, `gpt-5.4-mini` in development), plus
+  the two `AOS_MODEL_PRICE_*` values so the daily USD limit works.
 - **Time.** Kernel code reads time from `kernel/clock.py` so the demo clock works; never `datetime.now()`.
 - **Don't relax a test to make it pass.** If a spec test seems wrong, say so in the PR and fix the spec.
 

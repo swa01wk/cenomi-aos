@@ -22,7 +22,7 @@ Two implementations behind it, chosen by `AOS_RUNTIME=langgraph|fake`:
 
 | Adapter | Use | Model |
 | --- | --- | --- |
-| `LangGraphRuntime` | Normal runs | `ChatAnthropic` via the model alias registry |
+| `LangGraphRuntime` | Normal runs | The configured provider's chat model via the alias registry (`ChatOpenAI` in development) |
 | `FakeRuntime` | CI, `aos simulate`, eval suites in M1 | `FakeModel` with scripted turns per Skill |
 
 Both run the **same graphs**; only the chat model differs. That is what makes `aos simulate` meaningful.
@@ -83,9 +83,31 @@ Versioned in the worker (`worker/prompts/task_v1.jinja`, `assist_v1.jinja`); the
 
 ## Model registry
 
-`enterprise_reasoning` → `ChatAnthropic(model=$AOS_MODEL_ENTERPRISE_REASONING, temperature=0, max_tokens=contract.model.max_output_tokens)`.
-Default model id from configuration, never hard-coded in Skills. No provider fallback in the POC: a provider error
-retries once on a new attempt, then the Task goes to EXCEPTION with `model_error` (guidebook: stop safely).
+Skills and contracts name an alias (`enterprise_reasoning`), never a provider or model id. `worker/models.py` resolves
+it from configuration (ADR 014):
+
+| Setting | Development default | Meaning |
+| --- | --- | --- |
+| `AOS_MODEL_PROVIDER` | `openai` | `openai` or `anthropic` |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | key, `gpt-5.4-mini` | used when the provider is `openai` |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | empty | used when the provider is `anthropic` (extra `backend[anthropic]`) |
+| `AOS_MODEL_ENTERPRISE_REASONING` | empty | optional per-alias override, `provider:model` |
+| `AOS_MODEL_TEMPERATURE` | empty | empty = the provider's default; reasoning models may reject any other value |
+| `AOS_MODEL_PRICE_IN_PER_MTOK`, `AOS_MODEL_PRICE_OUT_PER_MTOK` | empty | USD per million tokens, for cost and the daily limit |
+
+- `openai` → `ChatOpenAI(model=…, max_tokens=contract.model.max_output_tokens, stream_usage=True)`;
+  `anthropic` → `ChatAnthropic(model=…, max_tokens=…)`. Pass `temperature` only when it is set.
+- Both go through LangChain's tool-calling interface (`bind_tools`), so the graphs don't change with the provider.
+  Tool schemas stay plain JSON Schema that both providers accept.
+- `ModelInvoked` records provider, model, input and output tokens, and cost from the configured prices. If the
+  prices are empty, cost is `null` and the worker refuses to start a real-model run (the daily USD limit can't be
+  enforced without them).
+- Startup fails fast with a plain message when the chosen provider's key or model is missing. Tests never need either
+  (`AOS_RUNTIME=fake`).
+- No provider fallback in the POC: a provider error retries once on a new attempt, then the Task goes to EXCEPTION
+  with `model_error` (guidebook: stop safely).
+- **Tests:** alias resolution for both providers and the override; missing key → clear startup error; `temperature`
+  omitted when unset; cost from the configured prices; a real-model smoke test marked manual (`AOS_REAL_MODEL=1`).
 
 ## Fake model scripts
 
@@ -112,7 +134,7 @@ Align `runner.FAILURE_CLASSES` with this list in M1 (M0 used placeholder names).
 ## Tracing
 
 One OpenTelemetry trace per attempt, parented to the kernel's admission span. Spans per node; attributes
-`aos.correlation_id`, `aos.instance.id`, `aos.task.id`, `aos.attempt.id`, `gen_ai.system=anthropic`,
+`aos.correlation_id`, `aos.instance.id`, `aos.task.id`, `aos.attempt.id`, `gen_ai.system` (`openai` or `anthropic`),
 `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`. Prompts are not exported unless the
 pack's `observability.prompt_capture` is true (it is false in the demo pack).
 

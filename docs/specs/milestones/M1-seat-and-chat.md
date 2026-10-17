@@ -14,8 +14,8 @@
 
 **Out of scope:** workflow transitions, decisions, claims, timers (M2); policy engine, approvals, effects (M3).
 
-**Prerequisites:** package registries reachable (PyPI, npm) or a machine with Docker; `ANTHROPIC_API_KEY` for the
-real-model part of the gate.
+**Prerequisites:** package registries reachable (PyPI, npm) or a machine with Docker; `OPENAI_API_KEY` and
+`OPENAI_MODEL` (development uses `gpt-5.4-mini`) for the real-model part of the gate.
 
 ---
 
@@ -89,8 +89,8 @@ real-model part of the gate.
 - **Tests:** the M0 worker-protocol tests still pass against the HTTP client and an in-process kernel.
 
 ### M1-AG-02 Assist graph and model
-- Assist graph (harness spec), prompt template `assist_v1`, model registry (`enterprise_reasoning` → configured
-  Claude model), streaming deltas, `ModelInvoked` with tokens and cost, step and token budget checks.
+- Assist graph (harness spec), prompt template `assist_v1`, model registry (`enterprise_reasoning` → the provider
+  and model in `.env`, OpenAI `gpt-5.4-mini` in development; harness spec, ADR 014), streaming deltas, `ModelInvoked` with tokens and cost, step and token budget checks.
 - **Tests:** fake model reply streams as deltas then a completed turn of typed blocks; the step budget stops a loop.
 
 ### M1-AG-03 request_intake in chat

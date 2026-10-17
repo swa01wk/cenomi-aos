@@ -58,4 +58,5 @@ tables and tests. The file ends with an exit gate checklist and a definition of 
 ## Known prerequisites for M1 agent work
 
 - LangGraph and its checkpointer need a normal package registry (`pip install -e 'backend[dev,runtime]'`).
-- A real model run needs `ANTHROPIC_API_KEY`. Every test uses `FakeModel` and doesn't need it.
+- A real model run needs `OPENAI_API_KEY` (development model `gpt-5.4-mini`; Anthropic also supported, ADR 014). Every
+  test uses `FakeModel` and doesn't need a key.

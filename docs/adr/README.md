@@ -18,6 +18,7 @@ its own numbering; this table maps them to ours so nothing is missing.
 | [011](011-harness-adapter.md) | AgentRuntime adapter and checkpoint semantics | ADR-02 harness adapter interface and checkpoint semantics |
 | [012](012-context-freshness.md) | Context freshness, visibility and memory writes | ADR-06 context freshness, retrieval permissions, memory writes |
 | [013](013-streamed-ui.md) | Streamed UI: snapshot, cursor, typed blocks | ADR-09 streamed UI and human approval binding |
-| — | Model router and fallback | ADR-07: one alias, no fallback in the POC (agent/harness.md) |
+| [014](014-model-provider.md) | Model provider behind the alias: OpenAI `gpt-5.4-mini` for development, Anthropic optional | ADR-07 (model router part) |
+| — | Model fallback | ADR-07: no fallback in the POC (agent/harness.md, ADR 014) |
 | — | Sandbox isolation | ADR-04: no code execution in the POC; tool authorization in 005 and the gateway spec |
 | — | Operational security, SLO, DR | ADR-10: set in M5 from measurements (restore drill in M5) |

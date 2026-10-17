@@ -22,7 +22,7 @@ paste). Coding agents start at [`AGENTS.md`](AGENTS.md). Everything needed for M
 | Frontend routes, components, stream handling | [`docs/specs/frontend/README.md`](docs/specs/frontend/README.md) |
 | Milestone stories and exit gates; progress tracker | [`docs/specs/milestones/`](docs/specs/milestones), [`PROGRESS.md`](docs/specs/milestones/PROGRESS.md) |
 | Designs: 32 boards (HTML and PNG) | [`design/`](design/README.md) |
-| Decisions 001–013 | [`docs/adr/`](docs/adr/README.md) |
+| Decisions 001–014 | [`docs/adr/`](docs/adr/README.md) |
 | Cursor rules (architecture always on; kernel, agent, frontend and tests by path) | [`.cursor/rules/`](.cursor/rules) |
 
 Plans: the Claude Doc *AOS POC Milestone Plan and North Star*. It sits alongside the *AOS POC Implementation Plan*
@@ -45,7 +45,7 @@ and the *Technical Architecture and Implementation Plan*.
 
 **M0 exit gate**
 
-- [ ] ADRs 001–010 signed off. They're drafted in `docs/adr/` with status *Proposed*.
+- [ ] ADRs 001–014 signed off. They're drafted in `docs/adr/` with status *Proposed*.
 - [x] `aos validate` passes the pack.
 - [ ] `make up` green. The Compose file passes `docker compose config`, but it hasn't been run yet
   because the build sandbox has no Docker daemon and no package registry access.
@@ -100,7 +100,7 @@ web/                      React app (Vite); Console and Workspace
 deploy/docker-compose.yml M0 stack
 docs/plan/                north star
 docs/specs/               trace map, contracts, backend/agent/frontend specs, milestones M1–M5
-docs/adr/                 architecture decision records 001–013
+docs/adr/                 architecture decision records 001–014
 design/                   design boards (HTML source, PNG renders)
 .cursor/rules/            Cursor rules
 ```
