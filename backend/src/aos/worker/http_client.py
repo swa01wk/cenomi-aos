@@ -65,6 +65,31 @@ class HttpKernelClient:
             return err
         return KernelProblemError(code, resp.status_code, title, detail)
 
+    @staticmethod
+    def _response_body(resp: httpx.Response) -> dict[str, Any]:
+        try:
+            body = resp.json()
+        except Exception:
+            return {}
+        return body if isinstance(body, dict) else {}
+
+    def _tool_invocation_error(self, resp: httpx.Response, prob: KernelProblemError) -> ToolInvocationError:
+        body = self._response_body(resp)
+        raw_errors = body.get("errors")
+        errors: list[dict[str, Any]] | None = raw_errors if isinstance(raw_errors, list) else None
+        if isinstance(prob, ValidationFailed) and prob.errors is not None:
+            errors = prob.errors
+        rule = body.get("rule")
+        decision_id = body.get("decision_id")
+        return ToolInvocationError(
+            prob.detail or prob.title,
+            code=prob.code,
+            effect_unknown=False,
+            rule=rule if isinstance(rule, str) else None,
+            decision_id=decision_id if isinstance(decision_id, str) else None,
+            errors=errors,
+        )
+
     async def _request(
         self,
         method: str,
@@ -114,11 +139,7 @@ class HttpKernelClient:
             if tool_error and resp.status_code == 502:
                 prob = self._problem(resp)
                 if prob.code == "connector_failed":
-                    raise ToolInvocationError(
-                        prob.detail or prob.title,
-                        code="connector_failed",
-                        effect_unknown=False,
-                    )
+                    raise self._tool_invocation_error(resp, prob)
             if resp.status_code >= 500:
                 last_exc = TransientKernelError(f"{resp.status_code} from kernel")
                 if idempotent and attempt < len(delays):
@@ -133,7 +154,7 @@ class HttpKernelClient:
             if resp.status_code >= 400:
                 prob = self._problem(resp)
                 if tool_error:
-                    raise ToolInvocationError(prob.detail or prob.title, code=prob.code, effect_unknown=False)
+                    raise self._tool_invocation_error(resp, prob)
                 raise prob
             return resp
         assert last_exc is not None

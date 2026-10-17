@@ -76,11 +76,15 @@ class Worker:
                 return
             try:
                 ctx.check()
+                sent_at = time.monotonic()
                 hb = await self.kernel.heartbeat(attempt)
-                ctx.extend_lease()
+                ctx.extend_lease(heartbeat_sent_at=sent_at)
                 if hb.get("cancel_requested"):
                     ctx.fenced.set()
                     return
+            except AuthFailed:
+                ctx.fenced.set()
+                return
             except Fenced:
                 ctx.fenced.set()
                 return

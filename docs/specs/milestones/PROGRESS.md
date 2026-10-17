@@ -20,7 +20,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M1-BE-05 Worker protocol
 - [x] M1-BE-06 Context assembler and visibility
 - [x] M1-BE-07 Gateway reads
-- [ ] M1-AG-01 Runtime and worker process
+- [x] M1-AG-01 Runtime and worker process
 - [ ] M1-AG-04 Checkpointer
 - [ ] M1-AG-02 Assist graph and model
 - [ ] M1-AG-03 request_intake in chat

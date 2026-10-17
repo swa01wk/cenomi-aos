@@ -18,6 +18,8 @@ log = logging.getLogger("aos.worker")
 
 def _configure_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _runtime(name: str):
@@ -73,6 +75,9 @@ def main() -> None:
         asyncio.run(_main_async())
     except SystemExit as exc:
         raise SystemExit(exc.code) from None
+    except RuntimeError as exc:
+        log.error("%s", exc)
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

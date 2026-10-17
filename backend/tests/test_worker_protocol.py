@@ -10,9 +10,9 @@ import unittest
 import httpx
 
 from aos.worker.default_fake import minimal_agent_result
-from aos.worker.errors import ToolInvocationError
+from aos.worker.errors import Fenced, ToolInvocationError
 from aos.worker.http_client import HttpKernelClient
-from aos.worker.protocol import AttemptFailed
+from aos.worker.protocol import AttemptContext, AttemptFailed
 from aos.worker.runner import Worker
 from aos.worker.runtime import FakeRuntime
 from aos.worker.types import WorkerAttempt
@@ -259,6 +259,46 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         await client.aclose()
 
+    async def test_tool_not_permitted_includes_rule(self) -> None:
+        await asyncio.to_thread(self._start_job)
+        client = await make_http_client(self, invoke_hook=mock_erp_hook)
+        seen: dict[str, object] = {}
+
+        async def script(attempt: WorkerAttempt, ctx):
+            try:
+                await ctx.call_tool("search_suppliers", {"category_id": "CAT-JAN-EQ"})
+            except ToolInvocationError as exc:
+                seen["code"] = exc.code
+                seen["rule"] = exc.rule
+            return minimal_agent_result(attempt)
+
+        worker = Worker("worker-test-1", client, FakeRuntime([script]), ("assist",))
+        self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
+        self.assertEqual(seen.get("code"), "not_permitted")
+        self.assertEqual(seen.get("rule"), "contract.allowed_tools")
+        await client.aclose()
+
+    async def test_tool_invalid_args_populates_errors(self) -> None:
+        await asyncio.to_thread(self._start_job)
+        client = await make_http_client(self, invoke_hook=mock_erp_hook)
+        seen: dict[str, object] = {}
+
+        async def script(attempt: WorkerAttempt, ctx):
+            try:
+                await ctx.call_tool("browse_categories", {"query": 12})
+            except ToolInvocationError as exc:
+                seen["code"] = exc.code
+                seen["errors"] = exc.errors
+            return minimal_agent_result(attempt)
+
+        worker = Worker("worker-test-1", client, FakeRuntime([script]), ("assist",))
+        self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
+        self.assertEqual(seen.get("code"), "validation_failed")
+        errors = seen.get("errors")
+        self.assertIsInstance(errors, list)
+        self.assertGreater(len(errors), 0)
+        await client.aclose()
+
     async def test_connector_failed_maps_to_tool_invocation_error(self) -> None:
         await asyncio.to_thread(self._start_job)
         client = await make_http_client(self, invoke_hook=_failing_hook)
@@ -342,6 +382,33 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cancelled.is_set())
         self.assertEqual(submit_calls, 0)
         await client.aclose()
+
+
+class AttemptContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ask_questions_refused_when_fenced_locally(self) -> None:
+        import asyncio as aio
+
+        http_calls = 0
+
+        class StubKernel:
+            async def ask_questions(self, attempt, *, blocks, questions=None):
+                nonlocal http_calls
+                http_calls += 1
+                return {}
+
+        attempt: WorkerAttempt = {
+            "attempt_id": "a1",
+            "task_id": "t1",
+            "fencing_token": 1,
+            "lease_seconds": 90.0,
+            "contract_id": "c1",
+        }
+        fenced = aio.Event()
+        fenced.set()
+        ctx = AttemptContext(attempt, StubKernel(), fenced)
+        with self.assertRaises(Fenced):
+            await ctx.ask_questions([{"type": "text", "text": "Need more detail?"}])
+        self.assertEqual(http_calls, 0)
 
 
 class WorkerResilienceTests(unittest.IsolatedAsyncioTestCase):

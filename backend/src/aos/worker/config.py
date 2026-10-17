@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import jwt
 
 WORKER_AUD = "aos-worker"
+_ALLOWED_LANES = frozenset({"assist", "task"})
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,9 @@ def load_config() -> WorkerConfig:
     lanes = tuple(x.strip() for x in lanes_raw.split(",") if x.strip())
     if not lanes:
         raise RuntimeError("AOS_WORKER_LANES must list at least one lane")
+    unknown = [lane for lane in lanes if lane not in _ALLOWED_LANES]
+    if unknown:
+        raise RuntimeError(f"AOS_WORKER_LANES unknown lane(s): {', '.join(unknown)}")
 
     runtime = os.environ.get("AOS_RUNTIME", "").strip().lower()
     if not runtime:

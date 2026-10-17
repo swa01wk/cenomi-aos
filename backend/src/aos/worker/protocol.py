@@ -61,8 +61,9 @@ class AttemptContext:
         self._ignore_local_lease = ignore_local_lease_deadline
         self._local_deadline = time.monotonic() + float(attempt["lease_seconds"])
 
-    def extend_lease(self) -> None:
-        self._local_deadline = time.monotonic() + float(self.attempt["lease_seconds"])
+    def extend_lease(self, *, heartbeat_sent_at: float | None = None) -> None:
+        base = heartbeat_sent_at if heartbeat_sent_at is not None else time.monotonic()
+        self._local_deadline = base + float(self.attempt["lease_seconds"])
 
     def lease_expired(self) -> bool:
         if self._ignore_local_lease:
@@ -98,6 +99,14 @@ class AttemptContext:
     async def save_draft(self, body: dict[str, Any]) -> dict[str, Any]:
         self.check()
         return await self.kernel.save_draft(self.attempt, body)
+
+    async def ask_questions(
+        self,
+        blocks: list[dict[str, Any]],
+        questions: list[str] | None = None,
+    ) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.ask_questions(self.attempt, blocks=blocks, questions=questions)
 
     async def submit_result(self, result: AgentResult) -> dict[str, Any]:
         self.check()
