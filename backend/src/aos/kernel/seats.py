@@ -672,6 +672,15 @@ async def eval_suite_file(conn: AsyncConnection, pack_version_id: str, suite_nam
     return await _suite_file(conn, pack_version_id, suite_name)
 
 
+async def pack_version_digest(conn: AsyncConnection, pack_version_id: str) -> str:
+    cur = await conn.execute(
+        "select digest from registry.pack_versions where id = %s",
+        (pack_version_id,),
+    )
+    row = await cur.fetchone()
+    return row[0] if row else ""
+
+
 async def _suite_file(conn: AsyncConnection, pack_version_id: str, suite_name: str) -> str | None:
     cur = await conn.execute(
         "select file from registry.definitions"
@@ -992,6 +1001,7 @@ async def approve_seat(
     expected_version: int,
     actor: str,
     roles: list[str],
+    eval_strict: bool = False,
 ) -> dict[str, Any]:
     if "risk" not in roles:
         raise SeatError("not_permitted", 403, "Risk role required", "Only risk may approve a tested seat.")
@@ -1014,13 +1024,22 @@ async def approve_seat(
             "Seat is not ready for approval",
             f"Risk approval requires TESTING; this seat is {row[6]!r}.",
         )
-    await _require_eval_passed(
-        conn,
-        org_id=org_id,
-        seat_name=name,
-        seat_version=seat_version,
-        pack_version_id=str(row[2]),
-    )
+    if eval_strict:
+        await _require_eval_no_deferred(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
+        )
+    else:
+        await _require_eval_passed(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
+        )
 
     from_state = row[6]
     new_record_version = row[9] + 1

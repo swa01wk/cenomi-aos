@@ -35,7 +35,6 @@ class SeatEvalTests(unittest.TestCase):
             packs_dir=cls.packs,
             session_secret="test-secret-" + "x" * 40,
             eval_strict=False,
-            eval_sync=True,
         )
         cls.client = TestClient(create_app(cls._base_settings))
         cls.client.__enter__()
@@ -240,13 +239,12 @@ class SeatEvalTests(unittest.TestCase):
         r = self.approve("risk", seat["record_version"])
         self.assertEqual(r.status_code, 409, r.text)
 
-    def test_eval_strict_blocks_activate(self) -> None:
+    def test_eval_strict_blocks_approve_and_activate(self) -> None:
         strict_settings = Settings.from_env(
             database_url=_pg.kernel_url(self.db),
             packs_dir=self.packs,
             session_secret="test-secret-" + "x" * 40,
             eval_strict=True,
-            eval_sync=True,
         )
         with TestClient(create_app(strict_settings)) as strict_client:
             def auth(person: str) -> dict:
@@ -268,20 +266,42 @@ class SeatEvalTests(unittest.TestCase):
                 seat = strict_client.get(f"/api/console/seats/{SEAT}", headers=auth("platform_admin")).json()
                 if seat["state"] == "TESTING":
                     break
-            approved = strict_client.post(
+            approve = strict_client.post(
                 f"/api/console/seats/{SEAT}/approve",
                 headers=auth("risk"),
                 json={"version": SEAT_DEF_VERSION, "expected_version": seat["record_version"]},
-            ).json()
-            r = strict_client.post(
-                f"/api/console/seats/{SEAT}/activate",
-                headers=auth("head_of_procurement"),
-                json={"version": SEAT_DEF_VERSION, "expected_version": approved["record_version"]},
             )
-            self.assertEqual(r.status_code, 409, r.text)
-            problem = r.json()
+            self.assertEqual(approve.status_code, 409, approve.text)
+            problem = approve.json()
             self.assertEqual(problem["code"], "conflict")
             self.assertIn("deferred", problem["title"].lower() + problem["detail"].lower())
+
+    def test_run_suite_exception_marks_failed_not_testing(self) -> None:
+        self.configure("platform_admin")
+        with patch("aos.api.routes.run_suite", side_effect=RuntimeError("eval boom")):
+            r = self.run_evals()
+        self.assertEqual(r.status_code, 202, r.text)
+        seat = self.wait_for_evals()
+        self.assertEqual(seat["state"], "CONFIGURED")
+        for run in seat["evals"]:
+            self.assertEqual(run["status"], "failed")
+            self.assertEqual(run["detail"].get("reason"), "error")
+
+    def test_dry_run_fails_when_pack_on_disk_differs(self) -> None:
+        self.configure("platform_admin")
+        script = self.packs / "procurement_demo" / "evals" / "dry_run_script.yaml"
+        pristine = REPO / "packs" / "procurement_demo" / "evals" / "dry_run_script.yaml"
+        try:
+            script.write_text(script.read_text(encoding="utf-8") + "\n# tamper\n", encoding="utf-8")
+            self.run_evals()
+            seat = self.wait_for_evals()
+            self.assertEqual(seat["state"], "CONFIGURED")
+            dry = next(e for e in seat["evals"] if e["suite"] == "dry_run")
+            self.assertEqual(dry["status"], "failed")
+            check = next(c for c in dry["detail"]["checks"] if c["name"] == "script_resolves")
+            self.assertIn("published version", check["detail"])
+        finally:
+            shutil.copy2(pristine, script)
 
     def test_run_evals_forbidden_role(self) -> None:
         self.configure("platform_admin")

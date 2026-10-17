@@ -35,7 +35,6 @@ class SeatLifecycleTests(unittest.TestCase):
             database_url=_pg.kernel_url(cls.db),
             packs_dir=cls.packs,
             session_secret="test-secret-" + "x" * 40,
-            eval_sync=True,
         )
         cls.client = TestClient(create_app(settings))
         cls.client.__enter__()

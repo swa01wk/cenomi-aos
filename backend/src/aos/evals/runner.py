@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from ..registry.loader import parse_yaml
+from ..registry.loader import load_pack, parse_yaml
 
 DEFER_POLICY = "policy engine is M3"
 DEFER_CONTEXT = "context assembler is M1-BE-06"
@@ -106,6 +106,7 @@ def run_dry_run_suite(
     suite_spec: dict[str, Any],
     pack_root: Path,
     suite_file: str | None,
+    pinned_digest: str,
 ) -> SuiteRunResult:
     spec = suite_spec.get("spec") or {}
     expect = spec.get("expect") or {}
@@ -113,7 +114,10 @@ def run_dry_run_suite(
     script_name = spec.get("script")
     script_ok = False
     script_detail = ""
-    if not script_name:
+    on_disk_digest = load_pack(pack_root).digest
+    if on_disk_digest != pinned_digest:
+        script_detail = "pack files on disk differ from the published version"
+    elif not script_name:
         script_detail = "suite has no script"
     else:
         folder = Path(suite_file).parent if suite_file else Path("evals")
@@ -156,11 +160,17 @@ def run_suite(
     defs: dict[str, dict[str, dict]],
     pack_root: Path,
     suite_file: str | None = None,
+    pinned_digest: str = "",
 ) -> SuiteRunResult:
     """Execute one EvalSuite and return scored results (no I/O besides pack files)."""
     spec = suite_spec.get("spec") or {}
     if spec.get("script"):
-        return run_dry_run_suite(suite_spec=suite_spec, pack_root=pack_root, suite_file=suite_file)
+        return run_dry_run_suite(
+            suite_spec=suite_spec,
+            pack_root=pack_root,
+            suite_file=suite_file,
+            pinned_digest=pinned_digest,
+        )
     if spec.get("cases"):
         return run_refusals_suite(suite_spec=suite_spec, defs=defs)
     return SuiteRunResult(

@@ -41,8 +41,8 @@
 - Operations: `listSeats`, `getSeat`, `configureSeat` (six checks, see backend spec), `runSeatEvals`, `approveSeat`
   (risk), `activateSeat` (owner, never the configurer; Decision Record; `seat.state_changed`).
 - Eval runner, M1 scope: runs suites through the worker with the fake model. Expectations the kernel can't check yet
-  (`policy_result` before M3, a full `dry_run` before M2) are reported `deferred`; they block activation only when
-  `AOS_EVAL_STRICT=1` (default from M3).
+  (`policy_result` before M3, a full `dry_run` before M2) are reported `deferred`; with `AOS_EVAL_STRICT=1` (default 0
+  in M1) deferred expectations block `approveSeat` and `activateSeat`.
 - **Audit (M1-BE-03):** `seat.configured`, `seat.tested`, `seat.approved`, `seat.activated`, `seat.activate.denied`.
 - **Tests:** activation by the configurer → 403 with a Decision Record and audit `seat.activate.denied`; owner activation
   → ACTIVE; `expected_version` mismatch → 409.

@@ -208,6 +208,13 @@ class RunSeatEvalsBody(BaseModel):
     model: Literal["fake", "real"] = "fake"
 
 
+def _eval_error_detail(exc: BaseException) -> dict[str, Any]:
+    message = str(exc).strip() or exc.__class__.__name__
+    if len(message) > 240:
+        message = message[:237] + "..."
+    return {"reason": "error", "message": message}
+
+
 async def _complete_seat_eval_jobs(
     kernel: Kernel,
     *,
@@ -223,28 +230,35 @@ async def _complete_seat_eval_jobs(
     async with kernel.pool.connection() as conn:
         async with conn.transaction():
             defs = await seats.definitions_for_pack_version(conn, pack_version_id)
+            pinned_digest = await seats.pack_version_digest(conn, pack_version_id)
     for job in jobs:
-        suite_doc = defs.get("EvalSuite", {}).get(job.suite)
-        if suite_doc is None:
-            result_detail: dict[str, Any] = {
-                "checks": [{"name": "suite_spec", "passed": False, "detail": "missing EvalSuite definition"}],
-                "expectations": [],
-                "deferred_count": 0,
-            }
-            passed, total, status = 0, 1, "failed"
-        else:
-            suite_file = None
-            async with kernel.pool.connection() as conn:
-                suite_file = await seats.eval_suite_file(conn, pack_version_id, job.suite)
-            outcome = run_suite(
-                suite_name=job.suite,
-                suite_spec=suite_doc,
-                defs=defs,
-                pack_root=root,
-                suite_file=suite_file,
-            )
-            passed, total, status = outcome.passed, outcome.total, outcome.status
-            result_detail = outcome.detail
+        passed, total, status = 0, 0, "failed"
+        result_detail: dict[str, Any] = {}
+        try:
+            suite_doc = defs.get("EvalSuite", {}).get(job.suite)
+            if suite_doc is None:
+                result_detail = {
+                    "checks": [{"name": "suite_spec", "passed": False, "detail": "missing EvalSuite definition"}],
+                    "expectations": [],
+                    "deferred_count": 0,
+                }
+                passed, total, status = 0, 1, "failed"
+            else:
+                suite_file = None
+                async with kernel.pool.connection() as conn:
+                    suite_file = await seats.eval_suite_file(conn, pack_version_id, job.suite)
+                outcome = run_suite(
+                    suite_name=job.suite,
+                    suite_spec=suite_doc,
+                    defs=defs,
+                    pack_root=root,
+                    suite_file=suite_file,
+                    pinned_digest=pinned_digest,
+                )
+                passed, total, status = outcome.passed, outcome.total, outcome.status
+                result_detail = outcome.detail
+        except Exception as exc:  # noqa: BLE001 - record runner failure on the eval run row
+            result_detail = _eval_error_detail(exc)
         async with kernel.pool.connection() as conn:
             async with conn.transaction():
                 await seats.record_eval_run_result(
@@ -255,13 +269,14 @@ async def _complete_seat_eval_jobs(
                     status=status,
                     detail=result_detail,
                 )
-                await seats.maybe_promote_seat_to_testing(
-                    conn,
-                    org=kernel.org,
-                    org_id=org_id,
-                    name=seat,
-                    seat_version=seat_version,
-                )
+                if status == "passed":
+                    await seats.maybe_promote_seat_to_testing(
+                        conn,
+                        org=kernel.org,
+                        org_id=org_id,
+                        name=seat,
+                        seat_version=seat_version,
+                    )
 
 
 @router.get("/console/seats", tags=["seats"])
@@ -328,18 +343,16 @@ async def run_seat_evals(
                 pack_name = pack_row[0] if pack_row else ""
     except SeatError as exc:
         _raise_seat_error(exc)
-    job_kwargs = {
-        "org_id": p.org_id,
-        "seat": seat,
-        "seat_version": body.version,
-        "pack_version_id": pack_version_id,
-        "pack_name": pack_name,
-        "jobs": jobs,
-    }
-    if k.settings.eval_sync:
-        await _complete_seat_eval_jobs(k, **job_kwargs)
-    else:
-        background.add_task(_complete_seat_eval_jobs, k, **job_kwargs)
+    background.add_task(
+        _complete_seat_eval_jobs,
+        k,
+        org_id=p.org_id,
+        seat=seat,
+        seat_version=body.version,
+        pack_version_id=pack_version_id,
+        pack_name=pack_name,
+        jobs=jobs,
+    )
     return started
 
 
@@ -357,6 +370,7 @@ async def approve_seat(
             expected_version=body.expected_version,
             actor=p.person_id,
             roles=p.roles,
+            eval_strict=k.settings.eval_strict,
         )
     except SeatError as exc:
         _raise_seat_error(exc)
