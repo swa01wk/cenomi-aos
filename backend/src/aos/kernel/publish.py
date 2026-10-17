@@ -463,7 +463,7 @@ async def reject_publish(
             "pack_version_id": version_id,
             "publish_request_id": request_id,
             "reason": reason,
-            "part": reject_parts[0] if len(reject_parts) == 1 else reject_parts,
+            "parts": reject_parts,
         },
     )
     body, _, _ = await _lock_request_by_id(conn, org_id, request_id)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -207,6 +208,18 @@ class PublishRequestTests(unittest.TestCase):
         self.assertEqual(published_at_again, published_at)
         self.assertEqual(self.audit_actions().count("pack.published"), published_count)
 
+    def test_risk_cannot_request_publish(self) -> None:
+        _pg.admin_sql(
+            self.db,
+            f"update registry.pack_versions set status = 'validated' where id = '{self.version_id}';"
+            f"delete from registry.publish_requests where pack_version_id = '{self.version_id}';",
+        )
+        r = self.client.post(
+            f"/api/console/pack-versions/{self.version_id}/publish-requests",
+            headers=self.login("risk"),
+        )
+        self.assertEqual(r.status_code, 403, r.text)
+
     def test_requester_is_owner_refused(self) -> None:
         _pg.admin_sql(
             self.db,
@@ -282,18 +295,20 @@ class PublishRequestTests(unittest.TestCase):
             json={"reason": "needs more review"},
         )
         self.assertEqual(r.status_code, 200, r.text)
-        row = _pg.admin_sql(
+        raw = _pg.admin_sql(
             self.db,
             f"select approvals from registry.publish_requests where id = '{req['id']}';",
         ).stdout.strip()
-        self.assertIn("seats_and_workflows", row)
-        self.assertIn("head_of_procurement", row)
+        rejected = [a for a in json.loads(raw) if a.get("rejected")]
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(rejected[0]["part"], "seats_and_workflows")
+        self.assertEqual(rejected[0]["by"], "head_of_procurement")
 
         audit = next(
             i for i in self.audit_items()
             if i["action"] == "pack.publish_rejected" and i["data"].get("publish_request_id") == req["id"]
         )
-        self.assertEqual(audit["data"]["part"], "seats_and_workflows")
+        self.assertEqual(audit["data"]["parts"], ["seats_and_workflows"])
 
     def test_repeat_request_by_same_caller_returns_open_request(self) -> None:
         _pg.admin_sql(
