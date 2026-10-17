@@ -704,7 +704,7 @@ paths:
       security: [{worker: []}]
       x-milestone: M1
       parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [failure_class, message], properties: {failure_class: {enum: [model_error, tool_timeout, invalid_output, budget_exhausted, internal]}, message: {type: string}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: './schemas/fail-attempt.schema.json'}}}}
       responses:
         '200': {description: Recorded; the kernel decides retry or exception}
 

@@ -1,159 +1,143 @@
-"""Worker protocol: leases, heartbeats and fencing (reference architecture 19.4).
-
-An in-memory kernel stands in for the FastAPI worker API, enforcing the same rule the real one
-will: only the current fencing token may act.
-"""
+"""Worker protocol over HTTP + Postgres (M0 scenarios, M1-AG-01 client)."""
 
 from __future__ import annotations
 
-import threading
+import asyncio
 import time
 import unittest
 
-from aos.worker.fake_model import FakeModel, ScriptedTurn
-from aos.worker.protocol import Attempt, Fenced, Submission
-from aos.worker.runner import AttemptFailed, Worker
+from aos.worker.default_fake import minimal_agent_result
+from aos.worker.protocol import AttemptFailed
+from aos.worker.runner import Worker
+from aos.worker.runtime import FakeRuntime
+from aos.worker.types import WorkerAttempt
+
+from . import _pg
+from .worker_harness import WorkerHarness, make_http_client, settings_with_lease
 
 
-class InMemoryKernel:
-    def __init__(self, lease_seconds: float = 0.3):
-        self.lease = lease_seconds
-        self.lock = threading.Lock()
-        self.queue = ["task_1"]
-        self.token = {"task_1": 0}
-        self.owner: dict[str, tuple[str, int, float]] = {}  # task -> (attempt, token, lease_expires)
-        self.log: list[tuple[str, str]] = []
-        self.submitted: list[tuple[str, Submission]] = []
-        self.failed: list[tuple[str, str]] = []
-
-    def _current(self, attempt: Attempt) -> None:
-        owner = self.owner.get(attempt.task_id)
-        if owner is None or owner[1] != attempt.fencing_token:
-            self.log.append(("fenced", attempt.attempt_id))
-            raise Fenced(attempt.attempt_id)
-
-    def expire_leases(self) -> None:
-        with self.lock:
-            for task, (_, _, until) in list(self.owner.items()):
-                if until < time.monotonic():
-                    del self.owner[task]
-                    self.queue.append(task)
-
-    def claim(self, worker_id, lanes):
-        self.expire_leases()
-        with self.lock:
-            if not self.queue:
-                return None
-            task = self.queue.pop(0)
-            self.token[task] += 1
-            n = self.token[task]
-            aid = f"{task}#a{n}"
-            self.owner[task] = (aid, n, time.monotonic() + self.lease)
-            self.log.append(("claim", aid))
-            return Attempt(aid, task, n, self.lease, {"objective": "test"})
-
-    def heartbeat(self, attempt):
-        with self.lock:
-            self._current(attempt)
-            self.owner[attempt.task_id] = (attempt.attempt_id, attempt.fencing_token, time.monotonic() + self.lease)
-
-    def event(self, attempt, kind, data):
-        with self.lock:
-            self._current(attempt)
-            self.log.append((kind, attempt.attempt_id))
-
-    def submit(self, attempt, submission):
-        with self.lock:
-            self._current(attempt)
-            self.submitted.append((attempt.attempt_id, submission))
-            del self.owner[attempt.task_id]
-            return {"status": "VERIFYING"}
-
-    def fail(self, attempt, failure_class, message):
-        with self.lock:
-            self._current(attempt)
-            self.failed.append((attempt.attempt_id, failure_class))
-            del self.owner[attempt.task_id]
+async def _ok_step(attempt: WorkerAttempt, ctx):
+    await ctx.post_events(events=[{"event_type": "AgentStarted", "redacted_summary": "protocol test"}])
+    return minimal_agent_result(attempt)
 
 
-def ok_handler(attempt, ctx):
-    ctx.emit("node", name="reason")
-    return Submission(expected_task_version=1, input_artifact_digests={}, result_artifact_ids=["art_1"])
+@unittest.skipUnless(_pg.available(), "no local Postgres")
+class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.setUp()
 
+    async def test_happy_path_submits_once(self) -> None:
+        self._start_job()
+        client = make_http_client(self, "w1")
+        worker = Worker("w1", client, FakeRuntime([_ok_step]), ("assist",))
+        self.assertEqual(await worker.run_once(), "submitted")
+        self.assertEqual(await worker.run_once(), "idle")
+        await client.aclose()
 
-class WorkerProtocolTests(unittest.TestCase):
-    def test_happy_path_submits_once(self) -> None:
-        k = InMemoryKernel()
-        self.assertEqual(Worker("w1", k, ok_handler).run_once(), "submitted")
-        self.assertEqual([a for a, _ in k.submitted], ["task_1#a1"])
-        self.assertEqual(Worker("w1", k, ok_handler).run_once(), "idle")
+    async def test_heartbeats_keep_attempt_alive_past_claim_lease(self) -> None:
+        self._start_job()
+        lease = 3.0
+        client = make_http_client(self, "w1", settings=settings_with_lease(self, lease))
+        release = asyncio.Event()
 
-    def test_heartbeats_keep_a_long_attempt_alive(self) -> None:
-        k = InMemoryKernel(lease_seconds=0.15)
+        async def slow_step(attempt: WorkerAttempt, ctx):
+            while not release.is_set():
+                await asyncio.sleep(0.05)
+            return minimal_agent_result(attempt)
 
-        def slow(attempt, ctx):
-            time.sleep(0.5)  # three leases long; heartbeats at lease/3 keep it
-            k.expire_leases()
-            return ok_handler(attempt, ctx)
+        worker = Worker("w1", client, FakeRuntime([slow_step]), ("assist",), heartbeat_enabled=True)
+        run_task = asyncio.create_task(worker.run_once())
 
-        self.assertEqual(Worker("w1", k, slow).run_once(), "submitted")
+        while client.heartbeat_count < 2:
+            await asyncio.sleep(0.05)
+        claim_mono = time.monotonic()
+        while time.monotonic() < claim_mono + lease:
+            await asyncio.sleep(0.05)
+        self._run_tick()
+        release.set()
+        self.assertEqual(await run_task, "submitted")
+        await client.aclose()
 
-    def test_stalled_worker_is_fenced_and_cannot_commit(self) -> None:
-        # Worker A stalls past its lease, B takes over and finishes, A comes back: A's submit is rejected.
-        k = InMemoryKernel(lease_seconds=0.1)
-        a_may_resume = threading.Event()
-        b_done = threading.Event()
-        results = {}
+    async def test_heartbeats_disabled_fenced_after_expiry_tick(self) -> None:
+        self._start_job()
+        lease = 3.0
+        client = make_http_client(self, "w1", settings=settings_with_lease(self, lease))
+        release = asyncio.Event()
 
-        def stalls(attempt, ctx):
-            a_may_resume.wait(2)
-            return ok_handler(attempt, ctx)
+        async def slow_step(attempt: WorkerAttempt, ctx):
+            while not release.is_set():
+                await asyncio.sleep(0.05)
+            return minimal_agent_result(attempt)
 
-        class NoHeartbeatWorker(Worker):
-            def _heartbeat(self, attempt, stop, fenced):  # A's process is frozen: no heartbeats
-                stop.wait(5)
+        worker = Worker("w1", client, FakeRuntime([slow_step]), ("assist",), heartbeat_enabled=False)
+        run_task = asyncio.create_task(worker.run_once())
+        claim_mono = time.monotonic()
+        while time.monotonic() < claim_mono + lease:
+            await asyncio.sleep(0.05)
+        self._run_tick()
+        release.set()
+        self.assertEqual(await run_task, "fenced")
+        await client.aclose()
 
-        def run_a():
-            results["a"] = NoHeartbeatWorker("A", k, stalls).run_once()
+    async def test_stalled_worker_is_fenced_and_cannot_commit(self) -> None:
+        self._start_job()
+        client_a = make_http_client(self, "A", settings=settings_with_lease(self, 0.35))
+        client_b = make_http_client(self, "B", settings=settings_with_lease(self, 0.35))
+        gate = asyncio.Event()
 
-        ta = threading.Thread(target=run_a)
-        ta.start()
-        time.sleep(0.25)  # A's lease has expired
-        results["b"] = Worker("B", k, ok_handler).run_once()
-        b_done.set()
-        a_may_resume.set()
-        ta.join(3)
-        self.assertEqual(results["b"], "submitted")
-        self.assertEqual(results["a"], "fenced")
-        self.assertEqual([a for a, _ in k.submitted], ["task_1#a2"], "only the current attempt committed")
-        self.assertIn(("fenced", "task_1#a1"), k.log)
+        async def stalls(attempt: WorkerAttempt, ctx):
+            await gate.wait()
+            return minimal_agent_result(attempt)
 
-    def test_failures_are_classified(self) -> None:
-        k = InMemoryKernel()
+        worker_a = Worker("A", client_a, FakeRuntime([stalls]), ("assist",), heartbeat_enabled=False)
+        worker_b = Worker("B", client_b, FakeRuntime([_ok_step]), ("assist",))
 
-        def bad(attempt, ctx):
-            raise AttemptFailed("validation", "output did not match the brief schema")
+        task_a = asyncio.create_task(worker_a.run_once())
+        await asyncio.sleep(0.45)
+        self._run_tick()
+        self.assertEqual(await worker_b.run_once(), "submitted")
+        gate.set()
+        self.assertEqual(await task_a, "fenced")
+        await client_a.aclose()
+        await client_b.aclose()
 
-        self.assertEqual(Worker("w1", k, bad).run_once(), "failed:validation")
-        self.assertEqual(k.failed, [("task_1#a1", "validation")])
+    async def test_failures_are_classified(self) -> None:
+        self._start_job()
 
-    def test_unexpected_errors_are_unknown_not_retried_blindly(self) -> None:
-        k = InMemoryKernel()
+        async def bad(attempt: WorkerAttempt, ctx):
+            raise AttemptFailed("invalid_output", "output did not match the brief schema")
 
-        def boom(attempt, ctx):
+        client = make_http_client(self, "w1")
+        worker = Worker("w1", client, FakeRuntime([bad]), ("assist",))
+        self.assertEqual(await worker.run_once(), "failed:invalid_output")
+        await client.aclose()
+
+    async def test_unexpected_errors_are_internal_not_retried(self) -> None:
+        self._start_job()
+
+        async def boom(attempt: WorkerAttempt, ctx):
             raise RuntimeError("connector exploded")
 
-        self.assertEqual(Worker("w1", k, boom).run_once(), "failed:unknown")
+        client = make_http_client(self, "w1")
+        worker = Worker("w1", client, FakeRuntime([boom]), ("assist",))
+        self.assertEqual(await worker.run_once(), "failed:internal")
+        task_id = _pg.admin_sql(self.db, "select id from work.tasks order by created_at desc limit 1;").stdout.strip()
+        state = _pg.admin_sql(self.db, f"select state from work.tasks where id = '{task_id}';").stdout.strip()
+        self.assertEqual(state, "EXCEPTION")
+        admitted = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.attempts where task_id = '{task_id}' and state = 'ADMITTED';",
+        ).stdout.strip()
+        self.assertEqual(admitted, "0")
+        await client.aclose()
 
 
 class FakeModelTests(unittest.TestCase):
     def test_scripted_turns_in_order(self) -> None:
+        from aos.worker.fake_model import FakeModel, ScriptedTurn
+
         m = FakeModel([ScriptedTurn(tool_calls=[{"name": "search_suppliers"}]), ScriptedTurn(text="done")])
         self.assertEqual(m.invoke(["hi"]).tool_calls[0]["name"], "search_suppliers")
         self.assertEqual(m.invoke(["next"]).text, "done")
         with self.assertRaises(RuntimeError):
             m.invoke(["more"])
-
-
-if __name__ == "__main__":
-    unittest.main()

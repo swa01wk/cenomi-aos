@@ -80,6 +80,23 @@ class SchemaTests(unittest.TestCase):
             with self.subTest(ui_event=event["type"]):
                 ui.validate(event)
 
+    def test_fail_attempt_schema_refs_task_contract(self) -> None:
+        schemas, registry = _schemas(), _registry()
+        body = {"failure_class": "internal", "message": "test"}
+        Draft202012Validator(schemas["fail-attempt.schema.json"], registry=registry).validate(body)
+        bad = {"failure_class": "cancelled", "message": "nope"}
+        self.assertFalse(
+            Draft202012Validator(schemas["fail-attempt.schema.json"], registry=registry).is_valid(bad)
+        )
+
+    def test_agent_result_failure_category_allows_non_internal(self) -> None:
+        schemas, registry = _schemas(), _registry()
+        base = json.loads((EXAMPLES / "agent-result.rfq_draft.json").read_text())
+        doc = dict(base, status="failed", failure_category="model_error")
+        Draft202012Validator(schemas["agent-result.schema.json"], registry=registry).validate(doc)
+        internal = dict(base, status="failed", failure_category="internal")
+        self.assertFalse(Draft202012Validator(schemas["agent-result.schema.json"], registry=registry).is_valid(internal))
+
     def test_bad_examples_are_rejected(self) -> None:
         schemas, registry = _schemas(), _registry()
         result = json.loads((EXAMPLES / "agent-result.rfq_draft.json").read_text())

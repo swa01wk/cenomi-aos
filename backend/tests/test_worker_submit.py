@@ -206,6 +206,25 @@ class WorkerSubmitTests(WorkerHarness):
         ).stdout.strip()
         self.assertEqual(task_state, "WAITING_INPUT")
 
+    def test_submit_stale_input_versions_returns_stale_verdict(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        body = _agent_result(attempt)
+        body["input_versions"] = {"brief": 999}
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/submit",
+            headers=self._worker_headers(attempt),
+            json=body,
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["verdict"], "STALE")
+        self.assertTrue(r.json().get("next_attempt"))
+        task_state = _pg.admin_sql(
+            self.db,
+            f"select state from work.tasks where id = '{attempt['task_id']}';",
+        ).stdout.strip()
+        self.assertEqual(task_state, "READY")
+
     def test_concurrent_duplicate_submit_waits_for_stored_response(self) -> None:
         self._start_job()
         attempt = self._claim()

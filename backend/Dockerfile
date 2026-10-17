@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir ./backend
 COPY packs packs
 COPY seed seed
 COPY backend/migrations backend/migrations
+COPY docs/specs/contracts/schemas /app/contracts/schemas
 ENV AOS_PACKS_DIR=/app/packs AOS_ORG_FILE=/app/seed/org.yaml
+ENV AOS_CONTRACT_SCHEMAS_DIR=/app/contracts/schemas
 EXPOSE 8000
 CMD ["uvicorn", "aos.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
