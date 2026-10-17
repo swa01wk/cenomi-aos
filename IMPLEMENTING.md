@@ -29,6 +29,8 @@ cp .env.example .env              # add OPENAI_API_KEY only when you need the re
 python3 -m venv .venv && source .venv/bin/activate
 make install                      # backend (editable, dev tools) + web dependencies
 make db                           # Postgres in Docker on :5432 (the tests use it)
+Migrations apply only on an empty Postgres volume (initdb); after pulling a migration change, reset with
+`docker compose --env-file .env -f deploy/docker-compose.yml down -v` then `make up`.
 make check                        # 82 tests + aos validate; nothing may be skipped
 make up                           # full M0 stack: web http://localhost:8080, API http://localhost:8000/docs
 ```

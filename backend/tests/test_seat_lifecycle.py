@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from aos.api import create_app
 from aos.kernel.org import load_org
-from aos.kernel.seats import ensure_registry_seats_for_pack
+from aos.kernel.seats import insert_seats_for_published_pack
 from aos.kernel.settings import REPO, Settings
 
 from . import _pg
@@ -98,7 +98,7 @@ class SeatLifecycleTests(unittest.TestCase):
         async def _run() -> None:
             async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
                 async with conn.transaction():
-                    await ensure_registry_seats_for_pack(
+                    await insert_seats_for_published_pack(
                         conn,
                         org=ORG,
                         org_id=ORG.organization.id,
@@ -212,8 +212,37 @@ class SeatLifecycleTests(unittest.TestCase):
         self.seed_approved_with_evals(record_version=configured["record_version"])
         r = self.activate("risk", configured["record_version"])
         self.assertEqual(r.status_code, 403, r.text)
-        self.assertEqual(r.json()["code"], "not_permitted")
-        self.assertIn("decision_id", r.json())
+        problem = r.json()
+        self.assertEqual(problem["code"], "not_permitted")
+        self.assertIn("decision_id", problem)
+        dr = _pg.admin_sql(
+            self.db,
+            f"select value from gov.decision_records where id = '{problem['decision_id']}'",
+        ).stdout.strip()
+        self.assertEqual(dr, "DENY")
+        actions = [
+            i["action"]
+            for i in self.client.get("/api/console/audit?limit=500", headers=self.login("risk")).json()["items"]
+        ]
+        self.assertIn("seat.activate.denied", actions)
+
+    def test_activate_blocked_when_other_version_live(self) -> None:
+        configured = self.configure("platform_admin")
+        self.seed_approved_with_evals(record_version=configured["record_version"])
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into registry.seats (
+              org_id, name, version, pack_version_id, display_name, placement, owner_person_id, state
+            )
+            select org_id, name, 2, pack_version_id, display_name, placement, owner_person_id, 'ACTIVE'
+            from registry.seats where name = '{SEAT}' and version = {SEAT_DEF_VERSION};
+            """,
+        )
+        r = self.activate("head_of_procurement", configured["record_version"])
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual(r.json()["code"], "conflict")
+        self.assertIn("version 2", r.json()["detail"])
 
     def test_owner_activation_active_and_outbox(self) -> None:
         configured = self.configure("platform_admin")

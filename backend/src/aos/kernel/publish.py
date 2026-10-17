@@ -12,6 +12,7 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
 from . import audit_store, seats
+from .seats import SeatError
 from .org import OrgModel
 
 
@@ -224,9 +225,12 @@ async def _complete_publish(
         )
     ).fetchone()
     if status_row and status_row[0] == "published":
-        await seats.insert_seats_for_published_pack(
-            conn, org=org, org_id=org_id, pack_version_id=version_id
-        )
+        try:
+            await seats.insert_seats_for_published_pack(
+                conn, org=org, org_id=org_id, pack_version_id=version_id
+            )
+        except SeatError as exc:
+            raise PublishRefusal(exc.code, exc.status, exc.title, exc.detail) from exc
     await conn.execute(
         "update registry.publish_requests set status = 'approved' where id = %s",
         (request_id,),

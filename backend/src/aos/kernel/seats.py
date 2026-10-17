@@ -10,7 +10,8 @@ from typing import Any
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
-from . import audit_store, ids, model_aliases
+from ..model_registry import model_alias_registered
+from . import audit_store, ids
 from .org import OrgModel
 from .outbox import OutboxRow, append_outbox_many
 
@@ -50,7 +51,12 @@ class SeatError(Exception):
 def resolve_owner_person_id(org: OrgModel, owner: str) -> str:
     if owner in org.people:
         return owner
-    raise ValueError(f"seat owner {owner!r} is not a person in the organization")
+    raise SeatError(
+        "validation_failed",
+        422,
+        "Invalid seat owner",
+        f"Seat owner {owner!r} is not a person in the organization.",
+    )
 
 
 def seat_audience(org: OrgModel, *, owner_person_id: str, placement: str) -> list[str]:
@@ -59,18 +65,6 @@ def seat_audience(org: OrgModel, *, owner_person_id: str, placement: str) -> lis
         if person.team == placement:
             people.add(pid)
     return sorted(people)
-
-
-async def ensure_registry_seats_for_pack(
-    conn: AsyncConnection,
-    *,
-    org: OrgModel,
-    org_id: str,
-    pack_version_id: str,
-) -> None:
-    """Insert missing registry.seats rows when the pack version is already published (idempotent)."""
-    if await _pack_version_status(conn, org_id, pack_version_id) == "published":
-        await insert_seats_for_published_pack(conn, org=org, org_id=org_id, pack_version_id=pack_version_id)
 
 
 async def insert_seats_for_published_pack(
@@ -250,7 +244,7 @@ def _run_configuration_checks(
     )
 
     alias = (spec.get("runtime") or {}).get("model_alias") or ""
-    alias_ok = bool(alias) and model_aliases.alias_registered(alias)
+    alias_ok = bool(alias) and model_alias_registered(alias)
     checks.append(
         {
             "name": "model_alias_resolves",
@@ -865,6 +859,23 @@ async def activate_seat(
             code="not_permitted",
             title="Only the seat owner may activate",
             detail="Activation is reserved for the person who owns this seat.",
+        )
+
+    cur = await conn.execute(
+        "select version, state from registry.seats"
+        " where org_id = %s and name = %s and version <> %s and state in ('ACTIVE', 'PAUSED')"
+        " limit 1",
+        (org_id, name, seat_version),
+    )
+    live = await cur.fetchone()
+    if live is not None:
+        live_version, live_state = int(live[0]), live[1]
+        raise SeatError(
+            "conflict",
+            409,
+            "Another seat version is already live",
+            f"Seat {name!r} version {live_version} is {live_state!r}; "
+            f"retire or pause it before activating version {seat_version}.",
         )
 
     from_state = row[6]
