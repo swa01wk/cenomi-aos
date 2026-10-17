@@ -252,4 +252,4 @@ create table evidence.outbox (
 grant select, insert, update, delete on all tables in schema registry, gov, work to aos_kernel;
 grant select, insert on evidence.execution_events, evidence.outbox to aos_kernel;
 grant select, insert, update on evidence.stream_heads to aos_kernel;
-grant usage on all sequences in schema work, evidence to aos_kernel;
+grant usage, select on all sequences in schema registry, work, evidence to aos_kernel;

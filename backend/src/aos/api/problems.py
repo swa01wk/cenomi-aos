@@ -66,12 +66,16 @@ def problem_body(exc: KernelProblem, *, trace_id: str) -> dict[str, Any]:
     return body
 
 
-async def kernel_problem_handler(request: Request, exc: KernelProblem) -> JSONResponse:
+def problem_response(request: Request, problem: KernelProblem) -> JSONResponse:
     return JSONResponse(
-        problem_body(exc, trace_id=trace_id_from_request(request)),
-        status_code=exc.status,
+        problem_body(problem, trace_id=trace_id_from_request(request)),
+        status_code=problem.status,
         media_type="application/problem+json",
     )
+
+
+async def kernel_problem_handler(request: Request, exc: KernelProblem) -> JSONResponse:
+    return problem_response(request, exc)
 
 
 def register_problem_handlers(app: FastAPI) -> None:
