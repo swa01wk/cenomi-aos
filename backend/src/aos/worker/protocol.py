@@ -52,19 +52,30 @@ class AttemptContext:
         attempt: WorkerAttempt,
         kernel: KernelClient,
         fenced: asyncio.Event,
+        *,
+        ignore_local_lease_deadline: bool = False,
     ):
         self.attempt = attempt
         self.kernel = kernel
         self.fenced = fenced
+        self._ignore_local_lease = ignore_local_lease_deadline
         self._local_deadline = time.monotonic() + float(attempt["lease_seconds"])
 
     def extend_lease(self) -> None:
         self._local_deadline = time.monotonic() + float(self.attempt["lease_seconds"])
 
+    def lease_expired(self) -> bool:
+        if self._ignore_local_lease:
+            return False
+        if time.monotonic() >= self._local_deadline:
+            self.fenced.set()
+            return True
+        return False
+
     def check(self) -> None:
         if self.fenced.is_set():
             raise Fenced(self.attempt["attempt_id"])
-        if time.monotonic() >= self._local_deadline:
+        if not self._ignore_local_lease and time.monotonic() >= self._local_deadline:
             self.fenced.set()
             raise Fenced(self.attempt["attempt_id"])
 

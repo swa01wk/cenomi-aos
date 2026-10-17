@@ -31,6 +31,11 @@ def _runtime(name: str):
 async def _main_async() -> None:
     _ = schema_dir()
     cfg = load_config()
+    if cfg.runtime == "langgraph":
+        log.error(
+            "AOS_RUNTIME=langgraph is not available in M1; use AOS_RUNTIME=fake until M1-AG-02 wires the graph"
+        )
+        raise SystemExit(1)
     client = HttpKernelClient(cfg.api_url, cfg.worker_token)
     runtime = _runtime(cfg.runtime)
     worker = Worker(
@@ -39,6 +44,8 @@ async def _main_async() -> None:
         runtime,
         cfg.lanes,
         submit_shutdown_timeout_s=cfg.submit_shutdown_timeout_s,
+        poll_min_s=cfg.poll_min_s,
+        poll_max_s=cfg.poll_max_s,
     )
 
     loop = asyncio.get_running_loop()

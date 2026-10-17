@@ -12,7 +12,7 @@ from aos.worker.runtime import FakeRuntime
 from aos.worker.types import WorkerAttempt
 
 from . import _pg
-from .worker_harness import WorkerHarness, make_http_client, settings_with_lease
+from .worker_harness import WorkerHarness, make_http_client, mock_erp_hook, settings_with_lease
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
@@ -26,9 +26,9 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             await ctx.call_tool("browse_categories", {"query": "chair"})
             return minimal_agent_result(attempt, text="Listed categories.")
 
-        client = await make_http_client(self)
+        client = await make_http_client(self, invoke_hook=mock_erp_hook)
         worker = Worker("worker-test-1", client, FakeRuntime([script]), ("assist",))
-        self.assertEqual(await worker.run_once(), "submitted")
+        self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         await client.aclose()
 
     async def test_lease_expiry_cancels_runtime_no_submit(self) -> None:
@@ -60,7 +60,6 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(2.5)
         await asyncio.to_thread(self._run_tick)
         await asyncio.sleep(0.3)
-        # Bounded so a hung runtime fails the test instead of hanging make check.
         self.assertEqual(await asyncio.wait_for(run_task, 10), "fenced")
         self.assertEqual(submit_calls, 0)
         await client.aclose()

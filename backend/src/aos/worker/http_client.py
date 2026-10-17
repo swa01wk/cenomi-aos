@@ -22,8 +22,6 @@ from .types import AgentResult, SubmitResponse, WorkerAttempt
 
 log = logging.getLogger("aos.worker.client")
 
-_IDEMPOTENT = frozenset({"get_contract", "heartbeat", "submit_result"})
-
 
 class HttpKernelClient:
     def __init__(self, base_url: str, token: str, *, client: httpx.AsyncClient | None = None):
@@ -76,6 +74,7 @@ class HttpKernelClient:
         fencing_token: int | None = None,
         json_body: Any | None = None,
         tool_error: bool = False,
+        timeout_s: float | None = None,
     ) -> httpx.Response:
         url = f"{self._base}{path}"
         headers = self._headers(fencing_token)
@@ -86,7 +85,13 @@ class HttpKernelClient:
                 await asyncio.sleep(delay)
             try:
                 client = await self._client_or_create()
-                resp = await client.request(method, url, headers=headers, json=json_body)
+                resp = await client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json_body,
+                    timeout=timeout_s,
+                )
             except httpx.HTTPError as exc:
                 last_exc = exc
                 if not idempotent or attempt >= len(delays):
@@ -106,6 +111,14 @@ class HttpKernelClient:
             if resp.status_code == 429:
                 prob = self._problem(resp)
                 raise prob
+            if tool_error and resp.status_code == 502:
+                prob = self._problem(resp)
+                if prob.code == "connector_failed":
+                    raise ToolInvocationError(
+                        prob.detail or prob.title,
+                        code="connector_failed",
+                        effect_unknown=False,
+                    )
             if resp.status_code >= 500:
                 last_exc = TransientKernelError(f"{resp.status_code} from kernel")
                 if idempotent and attempt < len(delays):
@@ -119,8 +132,6 @@ class HttpKernelClient:
                 raise last_exc
             if resp.status_code >= 400:
                 prob = self._problem(resp)
-                if tool_error and resp.status_code == 502 and prob.code == "connector_failed":
-                    raise ToolInvocationError(prob.detail or prob.title, code=prob.code, effect_unknown=False)
                 if tool_error:
                     raise ToolInvocationError(prob.detail or prob.title, code=prob.code, effect_unknown=False)
                 raise prob
@@ -141,11 +152,14 @@ class HttpKernelClient:
 
     async def heartbeat(self, attempt: WorkerAttempt) -> dict[str, Any]:
         self.heartbeat_count += 1
+        lease = float(attempt["lease_seconds"])
+        timeout_s = max(0.1, lease / 3.0)
         resp = await self._request(
             "POST",
             f"/worker/attempts/{attempt['attempt_id']}/heartbeat",
             idempotent=True,
             fencing_token=attempt["fencing_token"],
+            timeout_s=timeout_s,
         )
         return resp.json()
 

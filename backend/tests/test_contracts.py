@@ -89,6 +89,18 @@ class SchemaTests(unittest.TestCase):
             Draft202012Validator(schemas["fail-attempt.schema.json"], registry=registry).is_valid(bad)
         )
 
+    def test_fail_attempt_openapi_literal_matches_schema_subset(self) -> None:
+        """Kernel FailAttemptBody Literal should stay in sync with fail-attempt.schema.json (follow-up if they diverge)."""
+        from typing import get_args
+
+        from aos.api.routes import FailAttemptBody
+
+        schemas = _schemas()
+        props = schemas["fail-attempt.schema.json"]["properties"]["failure_class"]["allOf"]
+        schema_subset = next(part["enum"] for part in props if "enum" in part)
+        openapi_subset = get_args(FailAttemptBody.model_fields["failure_class"].annotation)
+        self.assertEqual(set(schema_subset), set(openapi_subset))
+
     def test_agent_result_failure_category_allows_non_internal(self) -> None:
         schemas, registry = _schemas(), _registry()
         base = json.loads((EXAMPLES / "agent-result.rfq_draft.json").read_text())

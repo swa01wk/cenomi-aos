@@ -54,7 +54,9 @@ def load_config() -> WorkerConfig:
     if not lanes:
         raise RuntimeError("AOS_WORKER_LANES must list at least one lane")
 
-    runtime = os.environ.get("AOS_RUNTIME", "fake").strip().lower()
+    runtime = os.environ.get("AOS_RUNTIME", "").strip().lower()
+    if not runtime:
+        raise RuntimeError("AOS_RUNTIME is required (set to fake or langgraph)")
     poll_min = float(os.environ.get("AOS_WORKER_POLL_MIN_S", "1"))
     poll_max = float(os.environ.get("AOS_WORKER_POLL_MAX_S", "5"))
     submit_timeout = float(os.environ.get("AOS_WORKER_SUBMIT_SHUTDOWN_TIMEOUT_S", "30"))

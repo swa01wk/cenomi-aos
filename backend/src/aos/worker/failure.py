@@ -14,13 +14,6 @@ def _load_json(name: str) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
-def failure_category_enum() -> tuple[str, ...]:
-    doc = _load_json("task-contract.schema.json")
-    enum = doc["$defs"]["failure_category"]["enum"]
-    return tuple(str(v) for v in enum)
-
-
-@lru_cache(maxsize=1)
 def fail_attempt_classes() -> frozenset[str]:
     doc = _load_json("fail-attempt.schema.json")
     props = doc["properties"]["failure_class"]["allOf"]
