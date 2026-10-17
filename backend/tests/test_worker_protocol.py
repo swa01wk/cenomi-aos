@@ -291,7 +291,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:invalid_output")
         failure_class = _pg.admin_sql(
             self.db,
-            "select failure_class from work.attempts order by created_at desc limit 1;",
+            "select failure_class from work.attempts order by admitted_at desc limit 1;",
         ).stdout.strip()
         self.assertEqual(failure_class, "invalid_output")
         task = asyncio.create_task(worker.run_forever())
