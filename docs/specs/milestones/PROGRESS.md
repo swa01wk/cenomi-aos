@@ -14,7 +14,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [ ] M1-FE-01 Move to Vite and the router
 - [ ] M1-FE-02 Shared components
 - [x] M1-BE-02 Publish requests
-- [ ] M1-BE-03 Seat lifecycle
+- [x] M1-BE-03 Seat lifecycle
 - [ ] M1-FE-03 Console: publish and Seats
 - [ ] M1-BE-04 Jobs and conversation
 - [ ] M1-BE-05 Worker protocol

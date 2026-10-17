@@ -20,6 +20,8 @@ class Settings:
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
     pool_max: int = 10
     web_dist: Path | None = None   # serve the built React app from the API origin when set
+    eval_strict: bool = False      # when true, deferred eval expectations block approve/activate
+    eval_sync: bool = False        # when true, finish eval runs in the request (tests only)
 
 
     @classmethod
@@ -33,6 +35,8 @@ class Settings:
             "seed_on_start": env.get("AOS_SEED_ON_START", "1") not in ("0", "false", "no"),
             "cors_origins": [o for o in env.get("AOS_CORS_ORIGINS", "http://localhost:5173").split(",") if o],
             "web_dist": Path(env["AOS_WEB_DIST"]) if env.get("AOS_WEB_DIST") else None,
+            "eval_strict": env.get("AOS_EVAL_STRICT", "0") in ("1", "true", "yes"),
+            "eval_sync": env.get("AOS_EVAL_SYNC", "0") in ("1", "true", "yes"),
         }
         values.update(overrides)
         return cls(**values)
