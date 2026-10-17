@@ -185,6 +185,102 @@ def _sanitize_verification(verification: dict[str, Any] | None, *, redacting: bo
     return slim or None
 
 
+def redaction_reason_for_field(
+    field_name: str,
+    type_spec: ArtifactTypeSpec,
+    viewer_roles: list[str],
+    *,
+    classification_ceiling: Classification | None = None,
+) -> Literal["visibility", "classification"]:
+    role_fields = _fields_for_roles(type_spec, viewer_roles)
+    if field_name not in role_fields:
+        return "visibility"
+    if classification_ceiling is not None:
+        eff = _effective_classification(type_spec.fields[field_name], type_spec)
+        if _CLASS_RANK[eff] > _CLASS_RANK[classification_ceiling]:
+            return "classification"
+    return "visibility"
+
+
+def artifact_redaction_entries(
+    projected: dict[str, Any],
+    type_spec: ArtifactTypeSpec,
+    viewer_roles: list[str],
+    *,
+    classification_ceiling: Classification | None = None,
+) -> list[dict[str, Any]]:
+    hidden = projected.get("hidden_fields") or []
+    if not hidden:
+        return []
+    artifact_id = projected["artifact_id"]
+    artifact_type = projected["artifact_type"]
+    return [
+        {
+            "artifact_type": artifact_type,
+            "artifact_id": artifact_id,
+            "field": name,
+            "reason": redaction_reason_for_field(
+                name, type_spec, viewer_roles, classification_ceiling=classification_ceiling
+            ),
+        }
+        for name in hidden
+    ]
+
+
+def envelope_content_hash(projected: dict[str, Any]) -> str:
+    if "projected_content_hash" in projected:
+        return str(projected["projected_content_hash"])
+    return str(projected["content_hash"])
+
+
+def envelope_artifact_item(projected: dict[str, Any], *, status: str) -> dict[str, Any]:
+    return {
+        "artifact_type": projected["artifact_type"],
+        "artifact_id": projected["artifact_id"],
+        "version": int(projected["version"]),
+        "content_hash": envelope_content_hash(projected),
+        "status": status,
+        "content": projected["content"],
+    }
+
+
+_ENVELOPE_ARTIFACT_STATUSES = frozenset({"draft", "final", "locked"})
+
+
+def envelope_artifact_status(raw: str) -> str:
+    if raw not in _ENVELOPE_ARTIFACT_STATUSES:
+        raise ArtifactError(
+            "internal",
+            500,
+            "Unknown artifact status",
+            f"Artifact status {raw!r} cannot be placed in a context envelope.",
+        )
+    return raw
+
+
+async def artifacts_for_types(
+    conn: AsyncConnection,
+    instance_id: str,
+    artifact_types: set[str],
+) -> list[tuple[str, str, str, str, int]]:
+    """Return (id, artifact_type, key, status, latest_version) rows ordered by type and key."""
+    if not artifact_types:
+        return []
+    cur = await conn.execute(
+        "select id, artifact_type, key, status, latest_version from work.artifacts"
+        " where instance_id = %s and artifact_type = any(%s)"
+        " order by artifact_type, key",
+        (instance_id, list(artifact_types)),
+    )
+    return [(r[0], r[1], r[2], r[3], int(r[4])) for r in await cur.fetchall()]
+
+
+async def artifact_instance_id(conn: AsyncConnection, artifact_id: str) -> str | None:
+    cur = await conn.execute("select instance_id from work.artifacts where id = %s", (artifact_id,))
+    row = await cur.fetchone()
+    return str(row[0]) if row else None
+
+
 def project(
     version: VersionRecord,
     type_spec: ArtifactTypeSpec,

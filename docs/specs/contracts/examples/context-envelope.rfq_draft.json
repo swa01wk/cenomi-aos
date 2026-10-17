@@ -113,6 +113,7 @@
   "redactions": [
     {
       "artifact_type": "brief",
+      "artifact_id": "art_qq0001_brief",
       "field": "budget_guidance",
       "reason": "classification"
     }

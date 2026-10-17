@@ -24,6 +24,14 @@ the runtime allocation shape.
 | Kind | Format | Source |
 | --- | --- | --- |
 | Instance (job) | `<id_prefix>-<n>` | `id_prefix` from the pinned workflow's `WorkflowDefinition.spec.id_prefix` (pack schema: `WorkflowSpec.id_prefix`, default `JOB`, pattern `^[A-Z]{2,5}$` in `backend/src/aos/registry/kinds.py`). `<n>` is at least four digits, zero-padded, never truncated (`QQ-0001`, `JX-12345`). |
+
+### Workflow instance attributes
+
+In `WorkflowDefinition.spec.attributes`, each key is an attribute name stored on `work.instances.attributes`. The value
+may be a **short form** type name (`int`, `decimal`, `string`, `bool`, `date`), which means classification
+`internal`, or an object `{type, classification}` with `classification` one of `shareable`, `internal`, or
+`restricted`. The context assembler applies the Task contract's classification ceiling to these values; `restricted`
+attributes never appear in `job_snapshot` (skills read them from artifacts via `project()` instead).
 | Task | `task_` + 16 lowercase hex | `new_task_id()` |
 | Attempt | `att_` + 16 lowercase hex | `new_attempt_id()` |
 | Turn | `turn_` + 16 lowercase hex | `new_turn_id()` |

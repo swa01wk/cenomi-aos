@@ -75,7 +75,11 @@
         "required": ["artifact_type", "artifact_id", "version", "content_hash", "status", "content"],
         "properties": {
           "artifact_type": {"type": "string"}, "artifact_id": {"type": "string"}, "version": {"type": "integer"},
-          "content_hash": {"type": "string"}, "status": {"enum": ["draft", "final", "locked"]},
+          "content_hash": {
+            "type": "string",
+            "description": "Stored version hash when the full content is included; projected-content hash when fields were redacted. Freshness and submit inputs are keyed on artifact_id and version, not this hash alone."
+          },
+          "status": {"enum": ["draft", "final", "locked"]},
           "content": {"description": "Artifact content with redacted fields removed (not nulled)."}
         },
         "additionalProperties": false
@@ -110,7 +114,17 @@
     "redactions": {
       "type": "array",
       "description": "What was removed and why. The refusal eval asserts unit_price, total and po_amount appear here and nowhere in content.",
-      "items": {"type": "object", "required": ["artifact_type", "field", "reason"], "properties": {"artifact_type": {"type": "string"}, "field": {"type": "string"}, "reason": {"enum": ["visibility", "classification"]}}, "additionalProperties": false}
+      "items": {
+        "type": "object",
+        "required": ["artifact_type", "field", "reason"],
+        "properties": {
+          "artifact_type": {"type": "string"},
+          "artifact_id": {"type": "string", "description": "Set for artifact field redactions; omitted for job_snapshot attribute redactions."},
+          "field": {"type": "string"},
+          "reason": {"enum": ["visibility", "classification"]}
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false

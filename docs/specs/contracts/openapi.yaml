@@ -584,10 +584,12 @@ paths:
       x-milestone: M1
       description: Assemble a fresh context envelope for the next model step. The kernel reads current state; the worker never reads the database.
       parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason], properties: {reason: {enum: [start, resume, tool_result, input_changed, explicit]}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason], properties: {reason: {enum: [start, resume, tool_result, input_changed, policy_changed, explicit]}}}}}}
       responses:
         '200': {description: Envelope, content: {application/json: {schema: {$ref: './schemas/context-envelope.schema.json'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
   /worker/attempts/{id}/events:
     post:
       tags: [worker]
