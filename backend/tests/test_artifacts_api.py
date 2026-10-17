@@ -132,21 +132,25 @@ class ArtifactsApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 201, r.text)
         return r.json()["instance_id"]
 
-    def _insert_comparison(self, instance_id: str) -> tuple[str, str]:
+    def _insert_comparison(
+        self,
+        instance_id: str,
+        *,
+        include_prices: bool = True,
+        latest_version: int = 1,
+    ) -> tuple[str, str]:
         art_id = ids.new_artifact_id()
-        content = {
-            "rows": [
-                {
-                    "rank": 1,
-                    "supplier": "Najd Supplies",
-                    "unit_price": PLANT_PRICE,
-                    "total": PLANT_PRICE,
-                    "lead_time_days": 14,
-                    "warranty_months": 12,
-                    "score": 88.5,
-                }
-            ]
+        row: dict = {
+            "rank": 1,
+            "supplier": "Najd Supplies",
+            "lead_time_days": 14,
+            "warranty_months": 12,
+            "score": 88.5,
         }
+        if include_prices:
+            row["unit_price"] = PLANT_PRICE
+            row["total"] = PLANT_PRICE
+        content = {"rows": [row]}
         full_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
         verification = json.dumps(
             {
@@ -156,17 +160,18 @@ class ArtifactsApiTests(unittest.TestCase):
             }
         )
         sources = json.dumps([{"source_ref": "mail:q1", "label": "Quote mail", "body": PLANT_PRICE}])
+        input_ref = json.dumps([{"artifact_id": "art_brief_input", "version": 2, "content_hash": "deadbeef" * 8}])
         _pg.admin_sql(
             self.db,
             f"""
             insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)
-            values ('{art_id}', '{instance_id}', 'comparison', '', 'Quote comparison', 'draft', 1);
+            values ('{art_id}', '{instance_id}', 'comparison', '', 'Quote comparison', 'draft', {latest_version});
             insert into work.artifact_versions (
               artifact_id, version, content, content_hash, produced_by_kind, produced_by,
               inputs, sources, verification
             ) values (
               '{art_id}', 1, '{json.dumps(content)}'::jsonb, '{full_hash}', 'person', 'noura',
-              '[]'::jsonb, '{sources}'::jsonb, '{verification}'::jsonb
+              '{input_ref}'::jsonb, '{sources}'::jsonb, '{verification}'::jsonb
             );
             """,
         )
@@ -218,6 +223,7 @@ class ArtifactsApiTests(unittest.TestCase):
         self.assertIn("projected_content_hash", ver)
         self.assertIn("unit_price", ver["hidden_fields"])
         self.assertNotIn("findings", json.dumps(ver.get("verification", {})))
+        self.assertNotIn("content_hash", json.dumps(ver.get("inputs", [])))
 
         arts = snap.json()["artifacts"]
         self.assertEqual(len(arts), 1)
@@ -248,6 +254,51 @@ class ArtifactsApiTests(unittest.TestCase):
         self.assertNotIn("projected_content_hash", ver)
         self.assertEqual(ver["hidden_fields"], [])
         self.assertIn("findings", json.dumps(ver["verification"]))
+        self.assertIn("content_hash", ver["inputs"][0])
+
+    def test_findings_stripped_when_content_has_no_price_columns(self) -> None:
+        self._activate_seat()
+        instance_id = self._start("faisal")
+        art_id, full_hash = self._insert_comparison(instance_id, include_prices=False)
+        self._bind_buyer(instance_id)
+
+        faisal_ver = self.client.get(
+            f"/api/artifacts/{art_id}/versions/1", headers=self.login("faisal")
+        ).json()
+        self.assertNotIn("unit_price", faisal_ver["hidden_fields"])
+        self.assertNotIn(PLANT_PRICE, json.dumps(faisal_ver))
+        self.assertNotIn("content_hash", faisal_ver)
+        self.assertNotIn(full_hash, json.dumps(faisal_ver))
+        self.assertNotIn("findings", json.dumps(faisal_ver.get("verification", {})))
+        self.assertNotIn("content_hash", json.dumps(faisal_ver.get("inputs", [])))
+
+        noura_ver = self.client.get(
+            f"/api/artifacts/{art_id}/versions/1", headers=self.login("noura")
+        ).json()
+        self.assertIn(PLANT_PRICE, json.dumps(noura_ver["verification"]))
+        self.assertEqual(noura_ver["content_hash"], full_hash)
+        self.assertIn("content_hash", noura_ver["inputs"][0])
+
+    def test_older_version_omits_status(self) -> None:
+        self._activate_seat()
+        instance_id = self._start("faisal")
+        art_id, _ = self._insert_comparison(instance_id, latest_version=2)
+        v2_content = {"rows": [{"rank": 1, "supplier": "B", "unit_price": "1", "total": "1", "score": 1}]}
+        v2_hash = hashlib.sha256(_canonical_json(v2_content)).hexdigest()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into work.artifact_versions (
+              artifact_id, version, content, content_hash, produced_by_kind, produced_by
+            ) values (
+              '{art_id}', 2, '{json.dumps(v2_content)}'::jsonb, '{v2_hash}', 'person', 'noura'
+            );
+            """,
+        )
+        v1 = self.client.get(f"/api/artifacts/{art_id}/versions/1", headers=self.login("faisal")).json()
+        v2 = self.client.get(f"/api/artifacts/{art_id}/versions/2", headers=self.login("faisal")).json()
+        self.assertNotIn("status", v1)
+        self.assertEqual(v2.get("status"), "draft")
 
     def test_non_participant_forbidden(self) -> None:
         self._activate_seat()

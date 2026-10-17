@@ -109,6 +109,60 @@ class ArtifactsProjectionTests(unittest.TestCase):
         self.assertEqual(out["verification"], {"verifier": "price_check", "verdict": "PASS"})
         self.assertNotIn("excerpt", dumped)
         self.assertNotIn("body", dumped)
+        self.assertNotIn("content_hash", out["inputs"][0])
+
+    def test_redacting_when_viewer_restricted_even_if_content_has_no_hidden_columns(self) -> None:
+        spec = _load_type("comparison")
+        content = {
+            "rows": [
+                {"rank": 1, "supplier": "A", "lead_time_days": 14, "warranty_months": 12, "score": 88.0},
+            ]
+        }
+        rec = VersionRecord(
+            artifact_id="art_test",
+            artifact_type="comparison",
+            version=1,
+            status="draft",
+            content=content,
+            content_hash="full-stored-hash",
+            produced_by_kind="person",
+            produced_by="noura",
+            inputs=[],
+            sources=[],
+            verification={
+                "verifier": "price_check",
+                "verdict": "PASS",
+                "findings": [f"Line total {PLANT_PRICE} verified"],
+            },
+            created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        )
+        out = project(rec, spec, ["requester"], latest_version=1)
+        self.assertNotIn("unit_price", out["hidden_fields"])
+        self.assertNotIn(PLANT_PRICE, __import__("json").dumps(out))
+        self.assertNotIn("content_hash", out)
+        self.assertIn("projected_content_hash", out)
+        self.assertEqual(out["verification"], {"verifier": "price_check", "verdict": "PASS"})
+        self.assertIn("status", out)
+
+    def test_status_omitted_for_non_latest_version(self) -> None:
+        spec = _load_type("comparison")
+        content = {"rows": [{"rank": 1, "supplier": "A", "unit_price": "1", "total": "1", "score": 1}]}
+        rec = VersionRecord(
+            artifact_id="art_test",
+            artifact_type="comparison",
+            version=1,
+            status="draft",
+            content=content,
+            content_hash="x",
+            produced_by_kind="person",
+            produced_by="noura",
+            inputs=[],
+            sources=[],
+            verification=None,
+            created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        )
+        out = project(rec, spec, ["buyer"], latest_version=2)
+        self.assertNotIn("status", out)
 
     def test_classification_ceiling_shareable_drops_budget_guidance(self) -> None:
         spec = _load_type("brief")

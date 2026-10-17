@@ -1191,16 +1191,16 @@ components:
               type: {enum: [string, text, integer, number, money, date, datetime, list, object, boolean]}
     ArtifactVersion:
       type: object
-      required: [artifact_id, artifact_type, version, status, content, produced_by, created_at, hidden_fields]
+      required: [artifact_id, artifact_type, version, content, produced_by, created_at, hidden_fields]
       properties:
         artifact_id: {type: string}
         artifact_type: {type: string}
         version: {type: integer}
-        status: {enum: [draft, final, locked]}
+        status: {enum: [draft, final, locked], description: Present only when this row is the artifact's latest_version}
         content: {type: object, description: Only fields the caller may see}
         hidden_fields: {type: array, items: {type: string}, description: Names of removed fields, so the UI can say "not shared with you"}
-        content_hash: {type: string, description: SHA-256 of full stored content; present only when hidden_fields is empty}
-        projected_content_hash: {type: string, description: SHA-256 of projected content; present when hidden_fields is non-empty}
+        content_hash: {type: string, description: SHA-256 of full stored content; only when the caller may see every field on the type}
+        projected_content_hash: {type: string, description: SHA-256 of projected content; when the caller's visibility is narrower than the type}
         produced_by: {type: object, properties: {kind: {enum: [attempt, person]}, id: {type: string}, name: {type: string}}}
         inputs: {type: array, items: {type: object, properties: {artifact_id: {type: string}, version: {type: integer}, content_hash: {type: string}}}}
         sources: {type: array, items: {type: object, properties: {source_ref: {type: string}, label: {type: string}}}}

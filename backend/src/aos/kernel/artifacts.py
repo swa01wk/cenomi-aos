@@ -144,11 +144,7 @@ def _sanitize_inputs(inputs: list[Any], *, redacting: bool) -> list[dict[str, An
         if not isinstance(item, dict):
             continue
         if redacting:
-            ref = {
-                k: item[k]
-                for k in ("artifact_id", "version", "content_hash")
-                if k in item and item[k] is not None
-            }
+            ref = {k: item[k] for k in ("artifact_id", "version") if k in item and item[k] is not None}
             if ref:
                 out.append(ref)
         else:
@@ -195,20 +191,21 @@ def project(
     viewer_roles: list[str],
     *,
     classification_ceiling: Classification | None = None,
+    latest_version: int | None = None,
 ) -> dict[str, Any]:
     """Drop fields the viewer may not see; list removed schema field names in ``hidden_fields``."""
+    all_type_fields = set(type_spec.fields.keys())
     allowed = _apply_ceiling(_fields_for_roles(type_spec, viewer_roles), type_spec, classification_ceiling)
     projected_content = _filter_content(version.content, row_based=type_spec.row_based, allowed=allowed)
     present = _schema_field_names_in_content(version.content, row_based=type_spec.row_based, spec=type_spec)
     projected_names = _schema_field_names_in_content(projected_content, row_based=type_spec.row_based, spec=type_spec)
     hidden_fields = sorted(present - projected_names)
-    redacting = bool(hidden_fields)
+    redacting = allowed != all_type_fields
 
     body: dict[str, Any] = {
         "artifact_id": version.artifact_id,
         "artifact_type": version.artifact_type,
         "version": version.version,
-        "status": version.status,
         "content": projected_content,
         "hidden_fields": hidden_fields,
         "produced_by": {
@@ -219,6 +216,8 @@ def project(
         if hasattr(version.created_at, "isoformat")
         else str(version.created_at),
     }
+    if latest_version is not None and version.version == latest_version:
+        body["status"] = version.status
     if redacting:
         body["projected_content_hash"] = hashlib.sha256(_canonical_json(projected_content)).hexdigest()
     else:
@@ -416,7 +415,7 @@ async def get_artifact_version(
     rec = await _fetch_version(conn, aid, version)
     if rec is None:
         raise ArtifactError("not_found", 404, "Version not found", f"No version {version} for artifact {aid!r}.")
-    projected = project(rec, at.spec, viewer_roles)
+    projected = project(rec, at.spec, viewer_roles, latest_version=int(_lv))
     projected["produced_by"]["name"] = _produced_by_name(org, rec.produced_by_kind, rec.produced_by)
     return projected
 
