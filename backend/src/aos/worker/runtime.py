@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from .checkpointer import CheckpointerHandle
 from .protocol import AttemptContext
 from .types import AgentResult, WorkerAttempt
+
+if TYPE_CHECKING:
+    from .checkpointer import CheckpointerHandle
 
 log = logging.getLogger("aos.worker.runtime")
 

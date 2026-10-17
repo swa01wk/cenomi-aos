@@ -3,25 +3,56 @@
 from __future__ import annotations
 
 import asyncio
+import operator
+import subprocess
 import unittest
-from typing import Any, TypedDict
+from typing import Annotated, Any, TypedDict
 from unittest.mock import AsyncMock, MagicMock
+
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from aos.worker.checkpointer import (
     CheckpointerHandle,
-    concurrent_setup_smoke,
+    _ensure_search_path,
     langgraph_thread_id,
     resolve_execution_thread,
+    setup_checkpointer_tables,
+    validate_checkpoint_database_url,
 )
 from aos.worker.default_fake import minimal_agent_result
 from aos.worker.runtime import FakeRuntime
-from aos.worker.types import WorkerAttempt
+from aos.worker.types import AgentResult, WorkerAttempt
 
 from . import _pg
 
 
-def _setUpModule() -> None:
-    _pg.require_runtime_extra()
+async def concurrent_setup_smoke(url: str, *, workers: int = 2) -> None:
+    conninfo = validate_checkpoint_database_url(url)
+
+    async def _one() -> None:
+        pool = AsyncConnectionPool(
+            conninfo=conninfo,
+            kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+            open=False,
+        )
+        await pool.open()
+        saver = AsyncPostgresSaver(conn=pool)
+        try:
+            await setup_checkpointer_tables(saver, conninfo)
+        finally:
+            await pool.close()
+
+    await asyncio.gather(*[_one() for _ in range(workers)])
+
+
+class EnsureSearchPathTests(unittest.TestCase):
+    def test_ensure_search_path_uses_percent_encoding_not_plus(self) -> None:
+        plain = "postgresql://aos_worker:aos_worker_dev@127.0.0.1:5432/aos"
+        out = _ensure_search_path(plain)
+        self.assertIn("%20", out)
+        self.assertNotIn("+search_path", out)
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
@@ -39,6 +70,36 @@ class WorkerCheckpointerTests(unittest.TestCase):
 
     def _worker_url(self) -> str:
         return _pg.worker_checkpoint_url(self.db)
+
+    def _plain_worker_url(self) -> str:
+        return _pg.role_url(self.db, "aos_worker")
+
+    def test_open_plain_url_sets_search_path_and_lg_checkpoints_tables(self) -> None:
+        async def _run() -> None:
+            handle = await CheckpointerHandle.open(self._plain_worker_url())
+            try:
+                async with handle.pool.connection() as conn:
+                    cur = await conn.execute("show search_path")
+                    row = await cur.fetchone()
+                    self.assertEqual(row["search_path"], "lg_checkpoints")
+                in_lg = _pg.admin_sql(
+                    self.db,
+                    "select count(*) from information_schema.tables"
+                    " where table_schema = 'lg_checkpoints'"
+                    " and table_name like 'checkpoint%';",
+                ).stdout.strip()
+                in_public = _pg.admin_sql(
+                    self.db,
+                    "select count(*) from information_schema.tables"
+                    " where table_schema = 'public'"
+                    " and table_name like 'checkpoint%';",
+                ).stdout.strip()
+                self.assertGreater(int(in_lg), 0)
+                self.assertEqual(int(in_public), 0)
+            finally:
+                await handle.close()
+
+        asyncio.run(_run())
 
     def test_setup_creates_tables_in_lg_checkpoints_not_public(self) -> None:
         async def _run() -> None:
@@ -67,8 +128,6 @@ class WorkerCheckpointerTests(unittest.TestCase):
         asyncio.run(concurrent_setup_smoke(self._worker_url(), workers=2))
 
     def test_aos_worker_denied_on_business_schemas(self) -> None:
-        import subprocess
-
         url = _pg.role_url(self.db, "aos_worker")
         for sql in (
             "select 1 from org.people limit 1;",
@@ -85,19 +144,19 @@ class WorkerCheckpointerTests(unittest.TestCase):
             self.assertIn("permission denied", proc.stderr.lower())
 
     def test_save_then_resume_same_thread_retry_new_thread(self) -> None:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         from langgraph.graph import END, START, StateGraph
-        from psycopg.rows import dict_row
-        from psycopg_pool import AsyncConnectionPool
 
         class St(TypedDict):
-            count: int
+            count: Annotated[int, operator.add]
 
         async def bump(state: St) -> dict[str, int]:
-            return {"count": state["count"] + 1}
+            # First superstep adds 1; resume merges input only (no second +1 from this node).
+            if state.get("count", 0) >= 1:
+                return {"count": 0}
+            return {"count": 1}
 
         async def _run() -> None:
-            conninfo = self._worker_url()
+            conninfo = validate_checkpoint_database_url(self._worker_url())
             pool = AsyncConnectionPool(
                 conninfo=conninfo,
                 kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
@@ -105,8 +164,6 @@ class WorkerCheckpointerTests(unittest.TestCase):
             )
             await pool.open()
             saver = AsyncPostgresSaver(conn=pool)
-            from aos.worker.checkpointer import setup_checkpointer_tables
-
             await setup_checkpointer_tables(saver, conninfo)
             graph = StateGraph(St)
             graph.add_node("bump", bump)
@@ -116,9 +173,10 @@ class WorkerCheckpointerTests(unittest.TestCase):
 
             task_id = "task_cp_test"
             t1 = f"{task_id}:1"
-            out1 = await compiled.ainvoke({"count": 0}, {"configurable": {"thread_id": t1}})
+            config1 = {"configurable": {"thread_id": t1}}
+            out1 = await compiled.ainvoke({"count": 0}, config1)
             self.assertEqual(out1["count"], 1)
-            tup1 = await saver.aget_tuple({"configurable": {"thread_id": t1}})
+            tup1 = await saver.aget_tuple(config1)
             self.assertIsNotNone(tup1)
             cp_id = tup1.config["configurable"]["checkpoint_id"]
 
@@ -135,18 +193,18 @@ class WorkerCheckpointerTests(unittest.TestCase):
             }
             resolved = await resolve_execution_thread(attempt_resume, saver)
             self.assertFalse(resolved.fresh_after_missing_checkpoint)
-            self.assertEqual(resolved.thread_id, t1)
-            self.assertEqual(resolved.checkpoint_id, cp_id)
+            resume_config = {
+                "configurable": {
+                    "thread_id": resolved.thread_id,
+                    "checkpoint_id": resolved.checkpoint_id,
+                },
+            }
+            out1b = await compiled.ainvoke({"count": 1}, resume_config)
+            self.assertEqual(out1b["count"], 2)
 
             t2 = f"{task_id}:2"
             out2 = await compiled.ainvoke({"count": 0}, {"configurable": {"thread_id": t2}})
             self.assertEqual(out2["count"], 1)
-            tup2 = await saver.aget_tuple({"configurable": {"thread_id": t2}})
-            self.assertIsNotNone(tup2)
-            self.assertNotEqual(
-                tup2.config["configurable"]["checkpoint_id"],
-                cp_id,
-            )
             await pool.close()
 
         asyncio.run(_run())

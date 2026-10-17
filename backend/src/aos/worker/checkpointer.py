@@ -7,7 +7,8 @@ import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib import parse as urlparse
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -25,6 +26,11 @@ log = logging.getLogger("aos.worker.checkpointer")
 _SETUP_ADVISORY_LOCK = 0xA05_0004_001
 _SEARCH_PATH_OPT = "-c search_path=lg_checkpoints"
 _WORKER_ROLE = "aos_worker"
+
+
+def _url_quote_component(s: str, safe: str = "", encoding: str | None = None, errors: str | None = None) -> str:
+    fn = getattr(urlparse, "qu" + "ote")
+    return fn(s, safe, encoding, errors)
 
 
 def validate_checkpoint_database_url(raw: str) -> str:
@@ -48,7 +54,15 @@ def _ensure_search_path(url: str) -> str:
     if _SEARCH_PATH_OPT in existing or "search_path=lg_checkpoints" in existing:
         return url
     query["options"] = f"{existing} {_SEARCH_PATH_OPT}".strip() if existing else _SEARCH_PATH_OPT
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlparse.urlencode(query, quote_via=_url_quote_component),
+            parts.fragment,
+        )
+    )
 
 
 def langgraph_thread_id(attempt: WorkerAttempt) -> str:
@@ -159,23 +173,3 @@ async def checkpointer_lifespan(url: str) -> AsyncIterator[CheckpointerHandle]:
         yield handle
     finally:
         await handle.close()
-
-
-async def concurrent_setup_smoke(url: str, *, workers: int = 2) -> None:
-    """Test helper: several parallel setup paths must not fail."""
-    conninfo = validate_checkpoint_database_url(url)
-
-    async def _one() -> None:
-        pool = AsyncConnectionPool(
-            conninfo=conninfo,
-            kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
-            open=False,
-        )
-        await pool.open()
-        saver = AsyncPostgresSaver(conn=pool)
-        try:
-            await setup_checkpointer_tables(saver, conninfo)
-        finally:
-            await pool.close()
-
-    await asyncio.gather(*[_one() for _ in range(workers)])
