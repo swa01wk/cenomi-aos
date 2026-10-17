@@ -567,22 +567,43 @@ async def save_draft_from_attempt(
         name = row[4]
         new_version = latest + 1
     else:
-        artifact_id = ids.new_artifact_id()
-        name = str(content.get("title") or artifact_type.replace("_", " ").title())
-        await conn.execute(
-            "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
-            " values (%s, %s, %s, %s, %s, 'draft', 0)",
-            (artifact_id, gate.instance_id, artifact_type, key, name),
+        cur = await conn.execute(
+            "select id, latest_version, name from work.artifacts"
+            " where instance_id = %s and artifact_type = %s and key = %s"
+            " for update",
+            (gate.instance_id, artifact_type, key),
         )
-        new_version = 1
-        if base_version is not None and int(base_version) != 0:
-            raise ArtifactError(
-                "version_taken",
-                409,
-                "Version moved on",
-                "Reload the artifact and save again.",
-                current_version=0,
+        existing = await cur.fetchone()
+        if existing is not None:
+            artifact_id = existing[0]
+            latest = int(existing[1])
+            name = existing[2]
+            if base_version is not None and int(base_version) != latest:
+                raise ArtifactError(
+                    "version_taken",
+                    409,
+                    "Version moved on",
+                    "Reload the artifact and save again.",
+                    current_version=latest,
+                )
+            new_version = latest + 1
+        else:
+            artifact_id = ids.new_artifact_id()
+            name = str(content.get("title") or artifact_type.replace("_", " ").title())
+            await conn.execute(
+                "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
+                " values (%s, %s, %s, %s, %s, 'draft', 0)",
+                (artifact_id, gate.instance_id, artifact_type, key, name),
             )
+            new_version = 1
+            if base_version is not None and int(base_version) != 0:
+                raise ArtifactError(
+                    "version_taken",
+                    409,
+                    "Version moved on",
+                    "Reload the artifact and save again.",
+                    current_version=0,
+                )
 
     enriched_inputs: list[dict[str, Any]] = []
     for item in inputs:

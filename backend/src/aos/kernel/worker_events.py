@@ -123,6 +123,25 @@ async def post_attempt_events(
         (Jsonb(usage), attempt_id),
     )
 
+    if stream:
+        from .worker_attempts import WorkerError
+
+        if not gate.turn_id:
+            raise WorkerError(
+                "validation_failed",
+                422,
+                "Turn required for stream",
+                "This attempt has no turn to stream against.",
+            )
+        for chunk in stream:
+            if str(chunk.get("turn_id")) != gate.turn_id:
+                raise WorkerError(
+                    "validation_failed",
+                    422,
+                    "Wrong turn for stream",
+                    "stream turn_id must match the attempt's turn.",
+                )
+
     recipient = await _delta_recipient(conn, gate)
     if stream and recipient:
         for chunk in stream:

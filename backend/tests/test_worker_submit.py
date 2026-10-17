@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 import unittest
 import uuid
 from unittest.mock import AsyncMock, patch
 
+import psycopg
+
+from aos.kernel import worker_submit
+
 from . import _pg
-from .test_worker_api import WorkerHarness
+from .test_worker_api import ORG, WorkerHarness
 
 
 def _valid_brief() -> dict:
@@ -75,6 +81,40 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.status_code, 403, r.text)
         self.assertEqual(r.json()["code"], "not_permitted")
 
+    def test_save_draft_same_key_without_artifact_id_versions_one_artifact(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        payload = {
+            "artifact_type": "brief",
+            "key": "intake",
+            "content": _valid_brief(),
+            "inputs": [],
+        }
+        r1 = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
+            headers=self._worker_headers(attempt),
+            json=payload,
+        )
+        self.assertEqual(r1.status_code, 201, r1.text)
+        self.assertEqual(r1.json()["version"], 1)
+        aid = r1.json()["artifact_id"]
+        payload["content"] = {**_valid_brief(), "specification": "Updated spec"}
+        r2 = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
+            headers=self._worker_headers(attempt),
+            json=payload,
+        )
+        self.assertEqual(r2.status_code, 201, r2.text)
+        self.assertEqual(r2.json()["version"], 2)
+        self.assertEqual(r2.json()["artifact_id"], aid)
+        count = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.artifacts where instance_id = ("
+            f" select instance_id from work.tasks where id = '{attempt['task_id']}')"
+            f" and artifact_type = 'brief' and key = 'intake';",
+        ).stdout.strip()
+        self.assertEqual(count, "1")
+
     def test_save_draft_missing_required_field_is_422(self) -> None:
         self._start_job()
         attempt = self._claim()
@@ -124,6 +164,30 @@ class WorkerSubmitTests(WorkerHarness):
         )
         self.assertEqual(hb.status_code, 409, hb.text)
 
+    def test_agent_turn_uses_seat_display_name_from_registry(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        body = _agent_result(attempt)
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/submit",
+            headers=self._worker_headers(attempt),
+            json=body,
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        display = _pg.admin_sql(
+            self.db,
+            "select display_name from registry.seats"
+            " where org_id = 'org_demo' and name = 'seat_sourcing_poc' and version = 1;",
+        ).stdout.strip()
+        self.assertEqual(display, "Sourcing Agent")
+        turn_name = _pg.admin_sql(
+            self.db,
+            f"select data->'turn'->'author'->>'name' from evidence.outbox"
+            f" where event_type = 'agent.message.completed'"
+            f" order by seq desc limit 1;",
+        ).stdout.strip()
+        self.assertEqual(turn_name, display)
+
     def test_happy_assist_submit_leaves_task_waiting_input(self) -> None:
         self._start_job()
         attempt = self._claim()
@@ -141,6 +205,50 @@ class WorkerSubmitTests(WorkerHarness):
             f"select state from work.tasks where id = '{attempt['task_id']}';",
         ).stdout.strip()
         self.assertEqual(task_state, "WAITING_INPUT")
+
+    def test_concurrent_duplicate_submit_waits_for_stored_response(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        body = _agent_result(attempt)
+        h = self._worker_headers(attempt)
+        started = threading.Event()
+        results: dict[str, object] = {}
+
+        def first_uncommitted() -> None:
+            async def run() -> None:
+                async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                    async with conn.transaction():
+                        await worker_submit.submit_result(
+                            conn,
+                            org_id=ORG.organization.id,
+                            attempt_id=attempt["attempt_id"],
+                            worker_id="worker-test-1",
+                            fencing_token=attempt["fencing_token"],
+                            result=body,
+                        )
+                        started.set()
+                        await asyncio.sleep(1.5)
+
+            asyncio.run(run())
+
+        def second_http() -> None:
+            assert started.wait(timeout=15)
+            results["response"] = self.client.post(
+                f"/api/worker/attempts/{attempt['attempt_id']}/submit",
+                headers=h,
+                json=body,
+            )
+
+        t1 = threading.Thread(target=first_uncommitted)
+        t2 = threading.Thread(target=second_http)
+        t1.start()
+        t2.start()
+        t1.join(20)
+        t2.join(20)
+        r = results.get("response")
+        assert r is not None
+        self.assertEqual(r.status_code, 200, getattr(r, "text", r))
+        self.assertEqual(r.json()["verdict"], "ACCEPTED")
 
     def test_duplicate_submit_returns_stored_response(self) -> None:
         self._start_job()
@@ -272,6 +380,17 @@ class WorkerSubmitTests(WorkerHarness):
             f" and state in ('ADMITTED', 'CLAIMED');",
         ).stdout.strip()
         self.assertEqual(live, "1")
+
+    def test_stream_wrong_turn_id_is_422(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/events",
+            headers=self._worker_headers(attempt),
+            json={"stream": [{"turn_id": "turn_not_this_one", "seq": 1, "text": "nope"}]},
+        )
+        self.assertEqual(r.status_code, 422, r.text)
+        self.assertEqual(r.json()["code"], "validation_failed")
 
     def test_delta_published_only_for_turn_author(self) -> None:
         self._start_job()

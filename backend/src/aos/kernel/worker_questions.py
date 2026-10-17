@@ -13,6 +13,7 @@ from .worker_attempts import (
     _instance_participant_audience,
     emit_task_state_changed,
     end_claimed_attempt,
+    seat_display_name,
 )
 from .worker_fence import CommittedFenced, require_claimed_attempt
 
@@ -42,13 +43,15 @@ async def ask_questions(
 
     audience = await _instance_participant_audience(conn, gate.instance_id)
     audience_roles = audience.get("roles")
-    seat_display = gate.seat.replace("_", " ").replace("seat ", "").title()
+    author_name = await seat_display_name(
+        conn, org_id=gate.org_id, seat_name=gate.seat, seat_version=gate.seat_version
+    )
     merged_blocks = _blocks_with_questions(blocks, questions)
     turn = await insert_agent_turn(
         conn,
         instance_id=gate.instance_id,
         seat_id=gate.seat,
-        seat_name=seat_display,
+        seat_name=author_name,
         blocks=merged_blocks,
         audience_roles=audience_roles,
         attempt_id=attempt_id,

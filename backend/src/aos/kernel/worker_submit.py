@@ -21,6 +21,7 @@ from .worker_attempts import (
     emit_task_state_changed,
     end_claimed_attempt,
     merge_usage,
+    seat_display_name,
 )
 from .worker_fence import ClaimedAttempt, CommittedFenced, require_claimed_attempt
 
@@ -42,7 +43,8 @@ async def check_submit_idempotency(
         " from work.attempts a"
         " join work.tasks t on t.id = a.task_id"
         " join work.instances i on i.id = t.instance_id"
-        " where a.id = %s and i.org_id = %s",
+        " where a.id = %s and i.org_id = %s"
+        " for update of a",
         (attempt_id, org_id),
     )
     row = await cur.fetchone()
@@ -186,13 +188,15 @@ async def _finish_submit(
         )
 
     audience = await _instance_participant_audience(conn, gate.instance_id)
-    seat_display = gate.seat.replace("_", " ").replace("seat ", "").title()
+    author_name = await seat_display_name(
+        conn, org_id=gate.org_id, seat_name=gate.seat, seat_version=gate.seat_version
+    )
     if reply_blocks and gate.kind == "assist":
         turn = await insert_agent_turn(
             conn,
             instance_id=gate.instance_id,
             seat_id=gate.seat,
-            seat_name=seat_display,
+            seat_name=author_name,
             blocks=reply_blocks,
             audience_roles=audience.get("roles"),
             attempt_id=gate.attempt_id,

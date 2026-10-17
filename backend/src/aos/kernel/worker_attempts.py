@@ -82,6 +82,22 @@ def merge_usage(accumulated: dict[str, Any], consumed: dict[str, Any]) -> dict[s
     }
 
 
+async def seat_display_name(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    seat_name: str,
+    seat_version: int,
+) -> str:
+    cur = await conn.execute(
+        "select display_name from registry.seats"
+        " where org_id = %s and name = %s and version = %s",
+        (org_id, seat_name, seat_version),
+    )
+    row = await cur.fetchone()
+    return str(row[0]) if row else seat_name
+
+
 async def emit_task_state_changed(
     conn: AsyncConnection,
     *,
