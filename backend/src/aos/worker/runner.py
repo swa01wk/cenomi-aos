@@ -171,7 +171,11 @@ class Worker:
                 return "shutdown"
             except Fenced:
                 return "fenced"
-            except (ValidationFailed, KernelProblemError) as exc:
+            except ValidationFailed as exc:
+                msg = (exc.detail or exc.title or "kernel rejected submit")[:2000]
+                await self._fail(attempt, "invalid_output", msg)
+                return "failed:invalid_output"
+            except KernelProblemError as exc:
                 log.warning(
                     "kernel rejected submit for %s: %s",
                     attempt["attempt_id"],
@@ -208,8 +212,8 @@ class Worker:
             except AuthFailed:
                 log.error("worker token rejected; exiting")
                 raise SystemExit(1) from None
-            except (KernelTransportError, TransientKernelError) as exc:
-                log.warning("kernel unreachable during claim: %s", exc)
+            except (KernelTransportError, TransientKernelError, KernelProblemError) as exc:
+                log.warning("kernel claim failed: %s", exc)
                 try:
                     await asyncio.wait_for(self._shutdown.wait(), timeout=poll)
                     break

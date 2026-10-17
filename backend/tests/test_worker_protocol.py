@@ -288,7 +288,12 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             return r
 
         worker = Worker("w1", client, FakeRuntime([bad_submit]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
-        self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submit_rejected")
+        self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:invalid_output")
+        failure_class = _pg.admin_sql(
+            self.db,
+            "select failure_class from work.attempts order by created_at desc limit 1;",
+        ).stdout.strip()
+        self.assertEqual(failure_class, "invalid_output")
         task = asyncio.create_task(worker.run_forever())
         done, _ = await asyncio.wait({task}, timeout=2.5)
         self.assertFalse(done, "run_forever exited after a rejected submit")
@@ -347,10 +352,33 @@ class WorkerResilienceTests(unittest.IsolatedAsyncioTestCase):
         raw = httpx.AsyncClient(transport=httpx.MockTransport(boom), base_url="http://x/api")
         client = HttpKernelClient("http://x/api", "t", client=raw)
         worker = Worker("w", client, FakeRuntime([]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
-        try:
-            await asyncio.wait_for(worker.run_forever(), 2.5)
-        except asyncio.TimeoutError:
-            pass
+        task = asyncio.create_task(worker.run_forever())
+        done, _ = await asyncio.wait({task}, timeout=2.5)
+        self.assertFalse(done, "run_forever exited while kernel was unreachable")
+        worker.request_shutdown()
+        await asyncio.wait_for(task, 5)
+        await client.aclose()
+
+    async def test_kernel_problem_on_claim_keeps_polling(self) -> None:
+        def forbidden(request):
+            return httpx.Response(
+                403,
+                json={
+                    "type": "about:blank",
+                    "code": "not_permitted",
+                    "title": "Not permitted",
+                    "detail": "claim denied for test",
+                },
+            )
+
+        raw = httpx.AsyncClient(transport=httpx.MockTransport(forbidden), base_url="http://x/api")
+        client = HttpKernelClient("http://x/api", "t", client=raw)
+        worker = Worker("w", client, FakeRuntime([]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
+        task = asyncio.create_task(worker.run_forever())
+        done, _ = await asyncio.wait({task}, timeout=2.5)
+        self.assertFalse(done, "run_forever exited after a non-401 claim problem")
+        worker.request_shutdown()
+        await asyncio.wait_for(task, 5)
         await client.aclose()
 
 
