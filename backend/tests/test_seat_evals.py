@@ -165,6 +165,12 @@ class SeatEvalTests(unittest.TestCase):
             for i in self.client.get("/api/console/audit?limit=500", headers=self.login("risk")).json()["items"]
         ]
         self.assertIn("seat.tested", actions)
+        raw = _pg.admin_sql(
+            self.db,
+            "select stream from evidence.outbox where event_type = 'seat.state_changed'",
+        ).stdout.strip()
+        streams = set(raw.splitlines()) if raw else set()
+        self.assertIn("user:faisal", streams)
 
     def test_full_happy_path_without_seed(self) -> None:
         configured = self.configure("platform_admin")

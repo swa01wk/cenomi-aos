@@ -10,5 +10,12 @@ spec:
   authority_profile: sourcing_supervised@1
   autonomy_mode: supervised
   runtime: {adapter: langgraph_agent, model_alias: enterprise_reasoning}
-  limits: {run_minutes: 10, actions_per_run: 10, daily_cost_usd: 20}
+  limits:
+    run_minutes: 10
+    actions_per_run: 10
+    daily_cost_usd: 20
+    attempt_cost_usd: 1.0
+    attempt_tokens: 40000
+    attempt_steps: 8
+    attempt_actions: 6
   evals: [refusals, dry_run]

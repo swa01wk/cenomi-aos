@@ -10,7 +10,7 @@ spec:
   seat_role: sourcing_agent
   initial: intake
   participants:
-    requester: {bind: at_creation}
+    requester: {bind: at_creation, org_roles: [end_user, sourcing_user]}
     buyer: {bind: by_claim, queue: procurement/sourcing}
     procurement_approver: {bind: by_rule, rule: team_owner(procurement/procurement)}
   attributes:

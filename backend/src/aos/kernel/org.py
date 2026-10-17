@@ -69,8 +69,11 @@ class OrgModel(_S):
 
     def as_validation_org(self) -> dict:
         """The plain dict shape ``aos validate --org`` accepts."""
-        return {"people": {k: {} for k in self.people}, "owner_roles": self.owner_roles,
-                "departments": {d: {"teams": {t: {} for t in dept.teams}} for d, dept in self.departments.items()}}
+        return {
+            "people": {k: {"roles": list(p.roles)} for k, p in self.people.items()},
+            "owner_roles": self.owner_roles,
+            "departments": {d: {"teams": {t: {} for t in dept.teams}} for d, dept in self.departments.items()},
+        }
 
 
 def load_org(path: str | Path) -> OrgModel:

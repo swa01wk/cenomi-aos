@@ -75,6 +75,10 @@ def new_decision_id() -> str:
     return _new_prefixed_id("dr_")
 
 
+def new_contract_id() -> str:
+    return _new_prefixed_id("tc_")
+
+
 def new_eval_run_id() -> str:
     return _new_prefixed_id("ev_")
 

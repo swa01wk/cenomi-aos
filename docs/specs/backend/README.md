@@ -80,12 +80,16 @@ model alias resolves · placement team exists and owner is a person in it.
 Checked in order for every new attempt (assist turn, Task attempt, resume). The first failure refuses with its code
 and is recorded as a policy decision; nothing is reserved.
 
+Until M3 (`gov.policy_decisions`, M3-BE-01), admission refusals are recorded as **`gov.decision_records`**
+(`event=admission.denied`, `value` = refusal code) plus audit `admission.denied`, and returned as
+`application/problem+json` with `decision_id`. No instance, task, attempt, turn or budget row is written on refusal.
+
 | # | Gate | Refusal code |
 | --- | --- | --- |
 | 1 | No active kill switch on the instance, its workflow or its Seat | `kill_switch_active` |
 | 2 | Seat version is ACTIVE (not PAUSED, KILLED, RETIRED) | `seat_not_active` |
 | 3 | Instance pinned to a published pack version | `conflict` |
-| 4 | Caller is a participant allowed to act (or the Task is kernel-scheduled) | `not_permitted` |
+| 4 | Caller may act: for `startInstance`, org roles intersect a start participant's `org_roles`; on an existing job, caller is a bound participant (or the Task is kernel-scheduled) | `not_permitted` |
 | 5 | Task has no live attempt and attempts remain | `conflict` |
 | 6 | Inputs current: `dependency_versions` match the instance | `stale_version` |
 | 7 | Budget: attempt reservation fits the Seat's remaining daily limit | `budget_exhausted` |
