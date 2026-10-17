@@ -28,6 +28,11 @@ async def seed(database_url: str, sql: str) -> None:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
+    if settings.gateway_timeout_seconds >= settings.worker_lease_seconds:
+        raise ValueError(
+            "AOS_GATEWAY_TIMEOUT_SECONDS must be less than the worker lease "
+            f"({settings.worker_lease_seconds}s)."
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

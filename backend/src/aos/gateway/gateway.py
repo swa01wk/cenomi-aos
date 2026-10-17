@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-import httpx
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -95,9 +94,8 @@ class ToolGateway:
         url = self._urls.get(connector)
         if not url:
             raise KeyError(f"no MCP URL configured for connector {connector!r}")
-        async with httpx.AsyncClient(timeout=self._timeout_s) as _http:
-            async with streamable_http_client(url) as streams:
-                read, write, _ = streams
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    return await session.call_tool(tool, arguments)
+        async with streamable_http_client(url) as streams:
+            read, write, _ = streams
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return await session.call_tool(tool, arguments)

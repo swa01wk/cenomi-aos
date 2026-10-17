@@ -105,6 +105,17 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(declared, names)
         self.assertTrue(all(n.startswith("admin_") for n in names - declared))
 
+    async def test_token_tool_name_must_match(self) -> None:
+        async with Client(self.server) as c:
+            tok = self.tok("erp_supplier", "read", "browse_categories")
+            res = payload(
+                await c.call_tool(
+                    "search_suppliers",
+                    {"category_id": "CAT-JAN-EQ", "token": tok},
+                )
+            )
+            self.assertIn("error", res)
+
     async def test_calls_need_the_right_token(self) -> None:
         async with Client(self.server) as c:
             self.assertIn("error", payload(await c.call_tool("search_suppliers", {"category_id": "CAT-JAN-EQ"})))

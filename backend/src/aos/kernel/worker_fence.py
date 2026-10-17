@@ -29,6 +29,36 @@ class CommittedFenced:
 
 
 @dataclass(frozen=True)
+class FenceMismatch:
+    org_id: str
+    instance_id: str
+    task_id: str
+    attempt_id: str
+    correlation_id: str
+    worker_id: str
+    proposed_token: int
+    current_token: int
+
+
+def _claimed_fence_ok(
+    *,
+    attempt_state: str,
+    attempt_worker: str | None,
+    attempt_token: int,
+    task_token: int,
+    worker_id: str,
+    fencing_token: int,
+) -> bool:
+    current = int(task_token)
+    return (
+        attempt_state == "CLAIMED"
+        and attempt_worker == worker_id
+        and fencing_token == current
+        and int(attempt_token) == current
+    )
+
+
+@dataclass(frozen=True)
 class ClaimedAttempt:
     attempt_id: str
     task_id: str
@@ -80,14 +110,14 @@ async def write_attempt_fenced(
     return CommittedFenced(proposed_token, current_token)
 
 
-async def require_claimed_attempt(
+async def evaluate_claimed_fence(
     conn: AsyncConnection,
     *,
     org_id: str,
     attempt_id: str,
     worker_id: str,
     fencing_token: int,
-) -> ClaimedAttempt | CommittedFenced:
+) -> ClaimedAttempt | FenceMismatch:
     cur = await conn.execute(
         "select a.id, a.state, a.worker_id, a.fencing_token, a.task_id, a.n, a.turn_id, a.reserved_usd, a.usage,"
         " t.fencing_token, t.instance_id, t.kind, t.contract, t.state, t.attempts_used, t.max_attempts,"
@@ -127,23 +157,23 @@ async def require_claimed_attempt(
     current = int(task_token)
     usage_doc = usage if isinstance(usage, dict) else {}
     contract = contract_json if isinstance(contract_json, dict) else {}
-    ok = (
-        a_state == "CLAIMED"
-        and a_worker == worker_id
-        and fencing_token == current
-        and int(a_token) == current
-    )
-    if not ok:
-        return await write_attempt_fenced(
-            conn,
-            org_id=row_org,
-            instance_id=instance_id,
-            task_id=task_id,
-            attempt_id=attempt_id,
-            correlation_id=correlation_id,
-            worker_id=worker_id,
-            proposed_token=fencing_token,
-            current_token=current,
+    if not _claimed_fence_ok(
+        attempt_state=a_state,
+        attempt_worker=a_worker,
+        attempt_token=int(a_token),
+        task_token=current,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
+    ):
+        return FenceMismatch(
+            str(row_org),
+            instance_id,
+            task_id,
+            attempt_id,
+            correlation_id,
+            worker_id,
+            fencing_token,
+            current,
         )
     return ClaimedAttempt(
         attempt_id=attempt_id,
@@ -165,3 +195,33 @@ async def require_claimed_attempt(
         attempts_used=int(attempts_used),
         max_attempts=int(max_attempts),
     )
+
+
+async def require_claimed_attempt(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    attempt_id: str,
+    worker_id: str,
+    fencing_token: int,
+) -> ClaimedAttempt | CommittedFenced:
+    result = await evaluate_claimed_fence(
+        conn,
+        org_id=org_id,
+        attempt_id=attempt_id,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
+    )
+    if isinstance(result, FenceMismatch):
+        return await write_attempt_fenced(
+            conn,
+            org_id=result.org_id,
+            instance_id=result.instance_id,
+            task_id=result.task_id,
+            attempt_id=result.attempt_id,
+            correlation_id=result.correlation_id,
+            worker_id=result.worker_id,
+            proposed_token=result.proposed_token,
+            current_token=result.current_token,
+        )
+    return result

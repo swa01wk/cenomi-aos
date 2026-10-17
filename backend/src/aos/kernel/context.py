@@ -277,23 +277,26 @@ def _observations_for_envelope(raw: Any) -> list[dict[str, Any]]:
 
 
 def _enforce_envelope_size(envelope: dict[str, Any]) -> None:
-    resolvers = envelope.get("resolvers")
-    if isinstance(resolvers, dict):
-        recent = resolvers.get("recent_messages")
-        if isinstance(recent, list):
-            while len(recent) > 0 and _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
-                recent.pop(0)
-    observations = envelope.get("tool_observations")
-    if isinstance(observations, list):
-        while len(observations) > 1 and _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
+    resolvers = envelope.get("resolvers") if isinstance(envelope.get("resolvers"), dict) else {}
+    recent = resolvers.get("recent_messages") if isinstance(resolvers.get("recent_messages"), list) else []
+    observations = envelope.get("tool_observations") if isinstance(envelope.get("tool_observations"), list) else []
+    summary = resolvers.get("running_summary") if isinstance(resolvers.get("running_summary"), dict) else None
+
+    while _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
+        trimmed = False
+        if recent:
+            recent.pop(0)
+            trimmed = True
+        elif len(observations) > 1:
             observations.pop(0)
-    if isinstance(resolvers, dict):
-        summary = resolvers.get("running_summary")
-        if isinstance(summary, dict):
+            trimmed = True
+        elif summary is not None:
             text = str(summary.get("text") or "")
-            while text and _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
-                text = text[: max(0, len(text) - 256)]
-            summary["text"] = text
+            if text:
+                summary["text"] = text[: max(0, len(text) - 256)]
+                trimmed = True
+        if not trimmed:
+            break
     if _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
         raise ContextError(
             "context_too_large",
