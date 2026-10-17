@@ -304,43 +304,113 @@ class ContextEnvelopeTests(unittest.TestCase):
         )
         return art_id, full_hash
 
-    def test_requester_leak_test_and_redactions(self) -> None:
+    def _quote_comparison_contract(self, inst: str, *, person: str = "faisal", role: str = "requester") -> dict:
+        contract = json.loads((EXAMPLES / "task-contract.rfq_draft.json").read_text())
+        contract["instance_id"] = inst
+        contract["skill"] = {"name": "quote_comparison", "version": 1, "instructions_sha256": "a" * 64}
+        contract["on_behalf_of"] = {"role": role, "person_id": person}
+        contract["permission_scope"]["classification_ceiling"] = "internal"
+        contract["immutable_input_refs"] = []
+        return contract
+
+    def test_requester_quote_comparison_leak_and_redactions(self) -> None:
         inst = self._start("faisal")
         self._insert_comparison(inst)
         _pg.admin_sql(
             self.db,
             f"""
             update work.instances set attributes = attributes || '{{"po_amount": 99999.01}}'::jsonb where id = '{inst}';
-            insert into work.turns (
-              id, instance_id, seq, author_kind, author_id, audience_roles, blocks, client_turn_id
-            ) values (
-              '{ids.new_turn_id()}', '{inst}', 99, 'person', 'noura', array['buyer']::text[],
-              '[{{"kind":"text","text":"Buyer sees {PLANT_PRICE} here"}}]'::jsonb, 'leak-buyer-turn'
-            );
-            insert into work.pending_items (
-              id, instance_id, kind, title, detail, for_role, for_person_id, options, status
-            ) values (
-              '{ids.new_pending_id()}', '{inst}', 'approval', 'PO approval', 'detail {PLANT_PRICE}',
-              'procurement_approver', 'risk', '[]', 'open'
-            );
             """,
         )
-        contract = json.loads((EXAMPLES / "task-contract.rfq_draft.json").read_text())
-        contract["instance_id"] = inst
-        contract["skill"] = {"name": "quote_comparison", "version": 1, "instructions_sha256": "a" * 64}
-        contract["on_behalf_of"] = {"role": "requester", "person_id": "faisal"}
-        contract["permission_scope"]["classification_ceiling"] = "internal"
-        contract["immutable_input_refs"] = []
         attempt = self._claim()
-        self._set_contract_on_attempt(attempt, contract)
+        self._set_contract_on_attempt(attempt, self._quote_comparison_contract(inst))
         envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
         dumped = json.dumps(envelope)
         self.assertNotIn(PLANT_PRICE, dumped)
+        self.assertNotIn("99999.01", dumped)
+        self.assertIn("job_snapshot", envelope["resolvers"])
         redacted_fields = {r["field"] for r in envelope["redactions"]}
         self.assertIn("unit_price", redacted_fields)
         self.assertIn("total", redacted_fields)
         self.assertIn("attributes.po_amount", redacted_fields)
         self.assertTrue(any(r["field"] == "unit_price" and r.get("artifact_id") for r in envelope["redactions"]))
+
+    def test_request_intake_recent_messages_visibility_and_seat_author(self) -> None:
+        inst = self._start("faisal", "Need trolleys")
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into work.turns (
+              id, instance_id, seq, author_kind, author_id, audience_roles, blocks, client_turn_id
+            ) values (
+              '{ids.new_turn_id()}', '{inst}', 98, 'person', 'noura', array['buyer']::text[],
+              '[{{"kind":"text","text":"Buyer-only {PLANT_PRICE}"}}]'::jsonb, 'leak-buyer-turn'
+            );
+            insert into work.turns (
+              id, instance_id, seq, author_kind, author_id, audience_roles, blocks, client_turn_id
+            ) values (
+              '{ids.new_turn_id()}', '{inst}', 99, 'seat', '{SEAT}', null,
+              '[{{"kind":"text","text":"Agent reply"}}]'::jsonb, 'leak-seat-turn'
+            );
+            """,
+        )
+        attempt = self._claim()
+        contract = self._quote_comparison_contract(inst)
+        contract["skill"] = {"name": "request_intake", "version": 1, "instructions_sha256": "a" * 64}
+        self._set_contract_on_attempt(attempt, contract)
+        envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
+        self.assertIn("recent_messages", envelope["resolvers"])
+        messages = envelope["resolvers"]["recent_messages"]
+        texts = [m["text"] for m in messages]
+        authors = [m["author"] for m in messages]
+        self.assertNotIn(PLANT_PRICE, json.dumps(messages))
+        self.assertFalse(any(PLANT_PRICE in t for t in texts))
+        self.assertTrue(any("Need trolleys" in t for t in texts))
+        self.assertIn("Sourcing Agent", authors)
+
+    def test_resolve_pending_items_filters_by_viewer(self) -> None:
+        inst = self._start("faisal")
+        pend_faisal = ids.new_pending_id()
+        pend_khalid = ids.new_pending_id()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into work.pending_items (
+              id, instance_id, kind, title, detail, for_role, for_person_id, options, status
+            ) values
+              ('{pend_khalid}', '{inst}', 'approval', 'Approver {PLANT_PRICE}', 'secret', 'procurement_approver', 'khalid', '[]', 'open'),
+              ('{pend_faisal}', '{inst}', 'question', 'Faisal {PLANT_PRICE}', 'secret', 'requester', 'faisal', '[]', 'open');
+            """,
+        )
+
+        async def _run() -> list[dict]:
+            from aos.kernel.context import _resolve_pending_items
+
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                return await _resolve_pending_items(
+                    conn, inst, person_id="faisal", viewer_roles=["requester"]
+                )
+
+        items = asyncio.run(_run())
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], pend_faisal)
+        self.assertIn(PLANT_PRICE, items[0]["summary"])
+        self.assertNotIn("secret", json.dumps(items))
+
+    def test_undeclared_instance_attribute_is_redacted(self) -> None:
+        inst = self._start("faisal")
+        _pg.admin_sql(
+            self.db,
+            f"update work.instances set attributes = '{{\"undeclared_metric\": 42}}'::jsonb where id = '{inst}';",
+        )
+        attempt = self._claim()
+        contract = self._quote_comparison_contract(inst)
+        contract["skill"] = {"name": "request_intake", "version": 1, "instructions_sha256": "a" * 64}
+        self._set_contract_on_attempt(attempt, contract)
+        envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
+        snap = envelope["resolvers"]["job_snapshot"]
+        self.assertNotIn("undeclared_metric", snap["attributes"])
+        self.assertIn("attributes.undeclared_metric", {r["field"] for r in envelope["redactions"]})
 
     def test_two_quotes_in_quote_comparison_envelope(self) -> None:
         inst = self._start("faisal")
@@ -387,6 +457,10 @@ class ContextEnvelopeTests(unittest.TestCase):
         envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
         item = next(a for a in envelope["artifacts"] if a["artifact_id"] == art_id)
         self.assertNotEqual(item["content_hash"], stored)
+        dumped = json.dumps(envelope)
+        self.assertNotIn(stored, dumped)
+        prov = next(p for p in envelope["provenance"] if art_id in p["source_ref"])
+        self.assertEqual(prov["sha256"], item["content_hash"])
 
     def test_non_participant_on_behalf_of_is_403_with_decision(self) -> None:
         self._start("faisal")
@@ -410,28 +484,37 @@ class ContextEnvelopeTests(unittest.TestCase):
 
     def test_c07_natural_cross_job_turn_does_not_leak(self) -> None:
         inst1 = self._start("faisal", "Tell me about the other job")
-        inst2 = self._start("faisal", DISTINCT_QQ2_TITLE)
+        inst2 = self._start("faisal_manager", DISTINCT_QQ2_TITLE)
+        faisal_on_2 = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.participants where instance_id = '{inst2}' and person_id = 'faisal';",
+        ).stdout.strip()
+        self.assertEqual(faisal_on_2, "0")
         self._insert_comparison(inst2, plant=PLANT_PRICE)
         _pg.admin_sql(
             self.db,
-            f"""
-            update work.instances set title = '{DISTINCT_QQ2_TITLE}' where id = '{inst2}';
-            """,
+            f"update work.instances set title = '{DISTINCT_QQ2_TITLE}' where id = '{inst2}';",
         )
         self.client.post(
             f"/api/instances/{inst1}/turns",
             headers={**self._auth("faisal"), "Idempotency-Key": str(uuid.uuid4())},
             json={"text": f"What is the price on {inst2}?"},
         )
-        attempt = self._claim()
+        attempt = self._claim(lanes=["assist"])
         envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
+        self.assertEqual(envelope["ids"]["instance_id"], inst1)
         dumped = json.dumps(envelope)
         self.assertNotIn(PLANT_PRICE, dumped)
         self.assertNotIn(DISTINCT_QQ2_TITLE, dumped)
 
     def test_c07_tampered_immutable_input_ref_records_decision_without_other_job_id(self) -> None:
         inst1 = self._start("faisal")
-        inst2 = self._start("faisal")
+        inst2 = self._start("faisal_manager")
+        faisal_on_2 = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.participants where instance_id = '{inst2}' and person_id = 'faisal';",
+        ).stdout.strip()
+        self.assertEqual(faisal_on_2, "0")
         art2, _ = self._insert_comparison(inst2)
         contract = json.loads((EXAMPLES / "task-contract.rfq_draft.json").read_text())
         contract["instance_id"] = inst1

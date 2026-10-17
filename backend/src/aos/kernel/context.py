@@ -18,6 +18,7 @@ from .artifacts import (
     artifact_instance_id,
     envelope_artifact_item,
     envelope_artifact_status,
+    envelope_content_hash,
     parse_artifact_type,
     project,
     _fetch_version,
@@ -68,7 +69,16 @@ def _filter_job_attributes(
     max_rank = _CLASS_RANK[ceiling]
     for key, val in raw.items():
         spec = attr_specs.get(key)
-        classification: Classification = spec.classification if spec else "internal"
+        if spec is None:
+            redactions.append(
+                {
+                    "artifact_type": "job_snapshot",
+                    "field": f"attributes.{key}",
+                    "reason": "classification",
+                }
+            )
+            continue
+        classification: Classification = spec.classification
         if classification == "restricted":
             redactions.append(
                 {
@@ -145,10 +155,17 @@ def _commands_from_contract(contract: dict[str, Any], defs: dict[str, dict[str, 
 
 
 def _workflow_attribute_specs(wdoc: dict[str, Any]) -> dict[str, WorkflowAttributeSpec]:
+    if not wdoc:
+        raise ContextError("internal", 500, "Workflow missing", "Workflow definition is not on the pinned pack.")
     try:
         wf = WorkflowDefinition.model_validate(wdoc)
-    except Exception:
-        return {}
+    except Exception as exc:
+        raise ContextError(
+            "internal",
+            500,
+            "Workflow definition invalid",
+            "The pinned workflow definition could not be parsed.",
+        ) from exc
     return wf.spec.attributes
 
 
@@ -180,6 +197,7 @@ async def _resolve_recent_messages(
     instance_id: str,
     viewer_roles: list[str],
     *,
+    seat_display_name: str,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
     cur = await conn.execute(
@@ -194,6 +212,8 @@ async def _resolve_recent_messages(
             continue
         if author_kind == "person" and author_id in org.people:
             author = org.people[author_id].name
+        elif author_kind == "seat":
+            author = seat_display_name
         else:
             author = str(author_id)
         text = _turn_text(blocks)
@@ -284,14 +304,20 @@ async def assemble_context(
     from .instances import _load_definitions, _pack_meta
 
     cur = await conn.execute(
-        "select title, workflow, pack_version_id, state, attributes, correlation_id, seat"
+        "select title, workflow, pack_version_id, state, attributes, correlation_id, seat, seat_version"
         " from work.instances where id = %s and org_id = %s",
         (instance_id, org_id),
     )
     inst = await cur.fetchone()
     if inst is None:
         raise ContextError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
-    title, workflow, pvid, state, attributes_json, correlation_id, _seat = inst
+    title, workflow, pvid, state, attributes_json, correlation_id, seat_name, seat_version = inst
+    seat_cur = await conn.execute(
+        "select display_name from registry.seats where org_id = %s and name = %s and version = %s",
+        (org_id, seat_name, seat_version),
+    )
+    seat_row = await seat_cur.fetchone()
+    seat_display_name = seat_row[0] if seat_row else str(seat_name)
     attrs_raw = attributes_json if isinstance(attributes_json, dict) else {}
 
     defs = await _load_definitions(conn, str(pvid))
@@ -300,8 +326,15 @@ async def assemble_context(
     attr_specs = _workflow_attribute_specs(wdoc)
 
     skill_name = (contract.get("skill") or {}).get("name")
-    skill_doc = (defs.get("Skill") or {}).get(skill_name or "")
-    reads: set[str] = set((skill_doc.get("spec") or {}).get("reads") or []) if skill_doc else set()
+    skill_doc = (defs.get("Skill") or {}).get(skill_name or "") if skill_name else None
+    if not skill_doc:
+        raise ContextError(
+            "conflict",
+            409,
+            "Skill missing",
+            f"Skill {skill_name!r} is not on the pinned pack.",
+        )
+    reads = set((skill_doc.get("spec") or {}).get("reads") or [])
 
     redactions: list[dict[str, Any]] = []
     resolvers: dict[str, Any] = {}
@@ -326,7 +359,9 @@ async def assemble_context(
 
     recent_messages: list[dict[str, Any]] = []
     if "recent_messages" in reads:
-        recent_messages = await _resolve_recent_messages(conn, org, instance_id, viewer_roles)
+        recent_messages = await _resolve_recent_messages(
+            conn, org, instance_id, viewer_roles, seat_display_name=seat_display_name
+        )
         resolvers["recent_messages"] = recent_messages
 
     if "running_summary" in reads:
@@ -413,16 +448,12 @@ async def assemble_context(
         provenance.append(
             {
                 "source_ref": f"artifact://{aid}@{version_n}",
-                "sha256": rec.content_hash,
+                "sha256": envelope_content_hash(projected),
                 "retrieved_at": assembled_at,
             }
         )
 
-    skill_instructions: str | None = None
-    try:
-        skill_instructions = load_skill_instructions(packs_dir, contract)
-    except Exception:
-        skill_instructions = None
+    skill_instructions = load_skill_instructions(packs_dir, contract)
 
     envelope: dict[str, Any] = {
         "schema_version": "aos.context_envelope/1",
@@ -455,9 +486,8 @@ async def assemble_context(
         "commands": _commands_from_contract(contract, defs),
         "provenance": provenance,
         "redactions": redactions,
+        "skill_instructions": skill_instructions,
     }
-    if skill_instructions:
-        envelope["skill_instructions"] = skill_instructions
 
     _enforce_envelope_size(envelope)
     return envelope

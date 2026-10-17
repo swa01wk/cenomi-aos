@@ -354,6 +354,8 @@ async def assemble_context(
         )
     except ContextError as exc:
         raise WorkerError(exc.code, exc.status, exc.title, exc.detail) from exc
+    except PackMaterialError as exc:
+        raise WorkerError(exc.code, exc.status, exc.title, exc.detail) from exc
 
 
 async def fail_attempt(
