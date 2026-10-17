@@ -20,12 +20,14 @@ async def insert_assist_task(
     skill: str,
     work_type: str,
     contract: dict[str, Any],
+    max_attempts: int,
 ) -> None:
     await conn.execute(
         "insert into work.tasks ("
-        " id, instance_id, kind, template, skill, work_type, verifier, state, contract, contract_hash"
-        ") values (%s, %s, 'assist', 'assist', %s, %s, null, 'CREATED', %s, %s)",
-        (task_id, instance_id, skill, work_type, Jsonb(contract), contract["contract_hash"]),
+        " id, instance_id, kind, template, skill, work_type, verifier, state, contract, contract_hash,"
+        " max_attempts"
+        ") values (%s, %s, 'assist', 'assist', %s, %s, null, 'CREATED', %s, %s, %s)",
+        (task_id, instance_id, skill, work_type, Jsonb(contract), contract["contract_hash"], max_attempts),
     )
 
 

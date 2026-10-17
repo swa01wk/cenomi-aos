@@ -9,7 +9,19 @@ from pathlib import Path
 from typing import Any
 
 from ..registry.kinds import NATIVE_TOOLS
+from ..registry.loader import load_pack
 from . import ids
+
+
+class PackMaterialError(Exception):
+    """Pinned pack on disk does not match the stored version (digest or skill files)."""
+
+    def __init__(self, code: str, status: int, title: str, detail: str) -> None:
+        self.code = code
+        self.status = status
+        self.title = title
+        self.detail = detail
+        super().__init__(title)
 
 _KERNEL_TOOL_NAMES = frozenset({"read_artifact", "save_draft", "ask_question", "request_action", "checkpoint", "submit"})
 
@@ -23,13 +35,71 @@ def contract_hash(contract: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(body)).hexdigest()
 
 
+def verify_pinned_pack_on_disk(
+    packs_dir: Path, pack_name: str, pack_version: int, expected_digest: str
+) -> None:
+    """Same digest check as pack sync: on-disk tree must match the pinned pack_versions row."""
+    root = packs_dir / pack_name
+    if not root.is_dir():
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Pack folder is missing",
+            f"The pack folder {pack_name!r} is not available on this server.",
+        )
+    loaded = load_pack(root)
+    if loaded.manifest is None:
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Pack folder is invalid",
+            f"The pack folder {pack_name!r} has no manifest.",
+        )
+    meta = loaded.manifest.metadata
+    if int(meta.version) != int(pack_version):
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Pack version mismatch",
+            f"On-disk pack is v{meta.version}; this job is pinned to v{pack_version}.",
+        )
+    if loaded.digest != expected_digest:
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Pack content changed",
+            "The pack on disk no longer matches the published version pinned to this seat.",
+        )
+
+
 def _instructions_sha256(packs_dir: Path, pack_name: str, skill_doc: dict) -> str:
     rel = (skill_doc.get("spec") or {}).get("instructions") or "instructions.md"
     skill_name = skill_doc.get("metadata", {}).get("name", "")
     path = packs_dir / pack_name / "skills" / skill_name / rel
-    if path.is_file():
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    return hashlib.sha256(rel.encode()).hexdigest()
+    if not path.is_file():
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Skill instructions missing",
+            f"Instructions file {rel!r} for skill {skill_name!r} is not on disk.",
+        )
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def seat_budget_block(seat_limits: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "tokens": int(seat_limits["attempt_tokens"]),
+        "cost_usd": float(seat_limits["attempt_cost_usd"]),
+        "time_s": int(seat_limits["run_minutes"]) * 60,
+        "steps": int(seat_limits["attempt_steps"]),
+        "actions": int(seat_limits["attempt_actions"]),
+        "retries": 2,
+        "children": 0,
+    }
+
+
+def max_attempts_from_budget(budget: dict[str, Any]) -> int:
+    return int(budget["retries"]) + 1
 
 
 def _tool_index(defs: dict[str, dict[str, dict]]) -> dict[str, tuple[str, dict]]:
@@ -114,15 +184,7 @@ def build_assist_contract(
                 c = grant.get("classification") or "internal"
                 if _class_rank(c) > _class_rank(ceiling):
                     ceiling = c
-    budget = {
-        "tokens": int(seat_limits["attempt_tokens"]),
-        "cost_usd": float(seat_limits["attempt_cost_usd"]),
-        "time_s": int(seat_limits["run_minutes"]) * 60,
-        "steps": int(seat_limits["attempt_steps"]),
-        "actions": int(seat_limits["attempt_actions"]),
-        "retries": 2,
-        "children": 0,
-    }
+    budget = seat_budget_block(seat_limits)
     outputs = [
         {
             "artifact_type": at,

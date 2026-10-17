@@ -7,14 +7,17 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, errors as pg_errors
 from . import contracts, ids
 from .admission import (
     AdmissionContext,
     check_admission,
     count_live_seat_attempts,
+    refuse_budget_exhausted,
+    refuse_live_attempt_conflict,
     task_has_live_attempt,
 )
+from .contracts import PackMaterialError
 from .conversation import (
     find_turn_by_client_id,
     insert_person_turn,
@@ -61,14 +64,72 @@ async def _pack_meta(conn: AsyncConnection, org_id: str, pack_version_id: str) -
     return row[0], int(row[1]), row[2], row[3]
 
 
-async def _active_seat_row(conn: AsyncConnection, org_id: str, seat_name: str) -> tuple | None:
+async def _idempotent_instance_id(
+    conn: AsyncConnection, org_id: str, actor: str, idempotency_key: str | None
+) -> str | None:
+    if not idempotency_key:
+        return None
+    cur = await conn.execute(
+        "select id from work.instances where org_id = %s and created_by = %s and idempotency_key = %s",
+        (org_id, actor, idempotency_key),
+    )
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
+async def _lock_seat_for_admission(
+    conn: AsyncConnection, org_id: str, seat_name: str
+) -> tuple | None:
     cur = await conn.execute(
         "select name, version, pack_version_id, display_name, placement, owner_person_id, state"
-        " from registry.seats where org_id = %s and name = %s and state = 'ACTIVE'"
-        " order by version desc limit 1",
+        " from registry.seats"
+        " where org_id = %s and name = %s"
+        " order by (case when state = 'ACTIVE' then 0 else 1 end), version desc"
+        " limit 1"
+        " for update",
         (org_id, seat_name),
     )
     return await cur.fetchone()
+
+
+def _pack_material_error(exc: PackMaterialError) -> InstanceError:
+    return InstanceError(exc.code, exc.status, exc.title, exc.detail)
+
+
+async def _admit_attempt_or_refuse(
+    conn: AsyncConnection,
+    ctx: AdmissionContext,
+    *,
+    org_id: str,
+    seat: str,
+    daily_limit_usd: float,
+    task_id: str,
+    attempt_id: str,
+    turn_id: str | None,
+    attempt_n: int,
+    reservation_usd: float,
+) -> CommittedRefusal | int:
+    try:
+        async with conn.transaction():
+            return await task_ops.admit_attempt(
+                conn,
+                org_id=org_id,
+                seat=seat,
+                daily_limit_usd=daily_limit_usd,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                turn_id=turn_id,
+                attempt_n=attempt_n,
+                reservation_usd=reservation_usd,
+            )
+    except pg_errors.CheckViolation as exc:
+        if exc.diag.table_name == "budget_ledger":
+            return await refuse_budget_exhausted(conn, ctx)
+        raise
+    except pg_errors.UniqueViolation as exc:
+        if exc.diag.constraint_name == "attempts_one_live":
+            return await refuse_live_attempt_conflict(conn, ctx)
+        raise
 
 
 def _seat_limits(seat_doc: dict) -> dict[str, Any]:
@@ -338,56 +399,13 @@ async def start_instance(
     idempotency_key: str | None,
     packs_dir: Path,
 ) -> dict[str, Any] | CommittedRefusal:
-    if idempotency_key:
-        cur = await conn.execute(
-            "select id from work.instances where org_id = %s and created_by = %s and idempotency_key = %s",
-            (org_id, actor, idempotency_key),
-        )
-        existing = await cur.fetchone()
-        if existing:
-            return await build_snapshot(conn, org, org_id, existing[0], actor)
+    existing_id = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
+    if existing_id:
+        return await build_snapshot(conn, org, org_id, existing_id, actor)
 
-    seat_row = await _active_seat_row(conn, org_id, seat_name)
+    seat_row = await _lock_seat_for_admission(conn, org_id, seat_name)
     if seat_row is None:
-        cur = await conn.execute(
-            "select version, pack_version_id, state from registry.seats"
-            " where org_id = %s and name = %s order by version desc limit 1",
-            (org_id, seat_name),
-        )
-        latest = await cur.fetchone()
-        if latest is None:
-            raise InstanceError("not_found", 404, "Seat not found", f"No seat {seat_name!r}.")
-        seat_version, pack_version_id, seat_state = latest[0], latest[1], latest[2]
-        pack_name, pack_ver, _, pack_status = await _pack_meta(conn, org_id, str(pack_version_id))
-        defs = await _load_definitions(conn, str(pack_version_id))
-        wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name)
-        bind_role = may_start_workflow(wdoc, set(roles)) if wdoc else None
-        limits_doc = defs.get("Seat", {}).get(seat_name) or {}
-        reservation = float(_seat_limits(limits_doc)["attempt_cost_usd"]) if limits_doc else 0.0
-        ctx = AdmissionContext(
-            org_id=org_id,
-            actor=actor,
-            actor_roles=roles,
-            seat_name=seat_name,
-            seat_state=seat_state,
-            workflow_name=workflow_name,
-            instance_id=None,
-            pack_version_id=str(pack_version_id),
-            pack_published=pack_status == "published",
-            task_id=None,
-            attempts_used=0,
-            max_attempts=3,
-            has_live_attempt=False,
-            dependency_versions={},
-            contract_dependency_versions={},
-            reservation_usd=reservation,
-            participant_ok=bind_role is not None,
-            live_seat_attempts=await count_live_seat_attempts(conn, org_id, seat_name),
-        )
-        refusal = await check_admission(conn, ctx)
-        if refusal:
-            return refusal
-        raise InstanceError("not_found", 404, "Seat not found", f"No active seat {seat_name!r}.")
+        raise InstanceError("not_found", 404, "Seat not found", f"No seat {seat_name!r}.")
 
     (
         _sname,
@@ -401,17 +419,13 @@ async def start_instance(
     pack_name, pack_ver, pack_digest, pack_status = await _pack_meta(conn, org_id, str(pack_version_id))
     defs = await _load_definitions(conn, str(pack_version_id))
     wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name)
-    if wdoc is None:
-        raise InstanceError("not_found", 404, "Workflow not found", f"No workflow {workflow_name!r} on this seat.")
     seat_doc = defs.get("Seat", {}).get(seat_name)
-    if seat_doc is None:
-        raise InstanceError("not_found", 404, "Seat definition missing", f"Seat {seat_name!r} not on pack.")
-    bind_role_name = may_start_workflow(wdoc, set(roles))
-    participant_ok = bind_role_name is not None
-    template = _initial_task_template(wdoc)
-    limits = _seat_limits(seat_doc)
-    reservation = float(limits["attempt_cost_usd"])
-    live = await count_live_seat_attempts(conn, org_id, seat_name)
+    limits_doc = seat_doc or {}
+    limits = _seat_limits(limits_doc) if seat_doc else {}
+    reservation = float(limits.get("attempt_cost_usd", 0.0))
+    budget = contracts.seat_budget_block(limits) if limits else {"retries": 2}
+    max_attempts = contracts.max_attempts_from_budget(budget)
+    bind_role_name = may_start_workflow(wdoc, set(roles)) if wdoc else None
     ctx = AdmissionContext(
         org_id=org_id,
         actor=actor,
@@ -424,65 +438,89 @@ async def start_instance(
         pack_published=pack_status == "published",
         task_id=None,
         attempts_used=0,
-        max_attempts=3,
+        max_attempts=max_attempts,
         has_live_attempt=False,
         dependency_versions={},
         contract_dependency_versions={},
         reservation_usd=reservation,
-        participant_ok=participant_ok,
-        live_seat_attempts=live,
+        participant_ok=bind_role_name is not None,
+        live_seat_attempts=await count_live_seat_attempts(conn, org_id, seat_name),
     )
     refusal = await check_admission(conn, ctx)
     if refusal:
         return refusal
+    if seat_state != "ACTIVE":
+        raise InstanceError("not_found", 404, "Seat not found", f"No active seat {seat_name!r}.")
+    if wdoc is None:
+        raise InstanceError("not_found", 404, "Workflow not found", f"No workflow {workflow_name!r} on this seat.")
+    if seat_doc is None:
+        raise InstanceError("not_found", 404, "Seat definition missing", f"Seat {seat_name!r} not on pack.")
+
+    try:
+        contracts.verify_pinned_pack_on_disk(packs_dir, pack_name, pack_ver, pack_digest)
+    except PackMaterialError as exc:
+        raise _pack_material_error(exc) from exc
 
     prefix = (wdoc.get("spec") or {}).get("id_prefix", "JOB")
     instance_id = await ids.next_instance_id(conn, prefix)
     task_id = ids.new_task_id()
     attempt_id = ids.new_attempt_id()
-    participant_role = bind_role_name  # set when participant_ok passed gate 4
-    contract = contracts.build_assist_contract(
-        packs_dir=packs_dir,
-        pack_name=pack_name,
-        pack_version=pack_ver,
-        pack_digest=pack_digest,
-        defs=defs,
-        org_id=org_id,
-        instance_id=instance_id,
-        task_id=task_id,
-        seat_name=seat_name,
-        seat_version=seat_version,
-        seat_doc=seat_doc,
-        workflow_name=workflow_name,
-        skill_name=template["skill"],
-        work_type=template["work_type"],
-        participant_role=participant_role,
-        person_id=actor,
-        attempt_n=1,
-        seat_limits=limits,
-    )
+    participant_role = bind_role_name
+    if participant_role is None:
+        raise InstanceError("internal", 500, "Admission inconsistency", "Start role binding missing.")
+    template = _initial_task_template(wdoc)
+    try:
+        contract = contracts.build_assist_contract(
+            packs_dir=packs_dir,
+            pack_name=pack_name,
+            pack_version=pack_ver,
+            pack_digest=pack_digest,
+            defs=defs,
+            org_id=org_id,
+            instance_id=instance_id,
+            task_id=task_id,
+            seat_name=seat_name,
+            seat_version=seat_version,
+            seat_doc=seat_doc,
+            workflow_name=workflow_name,
+            skill_name=template["skill"],
+            work_type=template["work_type"],
+            participant_role=participant_role,
+            person_id=actor,
+            attempt_n=1,
+            seat_limits=limits,
+        )
+    except PackMaterialError as exc:
+        raise _pack_material_error(exc) from exc
     correlation_id = secrets.token_hex(16)
     title = (first_message[:80] + "…") if len(first_message) > 80 else first_message
     initial_state = (wdoc.get("spec") or {}).get("initial")
-    await conn.execute(
-        "insert into work.instances ("
-        " id, org_id, workflow, pack_version_id, seat, seat_version, title, state, created_by, idempotency_key,"
-        " correlation_id"
-        ") values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (
-            instance_id,
-            org_id,
-            workflow_name,
-            pack_version_id,
-            seat_name,
-            seat_version,
-            title or workflow_name,
-            initial_state,
-            actor,
-            idempotency_key,
-            correlation_id,
-        ),
-    )
+    try:
+        async with conn.transaction():
+            await conn.execute(
+                "insert into work.instances ("
+                " id, org_id, workflow, pack_version_id, seat, seat_version, title, state, created_by,"
+                " idempotency_key, correlation_id"
+                ") values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    instance_id,
+                    org_id,
+                    workflow_name,
+                    pack_version_id,
+                    seat_name,
+                    seat_version,
+                    title or workflow_name,
+                    initial_state,
+                    actor,
+                    idempotency_key,
+                    correlation_id,
+                ),
+            )
+    except pg_errors.UniqueViolation:
+        raced = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
+        if raced:
+            return await build_snapshot(conn, org, org_id, raced, actor)
+        raise
     await conn.execute(
         "insert into work.participants (instance_id, role, person_id, bound_by)"
         " values (%s, %s, %s, 'creation')",
@@ -495,6 +533,7 @@ async def start_instance(
         skill=template["skill"],
         work_type=template["work_type"],
         contract=contract,
+        max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
     )
     turn = await insert_person_turn(
         conn,
@@ -503,8 +542,9 @@ async def start_instance(
         text=first_message,
         client_turn_id=idempotency_key or ids.new_turn_id(),
     )
-    await task_ops.admit_attempt(
+    admit = await _admit_attempt_or_refuse(
         conn,
+        ctx,
         org_id=org_id,
         seat=seat_name,
         daily_limit_usd=float(limits["daily_cost_usd"]),
@@ -514,6 +554,8 @@ async def start_instance(
         attempt_n=1,
         reservation_usd=reservation,
     )
+    if isinstance(admit, CommittedRefusal):
+        return admit
     await conn.execute(
         "update work.turns set attempt_id = %s where id = %s",
         (attempt_id, turn["turn_id"]),
@@ -589,22 +631,29 @@ async def post_turn(
         return {"turn": turn, "attempt_id": existing[6]}
 
     cur = await conn.execute(
-        "select i.seat, i.seat_version, i.workflow, i.pack_version_id, i.attributes, i.correlation_id,"
-        " s.state"
-        " from work.instances i"
-        " join registry.seats s on s.org_id = i.org_id and s.name = i.seat and s.version = i.seat_version"
-        " where i.id = %s and i.org_id = %s",
+        "select i.seat, i.seat_version, i.workflow, i.pack_version_id, i.attributes, i.correlation_id"
+        " from work.instances i where i.id = %s and i.org_id = %s",
         (instance_id, org_id),
     )
     inst = await cur.fetchone()
     if inst is None:
         raise InstanceError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
-    seat_name, seat_version, workflow_name, pvid, attributes, correlation_id, seat_state = inst
+    seat_name, seat_version, workflow_name, pvid, attributes, correlation_id = inst
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
+
+    scur = await conn.execute(
+        "select state from registry.seats"
+        " where org_id = %s and name = %s and version = %s for update",
+        (org_id, seat_name, seat_version),
+    )
+    seat_locked = await scur.fetchone()
+    if seat_locked is None:
+        raise InstanceError("not_found", 404, "Seat not found", f"Seat {seat_name!r} v{seat_version} missing.")
+    seat_state = seat_locked[0]
 
     tcur = await conn.execute(
         "select id, contract, attempts_used, max_attempts from work.tasks"
-        " where instance_id = %s and kind = 'assist' limit 1",
+        " where instance_id = %s and kind = 'assist' limit 1 for update",
         (instance_id,),
     )
     task_row = await tcur.fetchone()
@@ -677,21 +726,22 @@ async def post_turn(
         client_turn_id=client_turn_id,
         attempt_id=None,
     )
-    await task_ops.admit_attempt(
+    seat_doc = (await _load_definitions(conn, str(pvid))).get("Seat", {}).get(seat_name) or {}
+    daily_limit = float(_seat_limits(seat_doc)["daily_cost_usd"])
+    admit = await _admit_attempt_or_refuse(
         conn,
+        ctx,
         org_id=org_id,
         seat=seat_name,
-        daily_limit_usd=float(
-            _seat_limits(
-                (await _load_definitions(conn, str(pvid))).get("Seat", {}).get(seat_name) or {}
-            )["daily_cost_usd"]
-        ),
+        daily_limit_usd=daily_limit,
         task_id=task_id,
         attempt_id=attempt_id,
         turn_id=turn["turn_id"],
         attempt_n=attempt_n,
         reservation_usd=reservation,
     )
+    if isinstance(admit, CommittedRefusal):
+        return admit
     await conn.execute(
         "update work.turns set attempt_id = %s where id = %s",
         (attempt_id, turn["turn_id"]),

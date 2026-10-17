@@ -195,6 +195,29 @@ async def _budget_fits(conn: AsyncConnection, org_id: str, seat: str, reservatio
     return reserved + settled + reservation_usd <= limit_usd + 1e-9
 
 
+async def refuse_budget_exhausted(conn: AsyncConnection, ctx: AdmissionContext) -> CommittedRefusal:
+    return await _record_admission_denied(
+        conn,
+        ctx,
+        code="budget_exhausted",
+        rule=_rule(7, "budget_exhausted"),
+        title="Daily budget reached",
+        detail="This seat has no budget left for new attempts today.",
+    )
+
+
+async def refuse_live_attempt_conflict(conn: AsyncConnection, ctx: AdmissionContext) -> CommittedRefusal:
+    return await _record_admission_denied(
+        conn,
+        ctx,
+        code="conflict",
+        rule=_rule(5, "live_attempt"),
+        title="An attempt is already running",
+        detail="Wait for the current attempt to finish before starting another.",
+        status=409,
+    )
+
+
 async def reserve_budget(
     conn: AsyncConnection,
     *,

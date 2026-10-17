@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import psycopg
 from fastapi.testclient import TestClient
@@ -149,9 +150,11 @@ class JobsConversationTests(unittest.TestCase):
             delete from work.instances;
             delete from gov.budget_ledger;
             delete from gov.decision_records where event = 'admission.denied';
-            update registry.seats set state = 'DRAFT', record_version = 1, configured_by = null, activated_by = null
+            update registry.seats set state = 'DRAFT', record_version = 1, configured_by = null, activated_by = null,
+                pack_version_id = '%s'
             where name = 'seat_sourcing_poc';
-            """,
+            """
+            % self.version_id,
         )
 
     def test_idempotent_start_instance(self) -> None:
@@ -330,6 +333,86 @@ class JobsConversationTests(unittest.TestCase):
                 self.db, f"select skill from work.tasks where instance_id = '{inst_id}'"
             ).stdout.strip()
             self.assertEqual(skill, "alt_intake")
+
+    def test_budget_backstop_when_ledger_check_fails(self) -> None:
+        self._activate_seat()
+        start = self._start()
+        self.assertEqual(start.status_code, 201, start.text)
+        inst_id = start.json()["instance_id"]
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set state = 'ENDED', outcome = 'submitted', ended_at = now()
+            where task_id in (select id from work.tasks where instance_id = '{inst_id}');
+            update work.tasks set state = 'WAITING_INPUT' where instance_id = '{inst_id}';
+            insert into gov.budget_ledger (org_id, seat, day, limit_usd, reserved_usd, settled_usd)
+            values ('org_demo', '{SEAT}', current_date, 20, 20, 0)
+            on conflict (org_id, seat, day) do update
+            set reserved_usd = 20, settled_usd = 0, limit_usd = 20;
+            """,
+        )
+        with patch("aos.kernel.admission._budget_fits", new_callable=AsyncMock, return_value=True):
+            r = self.client.post(
+                f"/api/instances/{inst_id}/turns",
+                headers=self.login("faisal"),
+                json={"text": "Should refuse at ledger", "client_turn_id": "bt-backstop"},
+            )
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual(r.json()["code"], "budget_exhausted")
+        self.assertIn("decision_id", r.json())
+        dr = _pg.admin_sql(
+            self.db,
+            f"select value from gov.decision_records where id = '{r.json()['decision_id']}'",
+        ).stdout.strip()
+        self.assertEqual(dr, "budget_exhausted")
+        audit = self.client.get("/api/console/audit?limit=20", headers=self.login("risk")).json()["items"]
+        self.assertTrue(any(a["action"] == "admission.denied" for a in audit))
+
+    def test_start_idempotency_unique_race_returns_snapshot(self) -> None:
+        self._activate_seat()
+        key = str(uuid.uuid4())
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into work.instances (
+              id, org_id, workflow, pack_version_id, seat, seat_version, title, state,
+              created_by, idempotency_key, correlation_id
+            ) values (
+              'QQ-race', 'org_demo', '{WORKFLOW}', '{self.version_id}', '{SEAT}', 1,
+              'race', 'intake', 'faisal', '{key}', 'corr_race'
+            );
+            insert into work.participants (instance_id, role, person_id, bound_by)
+            values ('QQ-race', 'requester', 'faisal', 'creation');
+            """,
+        )
+        from aos.kernel import instances as inst_mod
+
+        real_lookup = inst_mod._idempotent_instance_id
+        calls = {"n": 0}
+
+        async def lookup_once_miss(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return await real_lookup(*args, **kwargs)
+
+        with patch.object(inst_mod, "_idempotent_instance_id", side_effect=lookup_once_miss):
+            r = self._start(idempotency_key=key)
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertEqual(r.json()["instance_id"], "QQ-race")
+
+    def test_start_refuses_when_pack_on_disk_drifts(self) -> None:
+        self._activate_seat()
+        instr = self.packs / "procurement_demo" / "skills" / "request_intake" / "instructions.md"
+        original = instr.read_text()
+        try:
+            instr.write_text(original + "\n# drift\n")
+            r = self._start()
+            self.assertEqual(r.status_code, 409, r.text)
+            self.assertEqual(r.json()["code"], "conflict")
+            self.assertIn("Pack content changed", r.json()["title"])
+        finally:
+            instr.write_text(original)
 
 
 if __name__ == "__main__":
