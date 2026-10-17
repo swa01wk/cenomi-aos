@@ -10,7 +10,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 
-from ..kernel.auth import AuthError, read_session, require_console
+from ..kernel.auth import AuthError, read_session, read_worker_token, require_console
 from ..kernel.org import OrgModel
 from ..kernel.settings import Settings
 
@@ -41,12 +41,16 @@ class Principal:
     console: bool
 
 
-def principal(k: Annotated[Kernel, Depends(kernel)],
-              authorization: Annotated[str | None, Header()] = None) -> Principal:
+def _bearer_token(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "sign in first", headers={"WWW-Authenticate": "Bearer"})
+    return authorization[7:]
+
+
+def principal(k: Annotated[Kernel, Depends(kernel)],
+              authorization: Annotated[str | None, Header()] = None) -> Principal:
     try:
-        claims = read_session(authorization[7:], k.settings.session_secret)
+        claims = read_session(_bearer_token(authorization), k.settings.session_secret)
     except AuthError as exc:
         raise HTTPException(401, f"session rejected: {exc}", headers={"WWW-Authenticate": "Bearer"}) from exc
     if claims["org"] != k.org.organization.id or claims["sub"] not in k.org.people:
@@ -70,7 +74,36 @@ def needs_role(*roles: str):
     return check
 
 
+@dataclass(frozen=True)
+class WorkerPrincipal:
+    worker_id: str
+    org_id: str
+
+
+def worker_principal(
+    k: Annotated[Kernel, Depends(kernel)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> WorkerPrincipal:
+    try:
+        claims = read_worker_token(_bearer_token(authorization), k.settings.session_secret)
+    except AuthError as exc:
+        raise HTTPException(401, f"worker token rejected: {exc}", headers={"WWW-Authenticate": "Bearer"}) from exc
+    if claims["org"] != k.org.organization.id:
+        raise HTTPException(401, "worker token is for another organization")
+    return WorkerPrincipal(claims["sub"], claims["org"])
+
+
+def fencing_token(
+    x_aos_fencing_token: Annotated[int | None, Header(alias="X-AOS-Fencing-Token")] = None,
+) -> int:
+    if x_aos_fencing_token is None:
+        raise HTTPException(422, "X-AOS-Fencing-Token is required")
+    return int(x_aos_fencing_token)
+
+
 KernelDep = Annotated[Kernel, Depends(kernel)]
 TxDep = Annotated[AsyncConnection, Depends(tx)]
 PrincipalDep = Annotated[Principal, Depends(principal)]
+WorkerDep = Annotated[WorkerPrincipal, Depends(worker_principal)]
+FencingDep = Annotated[int, Depends(fencing_token)]
 ConsoleDep = Annotated[Principal, Depends(console_user)]

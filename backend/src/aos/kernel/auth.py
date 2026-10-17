@@ -25,14 +25,38 @@ def issue_session(org: OrgModel, person_id: str, secret: str, clock=time.time) -
     if person is None:
         raise AuthError(f"no such person {person_id!r}")
     now = int(clock())
-    claims = {"iss": "aos-kernel", "aud": "aos-web", "sub": person_id, "org": org.organization.id,
+    claims = {"iss": "aos-kernel", "aud": WEB_AUD, "sub": person_id, "org": org.organization.id,
               "roles": person.roles, "console": person.console, "iat": now, "exp": now + SESSION_TTL_S}
     return jwt.encode(claims, secret, algorithm=ALGORITHM)
 
 
+WORKER_AUD = "aos-worker"
+WEB_AUD = "aos-web"
+
+
 def read_session(token: str, secret: str) -> dict:
     try:
-        return jwt.decode(token, secret, algorithms=[ALGORITHM], audience="aos-web")
+        return jwt.decode(token, secret, algorithms=[ALGORITHM], audience=WEB_AUD)
+    except jwt.PyJWTError as exc:
+        raise AuthError(str(exc)) from exc
+
+
+def issue_worker_token(org_id: str, worker_id: str, secret: str, clock=time.time) -> str:
+    now = int(clock())
+    claims = {
+        "iss": "aos-kernel",
+        "aud": WORKER_AUD,
+        "sub": worker_id,
+        "org": org_id,
+        "iat": now,
+        "exp": now + SESSION_TTL_S,
+    }
+    return jwt.encode(claims, secret, algorithm=ALGORITHM)
+
+
+def read_worker_token(token: str, secret: str) -> dict:
+    try:
+        return jwt.decode(token, secret, algorithms=[ALGORITHM], audience=WORKER_AUD)
     except jwt.PyJWTError as exc:
         raise AuthError(str(exc)) from exc
 

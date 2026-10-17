@@ -10,7 +10,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
-from ..kernel import artifacts, audit_store, instances, publish, registry_store, seats
+from ..kernel import artifacts, audit_store, instances, publish, registry_store, seats, worker_attempts
+from ..kernel.worker_fence import CommittedFenced, WorkerFenceError
 from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
@@ -19,7 +20,7 @@ from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
 from ..sse import InstanceStreamError, instance_event_stream, preflight_instance_stream
-from .deps import ConsoleDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, needs_role
+from .deps import ConsoleDep, FencingDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, WorkerDep, needs_role
 
 router = APIRouter()
 PackEditor = Annotated[Principal, Depends(needs_role("platform_admin", "process_owner", "seat_owner"))]
@@ -39,6 +40,26 @@ def _raise_instance_error(exc: instances.InstanceError) -> None:
 
 
 def _raise_artifact_error(exc: artifacts.ArtifactError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _fenced_response(request: Request, _fenced: CommittedFenced):
+    return problem_response(
+        request,
+        KernelProblem(
+            "fenced",
+            409,
+            "This attempt is no longer active",
+            "The fencing token is stale. Stop without further effects.",
+        ),
+    )
+
+
+def _raise_worker_error(exc: worker_attempts.WorkerError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_worker_fence_error(exc: WorkerFenceError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -603,6 +624,126 @@ async def get_artifact_version(
         return await artifacts.get_artifact_version(conn, k.org, p.org_id, id, version, p.person_id)
     except artifacts.ArtifactError as exc:
         _raise_artifact_error(exc)
+
+
+# ------------------------------------------------------------------ worker protocol (M1-BE-05-A)
+
+
+class ClaimAttemptBody(BaseModel):
+    worker_id: str
+    lanes: list[Literal["assist", "task"]]
+
+
+class FailAttemptBody(BaseModel):
+    failure_class: Literal["model_error", "tool_timeout", "invalid_output", "budget_exhausted", "internal"]
+    message: str = Field(max_length=2000)
+
+
+@router.post("/worker/attempts/claim", tags=["worker"])
+async def claim_attempt(
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: ClaimAttemptBody,
+):
+    if body.worker_id != w.worker_id:
+        raise KernelProblem(
+            "not_permitted",
+            403,
+            "Worker id mismatch",
+            "The worker_id in the body must match the token subject.",
+        )
+    try:
+        attempt = await worker_attempts.claim_next_attempt(
+            conn,
+            org_id=w.org_id,
+            worker_id=w.worker_id,
+            lanes=list(body.lanes),
+            lease_seconds=k.settings.worker_lease_seconds,
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if attempt is None:
+        return Response(status_code=204)
+    return attempt
+
+
+@router.post("/worker/attempts/{id}/heartbeat", tags=["worker"])
+async def heartbeat_attempt(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    token: FencingDep,
+):
+    try:
+        result = await worker_attempts.heartbeat(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            lease_seconds=k.settings.worker_lease_seconds,
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    return result
+
+
+@router.get("/worker/attempts/{id}/contract", tags=["worker"])
+async def get_attempt_contract(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    token: FencingDep,
+):
+    try:
+        result = await worker_attempts.get_contract(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            packs_dir=k.settings.packs_dir,
+        )
+    except worker_attempts.WorkerError as exc:
+        _raise_worker_error(exc)
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    return result
+
+
+@router.post("/worker/attempts/{id}/fail", tags=["worker"])
+async def fail_attempt_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    conn: TxDep,
+    token: FencingDep,
+    body: FailAttemptBody,
+):
+    try:
+        result = await worker_attempts.fail_attempt(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            failure_class=body.failure_class,
+            message=body.message,
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if not result.ended and result.fenced is not None:
+        return _fenced_response(request, result.fenced)
+    return {"recorded": True}
 
 
 # ------------------------------------------------------------------ audit (Console)

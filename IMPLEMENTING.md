@@ -42,6 +42,16 @@ machine is ready.
 From M1-AG-01 on, install the agent runtime too: `python -m pip install -e 'backend[dev,runtime]'` (includes the
 OpenAI client; add `anthropic` to the extras to use Claude instead).
 
+Worker processes authenticate with a service JWT (`aud` `aos-worker`), not a person session. Mint one for local
+runs with the same secret as the kernel (`AOS_SESSION_SECRET`):
+
+```bash
+aos worker-token --worker-id dev-worker-1
+```
+
+Pass it as `Authorization: Bearer …` on `/api/worker/*` routes. Person session tokens are rejected on those
+routes; worker tokens are rejected on Workspace and Console routes.
+
 The SSE outbox hub (`aos/sse.py`) and in-memory `agent.message.delta` relay assume **one API process** per kernel
 (one uvicorn worker). Scale-out needs a shared pub/sub layer not in the POC.
 

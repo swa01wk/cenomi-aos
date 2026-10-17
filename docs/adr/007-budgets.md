@@ -23,3 +23,7 @@ Token counts reported by the model client are accurate enough for the POC.
 ## Verification
 M2: a scripted `FakeModel` that loops trips `budget_exhausted`; the Seat's daily figure on the Console
 shows the reservation then the settled amount.
+
+## Amendment (2026-10-17)
+Reserve at **admission** when the attempt row is written (`admit_attempt`), not at worker claim. Claim only
+assigns the lease. Settlement still runs once when the attempt ends (submit, fail, or expiry).
