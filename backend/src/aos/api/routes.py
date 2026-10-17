@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from ..kernel import audit_store, publish, registry_store, seats
 from ..kernel.publish import PublishRefusal
-from ..kernel.seats import CommittedRefusal, SeatError
+from ..evals.runner import run_suite
+from ..kernel.registry_store import pack_root
+from ..kernel.seats import CommittedRefusal, EvalRunJob, SeatError
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
-from .deps import ConsoleDep, KernelDep, Principal, PrincipalDep, TxDep, needs_role
+from .deps import ConsoleDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, needs_role
 
 router = APIRouter()
 PackEditor = Annotated[Principal, Depends(needs_role("platform_admin", "process_owner", "seat_owner"))]
@@ -201,6 +203,82 @@ class SeatLifecycleBody(BaseModel):
     expected_version: int
 
 
+class RunSeatEvalsBody(BaseModel):
+    version: int
+    model: Literal["fake", "real"] = "fake"
+
+
+def _eval_error_detail(exc: BaseException) -> dict[str, Any]:
+    message = str(exc).strip() or exc.__class__.__name__
+    if len(message) > 240:
+        message = message[:237] + "..."
+    return {"reason": "error", "message": message}
+
+
+async def _complete_seat_eval_jobs(
+    kernel: Kernel,
+    *,
+    org_id: str,
+    seat: str,
+    seat_version: int,
+    pack_version_id: str,
+    pack_name: str,
+    jobs: list[EvalRunJob],
+) -> None:
+    """Run suites outside any request transaction; M1-BE-05 moves this to the worker lane."""
+    root = pack_root(kernel.settings.packs_dir, pack_name)
+    async with kernel.pool.connection() as conn:
+        async with conn.transaction():
+            defs = await seats.definitions_for_pack_version(conn, pack_version_id)
+            pinned_digest = await seats.pack_version_digest(conn, pack_version_id)
+    for job in jobs:
+        passed, total, status = 0, 0, "failed"
+        result_detail: dict[str, Any] = {}
+        try:
+            suite_doc = defs.get("EvalSuite", {}).get(job.suite)
+            if suite_doc is None:
+                result_detail = {
+                    "checks": [{"name": "suite_spec", "passed": False, "detail": "missing EvalSuite definition"}],
+                    "expectations": [],
+                    "deferred_count": 0,
+                }
+                passed, total, status = 0, 1, "failed"
+            else:
+                suite_file = None
+                async with kernel.pool.connection() as conn:
+                    suite_file = await seats.eval_suite_file(conn, pack_version_id, job.suite)
+                outcome = run_suite(
+                    suite_name=job.suite,
+                    suite_spec=suite_doc,
+                    defs=defs,
+                    pack_root=root,
+                    suite_file=suite_file,
+                    pinned_digest=pinned_digest,
+                )
+                passed, total, status = outcome.passed, outcome.total, outcome.status
+                result_detail = outcome.detail
+        except Exception as exc:  # noqa: BLE001 - record runner failure on the eval run row
+            result_detail = _eval_error_detail(exc)
+        async with kernel.pool.connection() as conn:
+            async with conn.transaction():
+                await seats.record_eval_run_result(
+                    conn,
+                    run_id=job.run_id,
+                    passed=passed,
+                    total=total,
+                    status=status,
+                    detail=result_detail,
+                )
+                if status == "passed":
+                    await seats.maybe_promote_seat_to_testing(
+                        conn,
+                        org=kernel.org,
+                        org_id=org_id,
+                        name=seat,
+                        seat_version=seat_version,
+                    )
+
+
 @router.get("/console/seats", tags=["seats"])
 async def list_seats(p: ConsoleDep, conn: TxDep) -> dict:
     return {"items": await seats.list_seats(conn, p.org_id)}
@@ -232,6 +310,52 @@ async def configure_seat(
         _raise_seat_error(exc)
 
 
+@router.post("/console/seats/{seat}/evals", tags=["seats"], status_code=202)
+async def run_seat_evals(
+    seat: str,
+    p: PackEditor,
+    k: KernelDep,
+    background: BackgroundTasks,
+    body: RunSeatEvalsBody,
+) -> list[dict]:
+    if body.model == "real":
+        raise KernelProblem(
+            "validation_failed",
+            422,
+            "Real model evals are not available yet",
+            "Use the fake model in M1; real model evals arrive in M4.",
+        )
+    try:
+        async with k.pool.connection() as conn:
+            async with conn.transaction():
+                pack_version_id, jobs, started = await seats.begin_seat_eval_runs(
+                    conn,
+                    org_id=p.org_id,
+                    name=seat,
+                    seat_version=body.version,
+                    model=body.model,
+                )
+                row = await conn.execute(
+                    "select pack_name from registry.pack_versions where id = %s and org_id = %s",
+                    (pack_version_id, p.org_id),
+                )
+                pack_row = await row.fetchone()
+                pack_name = pack_row[0] if pack_row else ""
+    except SeatError as exc:
+        _raise_seat_error(exc)
+    background.add_task(
+        _complete_seat_eval_jobs,
+        k,
+        org_id=p.org_id,
+        seat=seat,
+        seat_version=body.version,
+        pack_version_id=pack_version_id,
+        pack_name=pack_name,
+        jobs=jobs,
+    )
+    return started
+
+
 @router.post("/console/seats/{seat}/approve", tags=["seats"])
 async def approve_seat(
     seat: str, p: ConsoleDep, k: KernelDep, conn: TxDep, body: SeatLifecycleBody
@@ -246,6 +370,7 @@ async def approve_seat(
             expected_version=body.expected_version,
             actor=p.person_id,
             roles=p.roles,
+            eval_strict=k.settings.eval_strict,
         )
     except SeatError as exc:
         _raise_seat_error(exc)
@@ -265,6 +390,7 @@ async def activate_seat(
             expected_version=body.expected_version,
             actor=p.person_id,
             roles=p.roles,
+            eval_strict=k.settings.eval_strict,
         )
     except SeatError as exc:
         _raise_seat_error(exc)
