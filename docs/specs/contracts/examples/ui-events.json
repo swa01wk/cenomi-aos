@@ -1,6 +1,6 @@
 [
   {
-    "id": "QQ-0001:640",
+    "id": "instance:QQ-0001:d:turn_9:3",
     "type": "agent.message.delta",
     "at": "2026-10-15T10:03:01Z",
     "instance_id": "QQ-0001",
@@ -12,7 +12,7 @@
     }
   },
   {
-    "id": "QQ-0001:655",
+    "id": "instance:QQ-0001:655",
     "type": "pending.created",
     "at": "2026-10-15T10:05:00Z",
     "instance_id": "QQ-0001",
@@ -44,7 +44,7 @@
     }
   },
   {
-    "id": "QQ-0001:1201",
+    "id": "instance:QQ-0001:1201",
     "type": "agent.message.completed",
     "at": "2026-10-21T11:03:13Z",
     "instance_id": "QQ-0001",
@@ -73,7 +73,7 @@
     }
   },
   {
-    "id": "QQ-0001:1310",
+    "id": "instance:QQ-0001:1310",
     "type": "snapshot.required",
     "at": "2026-10-21T17:00:00Z",
     "instance_id": "QQ-0001",

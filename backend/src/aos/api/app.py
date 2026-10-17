@@ -12,6 +12,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from ..kernel.org import load_org, seed_sql
 from ..kernel.settings import Settings
+from ..sse import OutboxHub
 from .deps import Kernel
 from .problems import register_problem_handlers
 from .routes import router
@@ -32,10 +33,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await seed(settings.database_url, seed_sql(org))
         pool = AsyncConnectionPool(settings.database_url, min_size=1, max_size=settings.pool_max, open=False)
         await pool.open(wait=True, timeout=15)
+        hub = OutboxHub(settings.database_url, heartbeat_seconds=settings.sse_heartbeat_seconds)
+        await hub.start(pool)
         app.state.kernel = Kernel(settings=settings, org=org, pool=pool)
+        app.state.hub = hub
         try:
             yield
         finally:
+            await hub.stop()
             await pool.close()
 
     app = FastAPI(title="AOS kernel", version="0.1.0-m0", lifespan=lifespan,

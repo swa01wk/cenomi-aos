@@ -426,10 +426,17 @@ paths:
       operationId: streamInstanceEvents
       x-milestone: M1
       x-screens: [Main, WS-Shortlist, WS-RFQ-Approval, WS-Quotes, WS-Comparison, WS-PO-Approval]
-      description: SSE stream of UiEvent for one job, filtered for the caller. Resume with Last-Event-ID (or ?cursor). If the cursor is unknown the first message is snapshot.required.
+      description: |
+        SSE stream of UiEvent for one job, filtered for the caller. Resume with Last-Event-ID (or ?cursor).
+        Omitting both sends `snapshot.required` first (reason `cursor_unknown`); reload the snapshot and reconnect
+        with its cursor. Unknown or stale cursors also yield `snapshot.required`. Outbox events carry an SSE `id:` line
+        (the resume cursor); `agent.message.delta` is sent with `event:` and `data:` only so Last-Event-ID stays an
+        outbox cursor.
       parameters: [{$ref: '#/components/parameters/InstanceId'}, {$ref: '#/components/parameters/LastEventId'}, {name: cursor, in: query, schema: {type: string}}]
       responses:
         '200': {description: text/event-stream of UiEvent, content: {text/event-stream: {schema: {$ref: './schemas/ui-event.schema.json'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /instances/{id}/claim:
     post:
       tags: [decisions]
@@ -583,7 +590,10 @@ paths:
       operationId: postAttemptEvents
       security: [{worker: []}]
       x-milestone: M1
-      description: Report model and tool steps (stored as ExecutionEvents, stamped by the kernel) and stream text deltas of the reply (relayed to the instance stream, not stored).
+      description: |
+        Report model and tool steps (stored as ExecutionEvents, stamped by the kernel) and stream text deltas of the
+        reply (relayed to the instance stream, not stored). Delta UiEvents may include an ephemeral JSON `id`; they are
+        not written to the outbox and are not sent as SSE `id:` lines (resume stays on outbox cursors only).
       parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
       requestBody:
         required: true

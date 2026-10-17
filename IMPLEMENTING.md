@@ -29,7 +29,7 @@ cp .env.example .env              # add OPENAI_API_KEY only when you need the re
 python3 -m venv .venv && source .venv/bin/activate
 make install                      # backend (editable, dev tools) + web dependencies
 make db                           # Postgres in Docker on :5432 (the tests use it)
-make check                        # 82 tests + aos validate; nothing may be skipped
+make check                        # tests + aos validate; nothing may be skipped
 make up                           # full M0 stack: web http://localhost:8080, API http://localhost:8000/docs
 ```
 
@@ -41,6 +41,9 @@ machine is ready.
 
 From M1-AG-01 on, install the agent runtime too: `python -m pip install -e 'backend[dev,runtime]'` (includes the
 OpenAI client; add `anthropic` to the extras to use Claude instead).
+
+The SSE outbox hub (`aos/sse.py`) and in-memory `agent.message.delta` relay assume **one API process** per kernel
+(one uvicorn worker). Scale-out needs a shared pub/sub layer not in the POC.
 
 ## 2. Set up Cursor (once)
 

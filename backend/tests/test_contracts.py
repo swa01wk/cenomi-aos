@@ -191,6 +191,7 @@ class OpenApiTests(unittest.TestCase):
             ("get", "/instances/{id}"),
             ("get", "/instances/{id}/turns"),
             ("post", "/instances/{id}/turns"),
+            ("get", "/instances/{id}/events"),
         }
         self.assertTrue(m1_instances <= served, f"M1 instance routes missing: {m1_instances - served}")
 
