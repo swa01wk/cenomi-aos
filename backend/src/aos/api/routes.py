@@ -10,8 +10,19 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
-from ..kernel import artifacts, audit_store, instances, publish, registry_store, seats, worker_attempts
-from ..kernel.worker_fence import CommittedFenced, WorkerFenceError
+from ..kernel import (
+    artifacts,
+    audit_store,
+    instances,
+    publish,
+    registry_store,
+    seats,
+    worker_attempts,
+    worker_events,
+    worker_questions,
+    worker_submit,
+)
+from ..kernel.worker_fence import CommittedFenced, WorkerFenceError, require_claimed_attempt
 from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
@@ -20,7 +31,7 @@ from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
 from ..sse import InstanceStreamError, instance_event_stream, preflight_instance_stream
-from .deps import ConsoleDep, FencingDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, WorkerDep, needs_role
+from .deps import ConsoleDep, FencingDep, HubDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, WorkerDep, needs_role
 
 router = APIRouter()
 PackEditor = Annotated[Principal, Depends(needs_role("platform_admin", "process_owner", "seat_owner"))]
@@ -744,6 +755,134 @@ async def fail_attempt_route(
     if not result.ended and result.fenced is not None:
         return _fenced_response(request, result.fenced)
     return {"recorded": True}
+
+
+class PostAttemptEventsBody(BaseModel):
+    events: list[dict[str, Any]] | None = None
+    stream: list[dict[str, Any]] | None = None
+
+
+class AskQuestionsBody(BaseModel):
+    blocks: list[dict[str, Any]]
+    questions: list[str] | None = None
+
+
+@router.post("/worker/attempts/{id}/events", tags=["worker"], status_code=202)
+async def post_attempt_events_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    conn: TxDep,
+    token: FencingDep,
+    hub: HubDep,
+    body: PostAttemptEventsBody,
+):
+    try:
+        result = await worker_events.post_attempt_events(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            events=body.events,
+            stream=body.stream,
+            hub=hub,
+        )
+    except worker_attempts.WorkerError as exc:
+        _raise_worker_error(exc)
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    if isinstance(result, worker_attempts.EndAttemptResult) and result.fenced is not None:
+        return _fenced_response(request, result.fenced)
+    return Response(status_code=202)
+
+
+@router.post("/worker/attempts/{id}/drafts", tags=["worker"], status_code=201)
+async def save_draft_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    token: FencingDep,
+    body: dict[str, Any],
+):
+    try:
+        gate = await require_claimed_attempt(
+            conn, org_id=w.org_id, attempt_id=id, worker_id=w.worker_id, fencing_token=token
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(gate, CommittedFenced):
+        return _fenced_response(request, gate)
+    from ..kernel.instances import _load_definitions
+
+    pvid = await conn.execute(
+        "select pack_version_id from work.instances where id = %s",
+        (gate.instance_id,),
+    )
+    row = await pvid.fetchone()
+    defs = await _load_definitions(conn, str(row[0])) if row else {}
+    try:
+        return await artifacts.save_draft_from_attempt(conn, gate=gate, body=body, defs=defs)
+    except artifacts.ArtifactError as exc:
+        _raise_artifact_error(exc)
+
+
+@router.post("/worker/attempts/{id}/questions", tags=["worker"], status_code=201)
+async def ask_questions_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    conn: TxDep,
+    token: FencingDep,
+    body: AskQuestionsBody,
+):
+    try:
+        result = await worker_questions.ask_questions(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            blocks=body.blocks,
+            questions=body.questions,
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    return result
+
+
+@router.post("/worker/attempts/{id}/submit", tags=["worker"])
+async def submit_result_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    token: FencingDep,
+    body: dict[str, Any],
+):
+    try:
+        result = await worker_submit.submit_result(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            result=body,
+        )
+    except worker_attempts.WorkerError as exc:
+        _raise_worker_error(exc)
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    return result
 
 
 # ------------------------------------------------------------------ audit (Console)

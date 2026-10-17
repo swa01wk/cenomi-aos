@@ -64,6 +64,70 @@ async def _instance_participant_audience(conn: AsyncConnection, instance_id: str
     return {"roles": roles}
 
 
+def merge_usage(accumulated: dict[str, Any], consumed: dict[str, Any]) -> dict[str, Any]:
+    """Settlement uses the higher of kernel-accumulated and worker-reported usage per field."""
+    def _int(key: str) -> int:
+        return max(int(accumulated.get(key) or 0), int(consumed.get(key) or 0))
+
+    def _float(key: str) -> float:
+        return max(float(accumulated.get(key) or 0), float(consumed.get(key) or 0))
+
+    return {
+        "tokens_in": _int("tokens_in"),
+        "tokens_out": _int("tokens_out"),
+        "steps": _int("steps"),
+        "actions": _int("actions"),
+        "cost_usd": _float("cost_usd"),
+        "time_s": _float("time_s"),
+    }
+
+
+async def seat_display_name(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    seat_name: str,
+    seat_version: int,
+) -> str:
+    cur = await conn.execute(
+        "select display_name from registry.seats"
+        " where org_id = %s and name = %s and version = %s",
+        (org_id, seat_name, seat_version),
+    )
+    row = await cur.fetchone()
+    return str(row[0]) if row else seat_name
+
+
+async def emit_task_state_changed(
+    conn: AsyncConnection,
+    *,
+    instance_id: str,
+    task_id: str,
+    template: str,
+    from_state: str,
+    to_state: str,
+) -> None:
+    audience = await _instance_participant_audience(conn, instance_id)
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(instance_id),
+                event_type="task.state_changed",
+                instance_id=instance_id,
+                audience=audience,
+                data={
+                    "instance_id": instance_id,
+                    "task_id": task_id,
+                    "template": template,
+                    "from": from_state,
+                    "to": to_state,
+                },
+            )
+        ],
+    )
+
+
 def _usage_cost(usage: dict[str, Any], *, reserve_if_empty: bool, reserved_usd: float) -> float:
     raw = usage.get("cost_usd")
     if raw is None or raw == "":

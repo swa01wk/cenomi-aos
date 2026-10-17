@@ -665,6 +665,8 @@ async def post_turn(
     task_id, contract_json, attempts_used, max_attempts = task_row
     contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
     reservation = float(contract["budget"]["cost_usd"])
+    tstate_cur = await conn.execute("select state from work.tasks where id = %s", (task_id,))
+    task_state_before = (await tstate_cur.fetchone() or ("RUNNING",))[0]
     has_live = await task_has_live_attempt(conn, task_id)
     pack_name, pack_ver, _, pack_status = await _pack_meta(conn, org_id, str(pvid))
 
@@ -751,18 +753,32 @@ async def post_turn(
             row = await find_turn_by_client_id(conn, instance_id, actor, client_turn_id)
             assert row is not None
             turn_payload = project_turn(row, person_name=org.people[actor].name)
-            await append_outbox_many(
-                conn,
-                [
+            outbox_rows = [
+                OutboxRow(
+                    stream=ids.stream_instance(instance_id),
+                    event_type="turn.created",
+                    instance_id=instance_id,
+                    audience={"roles": my_roles},
+                    data={"instance_id": instance_id, "turn": turn_payload},
+                )
+            ]
+            if task_state_before == "WAITING_INPUT":
+                outbox_rows.append(
                     OutboxRow(
                         stream=ids.stream_instance(instance_id),
-                        event_type="turn.created",
+                        event_type="task.state_changed",
                         instance_id=instance_id,
                         audience={"roles": my_roles},
-                        data={"instance_id": instance_id, "turn": turn_payload},
+                        data={
+                            "instance_id": instance_id,
+                            "task_id": task_id,
+                            "template": "assist",
+                            "from": "WAITING_INPUT",
+                            "to": "RUNNING",
+                        },
                     )
-                ],
-            )
+                )
+            await append_outbox_many(conn, outbox_rows)
     except (pg_errors.CheckViolation, pg_errors.UniqueViolation) as exc:
         refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
         if refusal:

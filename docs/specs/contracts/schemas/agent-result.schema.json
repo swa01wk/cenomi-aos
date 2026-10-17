@@ -29,7 +29,12 @@
       "additionalProperties": false
     },
     "failure_category": {"enum": ["model_error", "tool_timeout", "ambiguous_effect", "stale_input", "policy_denied", "budget_exhausted", "invalid_output", "cancelled"]},
-    "summary": {"type": "string", "maxLength": 500, "description": "One plain sentence for the timeline and the buyer, e.g. 'Ranked 5 suppliers from ERP history.'"}
+    "summary": {"type": "string", "maxLength": 500, "description": "One plain sentence for the timeline and the buyer, e.g. 'Ranked 5 suppliers from ERP history.'"},
+    "reply_blocks": {
+      "type": "array",
+      "description": "Completed agent message blocks. Required when an assist attempt submits status completed.",
+      "items": {"$ref": "./ui-event.schema.json#/$defs/Block"}
+    }
   },
   "allOf": [{"if": {"properties": {"status": {"const": "failed"}}}, "then": {"required": ["failure_category"]}}],
   "additionalProperties": false

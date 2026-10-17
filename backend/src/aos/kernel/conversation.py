@@ -34,6 +34,36 @@ async def find_turn_by_client_id(
     return await cur.fetchone()
 
 
+async def insert_agent_turn(
+    conn: AsyncConnection,
+    *,
+    instance_id: str,
+    seat_id: str,
+    seat_name: str,
+    blocks: list[dict[str, Any]],
+    audience_roles: list[str] | None,
+    attempt_id: str,
+) -> dict[str, Any]:
+    turn_id = ids.new_turn_id()
+    seq = await next_turn_seq(conn, instance_id)
+    await conn.execute(
+        "insert into work.turns ("
+        " id, instance_id, seq, author_kind, author_id, audience_roles, blocks, attempt_id"
+        ") values (%s, %s, %s, 'seat', %s, %s, %s, %s)",
+        (turn_id, instance_id, seq, seat_id, audience_roles, Jsonb(blocks), attempt_id),
+    )
+    cur = await conn.execute("select at from work.turns where id = %s", (turn_id,))
+    at_row = await cur.fetchone()
+    return {
+        "turn_id": turn_id,
+        "seq": seq,
+        "blocks": blocks,
+        "at": at_row[0].isoformat() if at_row else "",
+        "attempt_id": attempt_id,
+        "author": {"kind": "seat", "id": seat_id, "name": seat_name},
+    }
+
+
 async def insert_person_turn(
     conn: AsyncConnection,
     *,

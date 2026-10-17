@@ -147,6 +147,8 @@ create table work.attempts (
   trace_id text,
   admitted_at timestamptz not null default now(),
   claimed_at timestamptz, ended_at timestamptz,
+  submit_response jsonb,                              -- idempotent submitResult replay (SubmitResponse)
+  submit_request_hash text,                           -- sha256 of canonical AgentResult body
   unique (task_id, n)
 );
 -- Exactly one live attempt per Task.
