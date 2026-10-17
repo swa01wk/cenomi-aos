@@ -72,8 +72,9 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
 ### Visibility rules for the projection
 
 1. A viewer receives instance events only for instances where they hold a participant role, or with a Console role.
-2. `artifact.version_created` and any block quoting artifact content pass through the artifact type's `visibility`
-   for the viewer's role; fields not visible are dropped, not masked.
+2. `artifact.version_created` carries refs only (`artifact_id`, `version`, `artifact_type`, plus chip metadata such as
+   `status` and `by`); it never includes artifact content. Any block quoting artifact content passes through the
+   artifact type's `visibility` for the viewer's role; fields not visible are dropped, not masked.
 3. `agent.message.delta` goes only to the participant whose turn is being answered. Others get the completed turn.
    Deltas are not stored in the outbox; the hub relays them in-process. The JSON may carry an ephemeral `id`, but SSE
    sends only `event:` and `data:` (no SSE `id:` line) so `Last-Event-ID` remains an outbox cursor.
