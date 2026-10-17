@@ -21,7 +21,7 @@ build. This file says *how to work*: machine setup, the loop for each story, and
 ## 1. Set up your machine (once)
 
 Prerequisites: Git, Docker Desktop (Compose v2), Python 3.12+ (3.13 is what CI uses), Node 22, `make`, and `psql`
-(`brew install libpq` on macOS, then add it to `PATH`).
+(macOS: `brew install libpq` then `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`).
 
 ```bash
 git clone https://github.com/swa01wk/cenomi-aos && cd cenomi-aos

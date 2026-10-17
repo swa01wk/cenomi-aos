@@ -7,10 +7,8 @@ Postgres is reachable.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import unittest
-import uuid
 from dataclasses import replace
 from pathlib import Path
 
@@ -21,8 +19,9 @@ from aos.kernel.auth import AuthError, issue_session, read_session, require_cons
 from aos.kernel.org import OrgModel, load_org, seed_sql
 from aos.registry import validate_pack
 
+from . import _pg
+
 REPO = Path(__file__).resolve().parents[2]
-MIGRATIONS = REPO / "backend" / "migrations"
 ORG_FILE = REPO / "seed" / "org.yaml"
 
 
@@ -112,41 +111,27 @@ class AuditChainTests(unittest.TestCase):
         self.assertEqual(a.compute_hash(), b.compute_hash())
 
 
-def _pg_available() -> bool:
-    if not shutil.which("psql"):
-        return False
-    try:
-        subprocess.run(["su", "postgres", "-c", "psql -Atc 'select 1'"], check=True, capture_output=True, timeout=10)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
-
-
-@unittest.skipUnless(_pg_available(), "no local Postgres")
+@unittest.skipUnless(_pg.available(), "no local Postgres")
 class BaselineSchemaTests(unittest.TestCase):
     db: str
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.db = "aos_t_" + uuid.uuid4().hex[:8]
-        subprocess.run(["su", "postgres", "-c", f"createdb {cls.db}"], check=True)
-        files = " ".join(f"-f {MIGRATIONS / f}" for f in ("0000_roles.sql", "0001_baseline.sql", "0002_grants.sql"))
-        subprocess.run(["su", "postgres", "-c", f"psql -q -v ON_ERROR_STOP=1 -d {cls.db} {files}"],
-                       check=True, capture_output=True)
+        cls.db = _pg.create_migrated()
         cls.sql(seed_sql(load_org(ORG_FILE)))
 
     @classmethod
     def tearDownClass(cls) -> None:
-        subprocess.run(["su", "postgres", "-c", f"dropdb --if-exists {cls.db}"], check=False)
+        _pg.drop(cls.db)
 
     @classmethod
     def sql(cls, statement: str, *, check: bool = True, user: str | None = None) -> subprocess.CompletedProcess:
+        body = "set timezone = 'UTC';\n" + statement
         if user:
-            cmd = ["psql", f"postgresql://{user}:{user}_dev@127.0.0.1/{cls.db}", "-q", "-v", "ON_ERROR_STOP=1", "-At"]
-        else:
-            cmd = ["su", "postgres", "-c", f"psql -q -v ON_ERROR_STOP=1 -At -d {cls.db}"]
-        return subprocess.run(cmd, input="set timezone = 'UTC';\n" + statement, text=True, capture_output=True,
-                              check=check)
+            url = _pg.kernel_url(cls.db).replace("aos_kernel:aos_kernel_dev", f"{user}:{user}_dev", 1)
+            return subprocess.run(["psql", url, "-q", "-v", "ON_ERROR_STOP=1", "-At"], input=body, text=True,
+                                  capture_output=True, check=check)
+        return _pg.admin_sql(cls.db, body, check=check)
 
     def test_six_schemas_exist(self) -> None:
         out = self.sql("select string_agg(nspname, ',' order by nspname) from pg_namespace "
