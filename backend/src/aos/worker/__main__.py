@@ -6,6 +6,7 @@ import asyncio
 import logging
 import signal
 
+from .checkpointer import CheckpointerHandle
 from .config import load_config
 from .http_client import HttpKernelClient
 from .paths import schema_dir  # noqa: F401 — fail fast if schemas missing
@@ -22,11 +23,11 @@ def _configure_logging() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
-def _runtime(name: str):
+def _runtime(name: str, checkpointer: CheckpointerHandle):
     if name == "fake":
-        return FakeRuntime([assist_complete])
+        return FakeRuntime([assist_complete], checkpointer=checkpointer)
     if name == "langgraph":
-        return LangGraphRuntime()
+        return LangGraphRuntime(checkpointer=checkpointer)
     raise RuntimeError(f"unknown AOS_RUNTIME {name!r}")
 
 
@@ -38,8 +39,9 @@ async def _main_async() -> None:
             "AOS_RUNTIME=langgraph is not available in M1; use AOS_RUNTIME=fake until M1-AG-02 wires the graph"
         )
         raise SystemExit(1)
+    checkpointer = await CheckpointerHandle.open(cfg.checkpoint_database_url)
     client = HttpKernelClient(cfg.api_url, cfg.worker_token)
-    runtime = _runtime(cfg.runtime)
+    runtime = _runtime(cfg.runtime, checkpointer)
     worker = Worker(
         cfg.worker_id,
         client,
@@ -67,6 +69,7 @@ async def _main_async() -> None:
         raise
     finally:
         await client.aclose()
+        await checkpointer.close()
 
 
 def main() -> None:

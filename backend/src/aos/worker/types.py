@@ -12,7 +12,7 @@ class WorkerAttempt(TypedDict):
     lease_seconds: int
     kind: str
     contract: dict[str, Any]
-    resume: NotRequired[dict[str, Any] | None]
+    resume: NotRequired[dict[str, Any] | None]  # checkpoint_id, thread_id (LangGraph thread to continue)
     turn_id: NotRequired[str | None]
 
 

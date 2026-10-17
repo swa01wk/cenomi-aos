@@ -21,4 +21,8 @@ class ComposeWorkerEnvTests(unittest.TestCase):
         else:
             keys = set(env.keys())
         self.assertNotIn("AOS_SESSION_SECRET", keys)
+        self.assertNotIn("AOS_DATABASE_URL", keys)
         self.assertNotIn("env_file", worker)
+        ckpt = env.get("AOS_CHECKPOINT_DATABASE_URL") if isinstance(env, dict) else None
+        self.assertIsNotNone(ckpt, "worker needs AOS_CHECKPOINT_DATABASE_URL")
+        self.assertIn("aos_worker:", str(ckpt))
