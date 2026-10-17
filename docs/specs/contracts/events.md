@@ -65,7 +65,7 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
 | `action.state_changed` | instance | buyer, Console | Gateway action detail |
 | `timer.fired` | instance | participants | Timeline entry |
 | `verification.completed` | instance | buyer, Console | Verified badge, REWORK notice |
-| `seat.state_changed` | user | everyone using the Seat | Digital worker card |
+| `seat.state_changed` | user | the seat owner and every person on the seat's placement team (`seat_audience` in the kernel) | Digital worker card |
 | `kill_switch.changed` | both | everyone affected | `SeatNotice` |
 | `notification.created` | user | the addressee | Inbox, bell count |
 

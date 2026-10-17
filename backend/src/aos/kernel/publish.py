@@ -11,7 +11,8 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
-from . import audit_store
+from . import audit_store, seats
+from .org import OrgModel
 
 
 @dataclass(frozen=True)
@@ -192,13 +193,13 @@ def _all_parts_approved(required: list[dict[str, Any]], approvals: list[dict[str
 async def _complete_publish(
     conn: AsyncConnection,
     *,
+    org: OrgModel,
     org_id: str,
     version_id: str,
     pack_name: str,
     actor: str,
     request_id: str,
 ) -> None:
-    # M1-BE-03 will insert registry.seats rows here when a pack version is published.
     cur = await conn.execute(
         "update registry.pack_versions"
         " set status = 'published', published_at = coalesce(published_at, now())"
@@ -215,6 +216,16 @@ async def _complete_publish(
             action="pack.published",
             subject=f"{pack_name}@{version_id}",
             data={"pack_version_id": version_id, "publish_request_id": request_id},
+        )
+    status_row = await (
+        await conn.execute(
+            "select status from registry.pack_versions where id = %s and org_id = %s",
+            (version_id, org_id),
+        )
+    ).fetchone()
+    if status_row and status_row[0] == "published":
+        await seats.insert_seats_for_published_pack(
+            conn, org=org, org_id=org_id, pack_version_id=version_id
         )
     await conn.execute(
         "update registry.publish_requests set status = 'approved' where id = %s",
@@ -308,6 +319,7 @@ async def list_publish_requests(
 async def approve_publish_part(
     conn: AsyncConnection,
     *,
+    org: OrgModel,
     org_id: str,
     request_id: str,
     part: str,
@@ -382,6 +394,7 @@ async def approve_publish_part(
         if _all_parts_approved(required, approvals):
             await _complete_publish(
                 conn,
+                org=org,
                 org_id=org_id,
                 version_id=version_id,
                 pack_name=pack_name,

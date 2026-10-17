@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from ..kernel import audit_store, publish, registry_store
+from ..kernel import audit_store, publish, registry_store, seats
 from ..kernel.publish import PublishRefusal
-from .problems import KernelProblem
+from ..kernel.seats import CommittedRefusal, SeatError
+from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
 from .deps import ConsoleDep, KernelDep, Principal, PrincipalDep, TxDep, needs_role
@@ -22,6 +23,10 @@ Auditor = Annotated[Principal, Depends(needs_role("platform_admin", "risk"))]
 
 def _raise_publish_refusal(exc: PublishRefusal) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail) from exc
+
+
+def _raise_seat_error(exc: SeatError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
 @router.get("/healthz", tags=["ops"])
@@ -172,11 +177,12 @@ class ApprovePublishPartBody(BaseModel):
 
 
 @router.post("/console/publish-requests/{id}/approve", tags=["registry"])
-async def approve_publish_part(id: str, p: ConsoleDep, conn: TxDep, body: ApprovePublishPartBody) -> dict:
+async def approve_publish_part(id: str, p: ConsoleDep, k: KernelDep, conn: TxDep, body: ApprovePublishPartBody) -> dict:
     try:
         publish.parse_request_id(id)
         return await publish.approve_publish_part(
             conn,
+            org=k.org,
             org_id=p.org_id,
             request_id=id,
             part=body.part,
@@ -186,6 +192,91 @@ async def approve_publish_part(id: str, p: ConsoleDep, conn: TxDep, body: Approv
         )
     except PublishRefusal as exc:
         _raise_publish_refusal(exc)
+
+
+# ------------------------------------------------------------------ seats (Console, M1)
+
+class SeatLifecycleBody(BaseModel):
+    version: int
+    expected_version: int
+
+
+@router.get("/console/seats", tags=["seats"])
+async def list_seats(p: ConsoleDep, conn: TxDep) -> dict:
+    return {"items": await seats.list_seats(conn, p.org_id)}
+
+
+@router.get("/console/seats/{seat}", tags=["seats"])
+async def get_seat(seat: str, p: ConsoleDep, conn: TxDep) -> dict:
+    try:
+        return await seats.get_seat(conn, p.org_id, seat)
+    except SeatError as exc:
+        _raise_seat_error(exc)
+
+
+@router.post("/console/seats/{seat}/configure", tags=["seats"])
+async def configure_seat(
+    seat: str, p: PackEditor, k: KernelDep, conn: TxDep, body: SeatLifecycleBody
+) -> dict:
+    try:
+        return await seats.configure_seat(
+            conn,
+            org=k.org,
+            org_id=p.org_id,
+            name=seat,
+            seat_version=body.version,
+            expected_version=body.expected_version,
+            actor=p.person_id,
+        )
+    except SeatError as exc:
+        _raise_seat_error(exc)
+
+
+@router.post("/console/seats/{seat}/approve", tags=["seats"])
+async def approve_seat(
+    seat: str, p: ConsoleDep, k: KernelDep, conn: TxDep, body: SeatLifecycleBody
+) -> dict:
+    try:
+        return await seats.approve_seat(
+            conn,
+            org=k.org,
+            org_id=p.org_id,
+            name=seat,
+            seat_version=body.version,
+            expected_version=body.expected_version,
+            actor=p.person_id,
+            roles=p.roles,
+        )
+    except SeatError as exc:
+        _raise_seat_error(exc)
+
+
+@router.post("/console/seats/{seat}/activate", tags=["seats"])
+async def activate_seat(
+    seat: str, request: Request, p: ConsoleDep, k: KernelDep, conn: TxDep, body: SeatLifecycleBody
+):
+    try:
+        result = await seats.activate_seat(
+            conn,
+            org=k.org,
+            org_id=p.org_id,
+            name=seat,
+            seat_version=body.version,
+            expected_version=body.expected_version,
+            actor=p.person_id,
+            roles=p.roles,
+        )
+    except SeatError as exc:
+        _raise_seat_error(exc)
+    if isinstance(result, CommittedRefusal):
+        extra = {"decision_id": result.decision_id}
+        if result.rule:
+            extra["rule"] = result.rule
+        return problem_response(
+            request,
+            KernelProblem(result.code, result.status, result.title, result.detail, **extra),
+        )
+    return result
 
 
 class RejectPublishBody(BaseModel):

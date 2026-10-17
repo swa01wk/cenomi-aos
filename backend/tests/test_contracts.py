@@ -157,6 +157,24 @@ class OpenApiTests(unittest.TestCase):
         }
         self.assertTrue(m1_publish <= served, f"M1 publish routes missing from app: {m1_publish - served}")
 
+    def test_m1_seat_operations_match_the_running_app(self) -> None:
+        try:
+            from aos.api import create_app
+            from aos.kernel.settings import Settings
+        except ImportError as exc:
+            self.skipTest(f"FastAPI unavailable: {exc}")
+        app = create_app(Settings.from_env(seed_on_start=False))
+        served = {(m, p.removeprefix("/api")) for p, item in app.openapi()["paths"].items() if p.startswith("/api")
+                  for m in item if m in METHODS}
+        m1_seats = {
+            ("get", "/console/seats"),
+            ("get", "/console/seats/{seat}"),
+            ("post", "/console/seats/{seat}/configure"),
+            ("post", "/console/seats/{seat}/approve"),
+            ("post", "/console/seats/{seat}/activate"),
+        }
+        self.assertTrue(m1_seats <= served, f"M1 seat routes missing from app: {m1_seats - served}")
+
 
 if __name__ == "__main__":
     unittest.main()

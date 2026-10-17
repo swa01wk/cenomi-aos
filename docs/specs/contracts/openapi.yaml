@@ -245,7 +245,7 @@ paths:
       x-screens: [Console-Activation]
       description: Run the six configuration checks on the Seat version from a published pack. All pass → CONFIGURED. Records the caller as configurer.
       parameters: [{$ref: '#/components/parameters/Seat'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, expected_version], properties: {version: {type: integer}, expected_version: {type: integer}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SeatLifecycleBody'}}}}
       responses:
         '200': {description: Seat after checks, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
         '409': {$ref: '#/components/responses/Problem'}
@@ -267,10 +267,11 @@ paths:
       x-milestone: M1
       description: Risk approves a tested Seat → APPROVED.
       parameters: [{$ref: '#/components/parameters/Seat'}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExpectedVersion'}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SeatLifecycleBody'}}}}
       responses:
         '200': {description: Approved, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
         '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /console/seats/{seat}/activate:
     post:
       tags: [seats]
@@ -279,7 +280,7 @@ paths:
       x-screens: [Console-Activation, Console-Seat]
       description: Owner only, and never the configurer (403 segregation_of_duties, audited). Writes a Decision Record; Seat → ACTIVE, availability AVAILABLE.
       parameters: [{$ref: '#/components/parameters/Seat'}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExpectedVersion'}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SeatLifecycleBody'}}}}
       responses:
         '200': {description: Active, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
         '403': {$ref: '#/components/responses/Problem'}
@@ -952,6 +953,12 @@ components:
   schemas:
     Reason: {type: object, required: [reason], properties: {reason: {type: string, minLength: 3}}}
     ExpectedVersion: {type: object, required: [expected_version], properties: {expected_version: {type: integer}}}
+    SeatLifecycleBody:
+      type: object
+      required: [version, expected_version]
+      properties:
+        version: {type: integer, description: Seat definition version from the pack}
+        expected_version: {type: integer, description: registry.seats.record_version for optimistic concurrency}
     Person:
       type: object
       required: [id, name, team, roles, console]
