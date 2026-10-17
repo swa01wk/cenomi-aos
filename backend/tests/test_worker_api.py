@@ -9,9 +9,11 @@ import threading
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import psycopg
 from fastapi.testclient import TestClient
+from psycopg_pool import AsyncConnectionPool
 
 from aos.api import create_app
 from aos.kernel.auth import issue_worker_token
@@ -19,6 +21,7 @@ from aos.kernel.org import load_org
 from aos.kernel.scheduler import ADVISORY_LOCK_KEY, run_lease_expiry_tick
 from aos.kernel.seats import insert_seats_for_published_pack
 from aos.kernel.settings import REPO, Settings
+from aos.kernel.worker_attempts import expire_one_attempt, readmit_after_expiry_lease
 
 from . import _pg
 
@@ -94,6 +97,7 @@ class WorkerApiTests(unittest.TestCase):
             delete from work.participants;
             delete from work.instances;
             delete from gov.budget_ledger;
+            delete from gov.decision_records where event = 'admission.denied';
             update registry.seats set state = 'DRAFT', record_version = 1, configured_by = null, activated_by = null,
                 pack_version_id = '{self.version_id}'
             where name = '{SEAT}';
@@ -166,6 +170,24 @@ class WorkerApiTests(unittest.TestCase):
         ).stdout.strip()
         return float(out or 0)
 
+    def _run_tick(self) -> int:
+        async def tick() -> int:
+            pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
+            await pool.open(wait=True, timeout=15)
+            try:
+                return await run_lease_expiry_tick(pool, database_url=_pg.kernel_url(self.db))
+            finally:
+                await pool.close()
+
+        return asyncio.run(tick())
+
+    def test_worker_route_without_authorization_is_401(self) -> None:
+        r = self.client.post(
+            "/api/worker/attempts/claim",
+            json={"worker_id": "w", "lanes": ["assist"]},
+        )
+        self.assertEqual(r.status_code, 401, r.text)
+
     def test_person_token_on_worker_route_is_401(self) -> None:
         r = self.client.post(
             "/api/worker/attempts/claim",
@@ -220,18 +242,8 @@ class WorkerApiTests(unittest.TestCase):
             f" where id = '{attempt['attempt_id']}';",
         )
 
-        async def tick() -> None:
-            from psycopg_pool import AsyncConnectionPool
-
-            pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
-            await pool.open(wait=True, timeout=15)
-            try:
-                n = await run_lease_expiry_tick(pool)
-                self.assertGreaterEqual(n, 1)
-            finally:
-                await pool.close()
-
-        asyncio.run(tick())
+        n = self._run_tick()
+        self.assertGreaterEqual(n, 1)
 
         new_token = _pg.admin_sql(
             self.db,
@@ -275,17 +287,7 @@ class WorkerApiTests(unittest.TestCase):
         def expire_worker() -> None:
             barrier.wait()
 
-            async def tick() -> int:
-                from psycopg_pool import AsyncConnectionPool
-
-                pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
-                await pool.open(wait=True, timeout=15)
-                try:
-                    return await run_lease_expiry_tick(pool)
-                finally:
-                    await pool.close()
-
-            results["expire"] = asyncio.run(tick())
+            results["expire"] = self._run_tick()
 
         t1 = threading.Thread(target=fail_worker)
         t2 = threading.Thread(target=expire_worker)
@@ -316,20 +318,142 @@ class WorkerApiTests(unittest.TestCase):
 
     def test_scheduler_tick_noop_when_advisory_lock_held(self) -> None:
         async def run() -> int:
-            from psycopg_pool import AsyncConnectionPool
-
             pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
             await pool.open(wait=True, timeout=15)
             holder = await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db), autocommit=True)
             await holder.execute("select pg_advisory_lock(%s)", (ADVISORY_LOCK_KEY,))
             try:
-                return await run_lease_expiry_tick(pool)
+                return await run_lease_expiry_tick(pool, database_url=_pg.kernel_url(self.db))
             finally:
                 await holder.execute("select pg_advisory_unlock(%s)", (ADVISORY_LOCK_KEY,))
                 await holder.close()
                 await pool.close()
 
         self.assertEqual(asyncio.run(run()), 0)
+
+    def test_readmit_skipped_when_post_turn_already_admitted(self) -> None:
+        inst_id = self._start_job()
+        attempt = self._claim()
+        _pg.admin_sql(
+            self.db,
+            f"update work.attempts set lease_expires_at = now() - interval '1 minute'"
+            f" where id = '{attempt['attempt_id']}';",
+        )
+
+        async def expire_only():
+            pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
+            await pool.open(wait=True, timeout=15)
+            try:
+                async with pool.connection() as conn:
+                    async with conn.transaction():
+                        return await expire_one_attempt(conn)
+            finally:
+                await pool.close()
+
+        outcome = asyncio.run(expire_only())
+        self.assertTrue(outcome.expired)
+        assert outcome.readmit is not None
+
+        turn = self.client.post(
+            f"/api/instances/{inst_id}/turns",
+            headers=self._auth("faisal"),
+            json={"text": "Follow-up before scheduler readmit", "client_turn_id": "readmit-race"},
+        )
+        self.assertEqual(turn.status_code, 202, turn.text)
+
+        async def readmit():
+            pool = AsyncConnectionPool(_pg.kernel_url(self.db), min_size=1, max_size=2, open=False)
+            await pool.open(wait=True, timeout=15)
+            try:
+                async with pool.connection() as conn:
+                    async with conn.transaction():
+                        await readmit_after_expiry_lease(conn, outcome.readmit)
+            finally:
+                await pool.close()
+
+        asyncio.run(readmit())
+
+        live = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.attempts where task_id = '{attempt['task_id']}'"
+            f" and state in ('ADMITTED', 'CLAIMED');",
+        ).stdout.strip()
+        self.assertEqual(live, "1")
+        dr = _pg.admin_sql(
+            self.db,
+            "select count(*) from gov.decision_records where event = 'admission.denied' and value = 'conflict';",
+        ).stdout.strip()
+        self.assertEqual(dr, "1")
+
+    def test_settlement_uses_admitted_at_day_not_today(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        reserved = float(
+            _pg.admin_sql(
+                self.db,
+                f"select reserved_usd from work.attempts where id = '{attempt['attempt_id']}';",
+            ).stdout.strip()
+        )
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set admitted_at = (current_date - 1)::timestamptz + time '12:00'
+            where id = '{attempt['attempt_id']}';
+            delete from gov.budget_ledger where org_id = 'org_demo' and seat = '{SEAT}' and day = current_date;
+            insert into gov.budget_ledger (org_id, seat, day, limit_usd, reserved_usd, settled_usd)
+            values ('org_demo', '{SEAT}', current_date - 1, 100, {reserved}, 0)
+            on conflict (org_id, seat, day) do update set reserved_usd = {reserved}, settled_usd = 0;
+            """,
+        )
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/fail",
+            headers={**self.worker_auth(), "X-AOS-Fencing-Token": str(attempt["fencing_token"])},
+            json={"failure_class": "internal", "message": "yesterday settle"},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        yesterday_reserved = _pg.admin_sql(
+            self.db,
+            f"select reserved_usd from gov.budget_ledger"
+            f" where org_id = 'org_demo' and seat = '{SEAT}' and day = current_date - 1;",
+        ).stdout.strip()
+        today_row = _pg.admin_sql(
+            self.db,
+            f"select count(*) from gov.budget_ledger"
+            f" where org_id = 'org_demo' and seat = '{SEAT}' and day = current_date;",
+        ).stdout.strip()
+        self.assertEqual(today_row, "0")
+        self.assertEqual(float(yesterday_reserved), 0.0)
+
+    def test_scheduler_tick_records_refusal_and_continues_on_second_expiry(self) -> None:
+        self._start_job()
+        self._start_job()
+        a1 = self._claim("worker-a")
+        a2 = self.client.post(
+            "/api/worker/attempts/claim",
+            headers=self.worker_auth("worker-b"),
+            json={"worker_id": "worker-b", "lanes": ["assist"]},
+        )
+        self.assertEqual(a2.status_code, 200, a2.text)
+        a2 = a2.json()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set lease_expires_at = now() - interval '1 minute'
+            where id in ('{a1['attempt_id']}', '{a2['attempt_id']}');
+            insert into gov.budget_ledger (org_id, seat, day, limit_usd, reserved_usd, settled_usd)
+            values ('org_demo', '{SEAT}', current_date, 20, 20, 0)
+            on conflict (org_id, seat, day) do update
+            set reserved_usd = 20, settled_usd = 0, limit_usd = 20;
+            """,
+        )
+        with patch("aos.kernel.admission._budget_fits", new_callable=AsyncMock, return_value=True):
+            n = self._run_tick()
+        self.assertEqual(n, 2)
+        refusals = _pg.admin_sql(
+            self.db,
+            "select count(*) from gov.decision_records where event = 'admission.denied' and value = 'budget_exhausted';",
+        ).stdout.strip()
+        self.assertEqual(refusals, "2")
 
     def test_get_contract_returns_skill_instructions(self) -> None:
         self._start_job()

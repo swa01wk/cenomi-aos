@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from psycopg import AsyncConnection, errors as pg_errors
 from . import ids, tasks as task_ops
-from .admission import AdmissionContext, check_admission, count_live_seat_attempts
-from .instances import _load_definitions, _pack_meta, _seat_limits
+from .admission import (
+    AdmissionContext,
+    check_admission,
+    count_live_seat_attempts,
+    task_has_live_attempt,
+)
+from .instances import _load_definitions, _pack_meta, _refusal_from_admit_backstop, _seat_limits
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 from .worker_fence import CommittedFenced, require_claimed_attempt, write_attempt_fenced
 
@@ -40,19 +45,23 @@ class ExpireOutcome:
 
 @dataclass(frozen=True)
 class ExpiredLease:
+    """Minimal snapshot for the readmit transaction; task and instance state are re-read under lock."""
+
     org_id: str
     seat_name: str
     seat_version: int
-    workflow_name: str
-    pack_version_id: str
     instance_id: str
     task_id: str
     turn_id: str | None
-    attempts_used: int
-    max_attempts: int
-    contract: dict[str, Any]
-    attributes: dict[str, Any]
-    task_state: str
+
+
+async def _instance_participant_audience(conn: AsyncConnection, instance_id: str) -> dict[str, Any]:
+    cur = await conn.execute(
+        "select distinct role from work.participants where instance_id = %s order by role",
+        (instance_id,),
+    )
+    roles = [row[0] for row in await cur.fetchall()]
+    return {"roles": roles}
 
 
 def _usage_cost(usage: dict[str, Any], *, reserve_if_empty: bool, reserved_usd: float) -> float:
@@ -73,6 +82,7 @@ async def settle_attempt_budget(
     correlation_id: str,
     reserved_usd: float,
     actual_usd: float,
+    budget_day: date,
 ) -> None:
     settled_increment = min(actual_usd, reserved_usd)
     if actual_usd > reserved_usd + 1e-9:
@@ -94,8 +104,8 @@ async def settle_attempt_budget(
     await conn.execute(
         "update gov.budget_ledger"
         " set reserved_usd = reserved_usd - %s, settled_usd = settled_usd + %s"
-        " where org_id = %s and seat = %s and day = current_date",
-        (reserved_usd, settled_increment, org_id, seat),
+        " where org_id = %s and seat = %s and day = %s",
+        (reserved_usd, settled_increment, org_id, seat, budget_day),
     )
 
 
@@ -120,7 +130,7 @@ async def end_claimed_attempt(
         "update work.attempts"
         " set state = 'ENDED', outcome = %s, ended_at = now(), failure_class = %s"
         " where id = %s and state = 'CLAIMED'"
-        " returning reserved_usd, usage",
+        " returning reserved_usd, usage, admitted_at",
         (outcome, failure_class, attempt_id),
     )
     row = await cur.fetchone()
@@ -138,9 +148,10 @@ async def end_claimed_attempt(
         )
         return EndAttemptResult(ended=False, fenced=fenced)
 
-    reserved_usd, usage = float(row[0]), row[1]
+    reserved_usd, usage, admitted_at = float(row[0]), row[1], row[2]
     usage_doc = usage if isinstance(usage, dict) else {}
     actual = _usage_cost(usage_doc, reserve_if_empty=reserve_if_empty, reserved_usd=reserved_usd)
+    budget_day = admitted_at.date() if isinstance(admitted_at, datetime) else admitted_at
     await settle_attempt_budget(
         conn,
         org_id=gate.org_id,
@@ -151,7 +162,9 @@ async def end_claimed_attempt(
         correlation_id=gate.correlation_id,
         reserved_usd=reserved_usd,
         actual_usd=actual,
+        budget_day=budget_day,
     )
+    audience = await _instance_participant_audience(conn, gate.instance_id)
     await append_outbox_many(
         conn,
         [
@@ -159,7 +172,7 @@ async def end_claimed_attempt(
                 stream=ids.stream_instance(gate.instance_id),
                 event_type="attempt.ended",
                 instance_id=gate.instance_id,
-                audience={"roles": ["buyer"]},
+                audience=audience,
                 data={
                     "instance_id": gate.instance_id,
                     "task_id": gate.task_id,
@@ -235,6 +248,7 @@ async def claim_next_attempt(
             attributes={"attempt_id": attempt_id, "n": int(n), "fencing_token": int(fencing_token)},
         ),
     )
+    started_audience = await _instance_participant_audience(conn, instance_id)
     await append_outbox_many(
         conn,
         [
@@ -242,7 +256,7 @@ async def claim_next_attempt(
                 stream=ids.stream_instance(instance_id),
                 event_type="attempt.started",
                 instance_id=instance_id,
-                audience={"roles": ["buyer"]},
+                audience=started_audience,
                 data={
                     "instance_id": instance_id,
                     "task_id": task_id,
@@ -401,8 +415,8 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
 
     cur = await conn.execute(
         "select a.id, a.task_id, a.turn_id, a.worker_id, a.fencing_token, a.reserved_usd, a.usage,"
-        " t.instance_id, i.org_id, i.seat, i.seat_version, i.workflow, i.pack_version_id, i.attributes,"
-        " i.correlation_id, t.attempts_used, t.max_attempts, t.contract, t.state"
+        " t.instance_id, i.org_id, i.seat, i.seat_version,"
+        " i.correlation_id, t.attempts_used, t.max_attempts, t.state, t.kind, a.admitted_at"
         " from work.attempts a"
         " join work.tasks t on t.id = a.task_id"
         " join work.instances i on i.id = t.instance_id"
@@ -425,14 +439,12 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
         org_id,
         seat_name,
         seat_version,
-        workflow_name,
-        pvid,
-        attributes,
         correlation_id,
         attempts_used,
         max_attempts,
-        contract_json,
         task_state,
+        task_kind,
+        admitted_at,
     ) = row
     usage_doc = usage if isinstance(usage, dict) else {}
     ended = await conn.execute(
@@ -446,6 +458,7 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
         return ExpireOutcome(expired=False)
 
     actual = _usage_cost(usage_doc, reserve_if_empty=True, reserved_usd=float(reserved_usd))
+    budget_day = admitted_at.date() if isinstance(admitted_at, datetime) else admitted_at
     await settle_attempt_budget(
         conn,
         org_id=org_id,
@@ -456,11 +469,13 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
         correlation_id=correlation_id,
         reserved_usd=float(reserved_usd),
         actual_usd=actual,
+        budget_day=budget_day,
     )
     await conn.execute(
         "update work.tasks set fencing_token = fencing_token + 1, updated_at = now() where id = %s",
         (task_id,),
     )
+    ended_audience = await _instance_participant_audience(conn, instance_id)
     await append_outbox_many(
         conn,
         [
@@ -468,7 +483,7 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
                 stream=ids.stream_instance(instance_id),
                 event_type="attempt.ended",
                 instance_id=instance_id,
-                audience={"roles": ["buyer"]},
+                audience=ended_audience,
                 data={
                     "instance_id": instance_id,
                     "task_id": task_id,
@@ -478,127 +493,118 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
             )
         ],
     )
-    contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
-    attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
     if task_state != "RUNNING" or int(attempts_used) >= int(max_attempts):
         return ExpireOutcome(expired=True)
 
+    if task_kind == "assist":
+        # Assist jobs get another attempt via postTurn when readmit is refused here.
+        pass
+    # Workflow task readmission after expiry: revisit in M2 (kernel-scheduled READY tasks).
+
     return ExpireOutcome(
         expired=True,
         readmit=ExpiredLease(
-        org_id=org_id,
-        seat_name=seat_name,
-        seat_version=int(seat_version),
-        workflow_name=workflow_name,
-        pack_version_id=str(pvid),
-        instance_id=instance_id,
-        task_id=task_id,
-        turn_id=turn_id,
-        attempts_used=int(attempts_used),
-        max_attempts=int(max_attempts),
-        contract=contract,
-        attributes=attributes,
-        task_state=task_state,
+            org_id=org_id,
+            seat_name=seat_name,
+            seat_version=int(seat_version),
+            instance_id=instance_id,
+            task_id=task_id,
+            turn_id=turn_id,
         ),
     )
 
 
-async def readmit_after_expiry(
-    conn: AsyncConnection,
-    *,
-    org_id: str,
-    seat_name: str,
-    seat_version: int,
-    workflow_name: str,
-    pack_version_id: str,
-    instance_id: str,
-    task_id: str,
-    turn_id: str | None,
-    attempts_used: int,
-    max_attempts: int,
-    contract: dict[str, Any],
-    attributes: dict[str, Any],
-) -> None:
-    """Separate transaction from expiry: seat lock, admission gates, admit (same order as postTurn)."""
+async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease) -> None:
+    """Separate transaction from expiry: seat lock, task lock, fresh admission gates, admit (same order as postTurn)."""
     scur = await conn.execute(
         "select state from registry.seats"
         " where org_id = %s and name = %s and version = %s for update",
-        (org_id, seat_name, seat_version),
+        (lease.org_id, lease.seat_name, lease.seat_version),
     )
     seat_row = await scur.fetchone()
     if seat_row is None:
         return
     seat_state = seat_row[0]
 
-    await conn.execute("select id from work.tasks where id = %s for update", (task_id,))
+    tcur = await conn.execute(
+        "select state, attempts_used, max_attempts, fencing_token, contract, instance_id"
+        " from work.tasks where id = %s for update",
+        (lease.task_id,),
+    )
+    task_row = await tcur.fetchone()
+    if task_row is None:
+        return
+    task_state, attempts_used, max_attempts, _fencing_token, contract_json, task_instance_id = task_row
+    if task_instance_id != lease.instance_id:
+        return
+    contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
 
-    pack_name, _, _, pack_status = await _pack_meta(conn, org_id, pack_version_id)
-    live = await count_live_seat_attempts(conn, org_id, seat_name)
+    icur = await conn.execute(
+        "select workflow, pack_version_id, attributes from work.instances where id = %s and org_id = %s",
+        (lease.instance_id, lease.org_id),
+    )
+    inst = await icur.fetchone()
+    if inst is None:
+        return
+    workflow_name, pack_version_id, attributes = inst[0], str(inst[1]), inst[2]
+    attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
+
+    if task_state != "RUNNING" or int(attempts_used) >= int(max_attempts):
+        return
+
+    pack_name, _, _, pack_status = await _pack_meta(conn, lease.org_id, pack_version_id)
+    has_live = await task_has_live_attempt(conn, lease.task_id)
+    live_seat = await count_live_seat_attempts(conn, lease.org_id, lease.seat_name)
     reservation = float((contract.get("budget") or {}).get("cost_usd", 0.0))
     ctx = AdmissionContext(
-        org_id=org_id,
-        actor="kernel",
+        org_id=lease.org_id,
+        actor="scheduler",
         actor_roles=["kernel"],
-        seat_name=seat_name,
+        seat_name=lease.seat_name,
         seat_state=seat_state,
         workflow_name=workflow_name,
-        instance_id=instance_id,
+        instance_id=lease.instance_id,
         pack_version_id=pack_version_id,
         pack_published=pack_status == "published",
-        task_id=task_id,
-        attempts_used=attempts_used,
-        max_attempts=max_attempts,
-        has_live_attempt=False,
+        task_id=lease.task_id,
+        attempts_used=int(attempts_used),
+        max_attempts=int(max_attempts),
+        has_live_attempt=has_live,
         dependency_versions=attributes,
         contract_dependency_versions=contract.get("dependency_versions") or {},
         reservation_usd=reservation,
         participant_ok=True,
-        live_seat_attempts=live,
+        live_seat_attempts=live_seat,
     )
     refusal = await check_admission(conn, ctx)
     if refusal:
+        # Assist tasks recover on the next postTurn when readmission is refused (e.g. gate 5 live attempt).
+        # Workflow task auto-readmit after expiry: revisit in M2.
         return
 
-    seat_doc = (await _load_definitions(conn, pack_version_id)).get("Seat", {}).get(seat_name) or {}
+    seat_doc = (await _load_definitions(conn, pack_version_id)).get("Seat", {}).get(lease.seat_name) or {}
     daily_limit = float(_seat_limits(seat_doc)["daily_cost_usd"])
     new_attempt_id = ids.new_attempt_id()
-    attempt_n = attempts_used + 1
+    attempt_n = int(attempts_used) + 1
     try:
-        await task_ops.admit_attempt(
-            conn,
-            org_id=org_id,
-            seat=seat_name,
-            daily_limit_usd=daily_limit,
-            task_id=task_id,
-            attempt_id=new_attempt_id,
-            turn_id=turn_id,
-            attempt_n=attempt_n,
-            reservation_usd=reservation,
-        )
-        if turn_id:
-            await conn.execute(
-                "update work.turns set attempt_id = %s where id = %s",
-                (new_attempt_id, turn_id),
+        async with conn.transaction():
+            await task_ops.admit_attempt(
+                conn,
+                org_id=lease.org_id,
+                seat=lease.seat_name,
+                daily_limit_usd=daily_limit,
+                task_id=lease.task_id,
+                attempt_id=new_attempt_id,
+                turn_id=lease.turn_id,
+                attempt_n=attempt_n,
+                reservation_usd=reservation,
             )
-    except (pg_errors.CheckViolation, pg_errors.UniqueViolation):
-        return
-
-
-async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease) -> None:
-    await readmit_after_expiry(
-        conn,
-        org_id=lease.org_id,
-        seat_name=lease.seat_name,
-        seat_version=lease.seat_version,
-        workflow_name=lease.workflow_name,
-        pack_version_id=lease.pack_version_id,
-        instance_id=lease.instance_id,
-        task_id=lease.task_id,
-        turn_id=lease.turn_id,
-        attempts_used=lease.attempts_used,
-        max_attempts=lease.max_attempts,
-        contract=lease.contract,
-        attributes=lease.attributes,
-    )
+            if lease.turn_id:
+                await conn.execute(
+                    "update work.turns set attempt_id = %s where id = %s",
+                    (new_attempt_id, lease.turn_id),
+                )
+    except (pg_errors.CheckViolation, pg_errors.UniqueViolation) as exc:
+        await _refusal_from_admit_backstop(conn, ctx, exc)
 
