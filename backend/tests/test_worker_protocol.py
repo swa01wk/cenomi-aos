@@ -95,7 +95,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         worker = Worker("w1", client, FakeRuntime([slow_step]), ("assist",), heartbeat_enabled=False)
         run_task = asyncio.create_task(worker.run_once())
         claim_mono = time.monotonic()
-        while time.monotonic() < claim_mono + lease:
+        while time.monotonic() < claim_mono + lease + 1.0:
             await asyncio.sleep(0.05)
         await asyncio.to_thread(self._run_tick)
         release.set()
@@ -177,7 +177,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await asyncio.wait_for(task, 30), "fenced")
         ended = _pg.admin_sql(
             self.db,
-            "select count(*) from work.attempts where state = 'ENDED' and outcome is null;",
+            "select count(*) from work.attempts where state = 'ENDED' and outcome = 'expired';",
         ).stdout.strip()
         self.assertEqual(ended, "1")
         await client.aclose()
@@ -220,7 +220,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:invalid_output")
         failure_class = _pg.admin_sql(
             self.db,
-            "select failure_class from work.attempts order by created_at desc limit 1;",
+            "select failure_class from work.attempts order by admitted_at desc limit 1;",
         ).stdout.strip()
         self.assertEqual(failure_class, "invalid_output")
         await client.aclose()
@@ -290,11 +290,10 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         worker = Worker("w1", client, FakeRuntime([bad_submit]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submit_rejected")
         task = asyncio.create_task(worker.run_forever())
-        try:
-            await asyncio.wait_for(task, 2.5)
-        except asyncio.TimeoutError:
-            worker.request_shutdown()
-            await asyncio.wait_for(task, 5)
+        done, _ = await asyncio.wait({task}, timeout=2.5)
+        self.assertFalse(done, "run_forever exited after a rejected submit")
+        worker.request_shutdown()
+        await asyncio.wait_for(task, 5)
         await client.aclose()
 
     async def test_auth_failed_exits_run_forever(self) -> None:
