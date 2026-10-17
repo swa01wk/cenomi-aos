@@ -108,6 +108,10 @@ Task:    CREATED → READY → RUNNING → VERIFYING → COMPLETED
 Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | needs_input | fenced | failed | expired | cancelled}
 ```
 
+**Assist tasks (M1 chat):** a successful `submitResult` or `askQuestions` ends the attempt with the assist task in
+`WAITING_INPUT`, not `COMPLETED`. The participant's next `postTurn` re-admits from `WAITING_INPUT` → `RUNNING`.
+`COMPLETED` on a task is for workflow templates when the job advances (M2).
+
 - **Claim** (`claimAttempt`): `SELECT … FROM work.attempts WHERE state='ADMITTED' … FOR UPDATE SKIP LOCKED LIMIT 1`;
   set `CLAIMED`, `worker_id`, `lease_expires_at = now() + 90 s`.
 - **Every worker call** checks `X-AOS-Fencing-Token = tasks.fencing_token` and attempt `CLAIMED`; else 409 `fenced`
@@ -116,9 +120,12 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
 - **Lease expiry** (scheduler, every 5 s): expired `CLAIMED` attempts → `ENDED/expired`, bump the Task's fencing token,
   settle the budget at the reservation, and if attempts remain admit a new one (the Task stays RUNNING).
 - **Submit pipeline**: (1) validate `AgentResult` schema and each output against its artifact type → 422 / REWORK;
-  (2) freshness: `input_versions` equal current `dependency_versions` else verdict STALE and a new attempt;
+  (2) freshness: `input_versions` equal current `dependency_versions` else verdict STALE, attempt ended, Task
+  → READY (M2 scheduler re-admits READY tasks; no admission inside submit);
   (3) run the Task's verifier on the output versions → PASS (Task COMPLETED, raise `task.completed.<template>`),
-  REWORK (new attempt; findings go into the next envelope), FAIL (EXCEPTION). Settle the budget with actual usage.
+  REWORK (new attempt; findings go into the next envelope), FAIL (EXCEPTION). Settle the budget with actual usage
+  (`max` of kernel-accumulated event usage and `consumed_budget`). Idempotent replay: same worker, same canonical
+  request hash → stored `SubmitResponse` on `work.attempts.submit_response`.
 
 ## Workflow interpreter (M2)
 

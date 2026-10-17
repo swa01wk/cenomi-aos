@@ -13,6 +13,7 @@ from psycopg_pool import AsyncConnectionPool
 from ..kernel.auth import AuthError, read_session, read_worker_token, require_console
 from ..kernel.org import OrgModel
 from ..kernel.settings import Settings
+from ..sse import OutboxHub
 
 
 @dataclass
@@ -107,3 +108,10 @@ PrincipalDep = Annotated[Principal, Depends(principal)]
 WorkerDep = Annotated[WorkerPrincipal, Depends(worker_principal)]
 FencingDep = Annotated[int, Depends(fencing_token)]
 ConsoleDep = Annotated[Principal, Depends(console_user)]
+
+
+def outbox_hub(request: Request) -> OutboxHub:
+    return request.app.state.hub
+
+
+HubDep = Annotated[OutboxHub, Depends(outbox_hub)]

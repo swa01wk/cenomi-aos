@@ -642,6 +642,7 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DraftRequest'}}}}
       responses:
         '201': {description: Draft version, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactVersion'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
   /worker/attempts/{id}/questions:

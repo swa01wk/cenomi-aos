@@ -10,8 +10,10 @@ from datetime import datetime
 from typing import Any, Literal
 
 from psycopg import AsyncConnection
+from psycopg.types.json import Jsonb
 
 from ..registry.kinds import ArtifactType, ArtifactTypeSpec, FieldSpec
+from . import ids
 from .contracts import _canonical_json
 from .org import OrgModel
 
@@ -544,3 +546,247 @@ async def summaries_for_instance(
             )
         )
     return out
+
+
+def artifact_type_audience_roles(type_spec: ArtifactTypeSpec) -> list[str]:
+    roles: list[str] = []
+    for role, vis in type_spec.visibility.items():
+        if vis != "none":
+            roles.append(role)
+    return sorted(set(roles))
+
+
+def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, Any]) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    if type_spec.row_based:
+        rows = content.get("rows")
+        if not isinstance(rows, list):
+            errors.append({"pointer": "/rows", "message": "rows must be an array"})
+            return errors
+        for i, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            for name, field in type_spec.fields.items():
+                if field.required and name not in row:
+                    errors.append({"pointer": f"/rows/{i}/{name}", "message": "required field missing"})
+        return errors
+    if not isinstance(content, dict):
+        errors.append({"pointer": "", "message": "content must be an object"})
+        return errors
+    for name, field in type_spec.fields.items():
+        if field.required and name not in content:
+            errors.append({"pointer": f"/content/{name}", "message": "required field missing"})
+        val = content.get(name)
+        if val is None and not field.required:
+            continue
+        if field.type == "integer" and not isinstance(val, int):
+            errors.append({"pointer": f"/content/{name}", "message": "must be an integer"})
+        elif field.type in ("number", "money") and not isinstance(val, (int, float)):
+            errors.append({"pointer": f"/content/{name}", "message": f"must be a {field.type}"})
+        elif field.type == "string" and not isinstance(val, str):
+            errors.append({"pointer": f"/content/{name}", "message": "must be a string"})
+        elif field.type == "list" and not isinstance(val, list):
+            errors.append({"pointer": f"/content/{name}", "message": "must be a list"})
+    return errors
+
+
+def _contract_allows_artifact_type(contract: dict[str, Any], artifact_type: str) -> bool:
+    for item in contract.get("expected_outputs") or []:
+        if item.get("artifact_type") == artifact_type:
+            return True
+    return False
+
+
+async def save_draft_from_attempt(
+    conn: AsyncConnection,
+    *,
+    gate: Any,
+    body: dict[str, Any],
+    defs: dict[str, dict[str, dict]],
+) -> dict[str, Any]:
+    from datetime import timezone
+
+    from .worker_fence import ClaimedAttempt
+
+    if not isinstance(gate, ClaimedAttempt):
+        raise RuntimeError("save_draft requires a claimed attempt")
+    artifact_type = body["artifact_type"]
+    if not _contract_allows_artifact_type(gate.contract, artifact_type):
+        raise ArtifactError(
+            "not_permitted",
+            403,
+            "Artifact type not allowed",
+            f"{artifact_type!r} is not in this contract's expected outputs.",
+        )
+    at = parse_artifact_type(defs, artifact_type)
+    content = body["content"]
+    if not isinstance(content, dict):
+        raise ArtifactError("validation_failed", 422, "Invalid content", "content must be an object.")
+    field_errors = validate_artifact_content(at.spec, content)
+    if field_errors:
+        raise ArtifactError(
+            "validation_failed",
+            422,
+            "Draft content is invalid",
+            "Fix the fields and try again.",
+            errors=field_errors,
+        )
+    content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
+    artifact_id = body.get("artifact_id")
+    key = body.get("key") or ""
+    base_version = body.get("base_version")
+    inputs = body.get("inputs") or []
+    sources = body.get("sources") or []
+
+    if artifact_id:
+        cur = await conn.execute(
+            "select a.id, a.instance_id, a.latest_version, a.artifact_type, a.name"
+            " from work.artifacts a where a.id = %s for update",
+            (artifact_id,),
+        )
+        row = await cur.fetchone()
+        if row is None:
+            raise ArtifactError("not_found", 404, "Artifact not found", f"No artifact {artifact_id!r}.")
+        if row[1] != gate.instance_id:
+            raise ArtifactError("not_permitted", 403, "Wrong job", "Artifact belongs to another job.")
+        if row[3] != artifact_type:
+            raise ArtifactError("validation_failed", 422, "Type mismatch", "artifact_id does not match artifact_type.")
+        latest = int(row[2])
+        if base_version is not None and int(base_version) != latest:
+            raise ArtifactError(
+                "version_taken",
+                409,
+                "Version moved on",
+                "Reload the artifact and save again.",
+                current_version=latest,
+            )
+        name = row[4]
+        new_version = latest + 1
+    else:
+        cur = await conn.execute(
+            "select id, latest_version, name from work.artifacts"
+            " where instance_id = %s and artifact_type = %s and key = %s"
+            " for update",
+            (gate.instance_id, artifact_type, key),
+        )
+        existing = await cur.fetchone()
+        if existing is not None:
+            artifact_id = existing[0]
+            latest = int(existing[1])
+            name = existing[2]
+            if base_version is not None and int(base_version) != latest:
+                raise ArtifactError(
+                    "version_taken",
+                    409,
+                    "Version moved on",
+                    "Reload the artifact and save again.",
+                    current_version=latest,
+                )
+            new_version = latest + 1
+        else:
+            artifact_id = ids.new_artifact_id()
+            name = str(content.get("title") or artifact_type.replace("_", " ").title())
+            await conn.execute(
+                "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
+                " values (%s, %s, %s, %s, %s, 'draft', 0)",
+                (artifact_id, gate.instance_id, artifact_type, key, name),
+            )
+            new_version = 1
+            if base_version is not None and int(base_version) != 0:
+                raise ArtifactError(
+                    "version_taken",
+                    409,
+                    "Version moved on",
+                    "Reload the artifact and save again.",
+                    current_version=0,
+                )
+
+    enriched_inputs: list[dict[str, Any]] = []
+    for item in inputs:
+        if not isinstance(item, dict):
+            continue
+        aid = item.get("artifact_id")
+        ver = item.get("version")
+        if not aid or ver is None:
+            continue
+        vcur = await conn.execute(
+            "select content_hash from work.artifact_versions where artifact_id = %s and version = %s",
+            (aid, int(ver)),
+        )
+        vrow = await vcur.fetchone()
+        if vrow is None:
+            raise ArtifactError("validation_failed", 422, "Unknown input version", f"No version {ver} for {aid!r}.")
+        enriched_inputs.append(
+            {"artifact_id": aid, "version": int(ver), "content_hash": vrow[0]}
+        )
+
+    await conn.execute(
+        "insert into work.artifact_versions ("
+        " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
+        ") values (%s, %s, %s, %s, 'attempt', %s, %s, %s)",
+        (
+            artifact_id,
+            new_version,
+            Jsonb(content),
+            content_hash,
+            gate.attempt_id,
+            Jsonb(enriched_inputs),
+            Jsonb(sources if isinstance(sources, list) else []),
+        ),
+    )
+    await conn.execute(
+        "update work.artifacts set latest_version = %s, status = 'draft' where id = %s",
+        (new_version, artifact_id),
+    )
+
+    from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
+
+    ref = f"{artifact_id}@{new_version}"
+    await write_execution_event(
+        conn,
+        ExecutionEventWrite(
+            org_id=gate.org_id,
+            run_id=gate.instance_id,
+            event_type="ArtifactProduced",
+            actor_kind="seat",
+            actor_id=gate.seat,
+            correlation_id=gate.correlation_id,
+            redacted_summary=f"Saved draft {artifact_type} v{new_version}.",
+            task_id=gate.task_id,
+            attempt_id=gate.attempt_id,
+            artifact_refs=[ref],
+        ),
+    )
+    audience_roles = artifact_type_audience_roles(at.spec)
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(gate.instance_id),
+                event_type="artifact.version_created",
+                instance_id=gate.instance_id,
+                audience={"roles": audience_roles},
+                data={
+                    "instance_id": gate.instance_id,
+                    "artifact_id": artifact_id,
+                    "artifact_type": artifact_type,
+                    "version": new_version,
+                    "status": "draft",
+                    "by": gate.seat,
+                },
+            )
+        ],
+    )
+    return {
+        "artifact_id": artifact_id,
+        "artifact_type": artifact_type,
+        "version": new_version,
+        "status": "draft",
+        "content": content,
+        "hidden_fields": [],
+        "content_hash": content_hash,
+        "produced_by": {"kind": "attempt", "id": gate.attempt_id},
+        "inputs": enriched_inputs,
+        "sources": sources if isinstance(sources, list) else [],
+        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+    }

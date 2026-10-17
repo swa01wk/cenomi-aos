@@ -30,8 +30,8 @@ SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
 
 
-@unittest.skipUnless(_pg.available(), "no local Postgres")
-class WorkerApiTests(unittest.TestCase):
+class WorkerHarness(unittest.TestCase):
+    """Shared Postgres app fixture for worker protocol tests (no test methods)."""
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = _pg.create_migrated()
@@ -91,6 +91,8 @@ class WorkerApiTests(unittest.TestCase):
             f"""
             delete from evidence.outbox;
             delete from evidence.execution_events;
+            delete from work.artifact_versions;
+            delete from work.artifacts;
             delete from work.turns;
             delete from work.attempts;
             delete from work.tasks;
@@ -181,6 +183,9 @@ class WorkerApiTests(unittest.TestCase):
 
         return asyncio.run(tick())
 
+
+@unittest.skipUnless(_pg.available(), "no local Postgres")
+class WorkerApiTests(WorkerHarness):
     def test_worker_route_without_authorization_is_401(self) -> None:
         r = self.client.post(
             "/api/worker/attempts/claim",
