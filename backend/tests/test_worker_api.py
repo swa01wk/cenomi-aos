@@ -42,6 +42,7 @@ class WorkerHarness(unittest.TestCase):
             packs_dir=cls.packs,
             session_secret="test-secret-" + "x" * 40,
             scheduler_interval_seconds=60.0,
+            connector_secrets={"mock_erp": "erp-test-secret", "mock_mail": "mail-test-secret"},
         )
         cls.client = TestClient(create_app(cls.settings))
         cls.client.__enter__()

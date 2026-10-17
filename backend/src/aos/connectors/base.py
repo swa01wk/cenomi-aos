@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import anyio
@@ -66,14 +68,23 @@ class ConnectorConfig:
     secret: str | None = None          # None disables token checks (unit tests of tool logic only)
     db_path: str = ":memory:"
     faults: Faults = field(default_factory=Faults)
+    clock: Callable[[], float] = time.time
 
-    def check(self, token: str | None, resource: str, action: str) -> None:
+    def check(self, token: str | None, resource: str, action: str, *, tool: str | None = None) -> None:
         if self.secret is None:
             return
         if not token:
             raise ConnectorError("auth", "missing broker token")
         try:
-            verify_token(token, secret=self.secret, connector=self.name, resource=resource, action=action)
+            verify_token(
+                token,
+                secret=self.secret,
+                connector=self.name,
+                resource=resource,
+                action=action,
+                tool=tool,
+                clock=self.clock,
+            )
         except TokenRejected as exc:
             raise ConnectorError("auth", str(exc)) from exc
 

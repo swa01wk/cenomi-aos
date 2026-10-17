@@ -55,9 +55,9 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
     server = MCPServer("mock_mail", version="0.1.0",
                        instructions="Mock sourcing mailbox for the AOS POC. Every call needs a broker token.")
 
-    def guard(token: str | None, action: str) -> None:
+    def guard(token: str | None, action: str, tool: str) -> None:
         try:
-            cfg.check(token, "mailbox", action)
+            cfg.check(token, "mailbox", action, tool=tool)
         except ConnectorError as exc:
             raise ToolError(str(exc)) from exc
 
@@ -85,7 +85,7 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
     def draft_message(to: str, subject: str, body: str, conversation_ref: str, idempotency_key: str,
                       attachments: list[str] | None = None, token: str | None = None) -> dict:
         """Save a draft in the sourcing mailbox. The same idempotency key returns the same draft."""
-        guard(token, "draft")
+        guard(token, "draft", "draft_message")
         existing = store.one("select * from message where idempotency_key = ? and folder = 'drafts'", (idempotency_key,))
         if existing:
             return {"draft_id": existing["id"], "conversation_id": existing["conversation_id"], "duplicate": True}
@@ -100,7 +100,7 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
     @server.tool()
     async def send_message(draft_id: str, idempotency_key: str, token: str | None = None) -> dict:
         """Send a draft. Idempotent: if this key was already sent, the existing message is returned."""
-        guard(token, "send")
+        guard(token, "send", "send_message")
         sent = store.one("select * from message where idempotency_key = ? and folder = 'sent'", (idempotency_key,))
         if sent:
             return {**_view(sent), "duplicate": True}
@@ -119,7 +119,7 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
     @server.tool()
     def find_message(idempotency_key: str, token: str | None = None) -> dict:
         """Find a sent message by its idempotency key, to reconcile an unknown send outcome."""
-        guard(token, "read")
+        guard(token, "read", "find_message")
         msg = _view(store.one("select * from message where idempotency_key = ? and folder = 'sent'",
                               (idempotency_key,)))
         return {"found": msg is not None, "message": msg}
@@ -127,7 +127,7 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
     @server.tool()
     def read_thread(conversation_id: str, token: str | None = None) -> dict:
         """Every sent and received message on a conversation, oldest first."""
-        guard(token, "read")
+        guard(token, "read", "read_thread")
         rows = store.q("select * from message where conversation_id = ? and folder in ('sent', 'inbox')"
                        " order by coalesce(sent_at, created_at), rowid", (conversation_id,))
         return {"conversation_id": conversation_id, "items": [_view(r) for r in rows]}

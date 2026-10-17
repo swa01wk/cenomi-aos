@@ -148,6 +148,8 @@ def _tool_grant(name: str, tool: dict, provider: str) -> dict[str, Any]:
         grant["timeout_s"] = 30
     if tool.get("reconcile_with"):
         grant["reconcile_with"] = tool["reconcile_with"]
+    if isinstance(tool.get("input_schema"), dict):
+        grant["input_schema"] = tool["input_schema"]
     return grant
 
 

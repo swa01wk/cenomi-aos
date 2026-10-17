@@ -21,6 +21,7 @@ from ..kernel import (
     worker_events,
     worker_questions,
     worker_submit,
+    worker_tools,
 )
 from ..kernel.worker_fence import CommittedFenced, WorkerFenceError, require_claimed_attempt
 from ..kernel.publish import PublishRefusal
@@ -764,6 +765,50 @@ async def assemble_context_route(
         return _fenced_response(request, result)
     if isinstance(result, CommittedRefusal):
         return _refusal_response(request, result)
+    return result
+
+
+class CallToolBody(BaseModel):
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/worker/attempts/{id}/tools/{tool}", tags=["worker"])
+async def call_tool_route(
+    id: str,
+    tool: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    token: FencingDep,
+    body: CallToolBody,
+):
+    try:
+        result = await worker_tools.call_tool(
+            k.pool,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            tool=tool,
+            args=body.args,
+            broker=k.broker,
+            gateway=k.gateway,
+        )
+    except worker_attempts.WorkerError as exc:
+        _raise_worker_error(exc)
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    if isinstance(result, CommittedRefusal):
+        return _refusal_response(request, result)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    if isinstance(result, worker_tools.CommittedConnectorFailure):
+        title = "Connector call failed"
+        detail = result.detail
+        return problem_response(
+            request,
+            KernelProblem("connector_failed", 502, title, detail),
+        )
     return result
 
 

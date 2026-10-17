@@ -83,6 +83,14 @@ def new_envelope_id() -> str:
     return _new_prefixed_id("ce_")
 
 
+def new_broker_action_id() -> str:
+    return _new_prefixed_id("bx_")
+
+
+def new_tool_payload_ref() -> str:
+    return _new_prefixed_id("tp_")
+
+
 def new_eval_run_id() -> str:
     return _new_prefixed_id("ev_")
 

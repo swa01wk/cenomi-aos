@@ -30,6 +30,7 @@ from .refusal import CommittedRefusal, record_context_denied, refuse_context_vie
 from .worker_fence import ClaimedAttempt
 
 MAX_ENVELOPE_BYTES = 64 * 1024
+MAX_OBSERVATION_CONTENT_BYTES = 8 * 1024
 
 _CLASS_RANK = {"shareable": 0, "internal": 1, "restricted": 2}
 
@@ -141,6 +142,8 @@ def _commands_from_contract(contract: dict[str, Any], defs: dict[str, dict[str, 
         if not name:
             continue
         entry: dict[str, Any] = {"name": name, "input_schema": {"type": "object"}}
+        if isinstance(grant.get("input_schema"), dict):
+            entry["input_schema"] = grant["input_schema"]
         if grant.get("kind") == "kernel":
             out.append(entry)
             continue
@@ -148,7 +151,7 @@ def _commands_from_contract(contract: dict[str, Any], defs: dict[str, dict[str, 
             _prov, tool = tools[name]
             spec = tool if isinstance(tool, dict) else {}
             entry["description"] = spec.get("description") or ""
-            if isinstance(spec.get("input_schema"), dict):
+            if "input_schema" not in entry and isinstance(spec.get("input_schema"), dict):
                 entry["input_schema"] = spec["input_schema"]
         out.append(entry)
     return out
@@ -254,6 +257,25 @@ async def _resolve_pending_items(
     return out
 
 
+def _cap_observation_for_envelope(obs: dict[str, Any]) -> dict[str, Any]:
+    out = dict(obs)
+    content = out.get("content")
+    blob = json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
+    if len(blob) > MAX_OBSERVATION_CONTENT_BYTES:
+        out["content"] = {"truncated": True}
+    return out
+
+
+def _observations_for_envelope(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict) and item.get("tool"):
+            out.append(_cap_observation_for_envelope(item))
+    return out
+
+
 def _enforce_envelope_size(envelope: dict[str, Any]) -> None:
     resolvers = envelope.get("resolvers")
     if isinstance(resolvers, dict):
@@ -261,6 +283,11 @@ def _enforce_envelope_size(envelope: dict[str, Any]) -> None:
         if isinstance(recent, list):
             while len(recent) > 0 and _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
                 recent.pop(0)
+    observations = envelope.get("tool_observations")
+    if isinstance(observations, list):
+        while len(observations) > 1 and _canonical_size(envelope) > MAX_ENVELOPE_BYTES:
+            observations.pop(0)
+    if isinstance(resolvers, dict):
         summary = resolvers.get("running_summary")
         if isinstance(summary, dict):
             text = str(summary.get("text") or "")
@@ -455,6 +482,13 @@ async def assemble_context(
 
     skill_instructions = load_skill_instructions(packs_dir, contract)
 
+    obs_cur = await conn.execute(
+        "select tool_observations from work.attempts where id = %s",
+        (gate.attempt_id,),
+    )
+    obs_row = await obs_cur.fetchone()
+    tool_observations = _observations_for_envelope(obs_row[0] if obs_row else [])
+
     envelope: dict[str, Any] = {
         "schema_version": "aos.context_envelope/1",
         "envelope_id": ids.new_envelope_id(),
@@ -480,7 +514,7 @@ async def assemble_context(
         "objective": contract.get("objective") or "",
         "resolvers": resolvers,
         "artifacts": envelope_artifacts,
-        "tool_observations": [],
+        "tool_observations": tool_observations,
         "constraints": _constraints_for(ceiling),
         "remaining_budget": _remaining_budget(contract, gate.usage),
         "commands": _commands_from_contract(contract, defs),

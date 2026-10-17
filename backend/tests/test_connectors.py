@@ -36,8 +36,17 @@ def declared_tools(connector: str) -> set[str]:
 class BrokerTests(unittest.TestCase):
     def test_token_scoped_to_one_action(self) -> None:
         broker = CredentialBroker(SECRETS)
-        tok = broker.mint(Grant("mock_erp", "erp_po", "create", "act_1", "org_demo"))
-        claims = verify_token(tok, secret=SECRETS["mock_erp"], connector="mock_erp", resource="erp_po", action="create")
+        tok = broker.mint(
+            Grant("mock_erp", "erp_po", "create", "act_1", "org_demo", "create_po", "att_1")
+        )
+        claims = verify_token(
+            tok,
+            secret=SECRETS["mock_erp"],
+            connector="mock_erp",
+            resource="erp_po",
+            action="create",
+            tool="create_po",
+        )
         self.assertEqual(claims["sub"], "act_1")
         with self.assertRaises(TokenRejected):
             verify_token(tok, secret=SECRETS["mock_erp"], connector="mock_erp", resource="erp_po", action="read")
@@ -47,10 +56,26 @@ class BrokerTests(unittest.TestCase):
     def test_expiry_and_rotation(self) -> None:
         now = [1_000_000.0]
         broker = CredentialBroker(SECRETS, ttl_s=60, clock=lambda: now[0])
-        tok = broker.mint(Grant("mock_erp", "erp_po", "create", "a", "org"))
+        tok = broker.mint(Grant("mock_erp", "erp_po", "create", "a", "org", "create_po", "att_1"))
+        verify_token(
+            tok,
+            secret=SECRETS["mock_erp"],
+            connector="mock_erp",
+            resource="erp_po",
+            action="create",
+            tool="create_po",
+            clock=lambda: now[0] + 59,
+        )
         with self.assertRaises(TokenRejected):
-            verify_token(tok, secret=SECRETS["mock_erp"], connector="mock_erp", resource="erp_po",
-                         action="create", clock=lambda: now[0] + 61)
+            verify_token(
+                tok,
+                secret=SECRETS["mock_erp"],
+                connector="mock_erp",
+                resource="erp_po",
+                action="create",
+                tool="create_po",
+                clock=lambda: now[0] + 61,
+            )
         broker.rotate({"mock_erp": "rotated-after-kill"})
         with self.assertRaises(TokenRejected):
             verify_token(tok, secret="rotated-after-kill", connector="mock_erp", resource="erp_po", action="create",
@@ -63,13 +88,15 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
         self.cfg = ConnectorConfig(name="mock_erp", secret=SECRETS["mock_erp"])
         self.server, self.store = mock_erp.build_server(self.cfg)
 
-    def tok(self, resource: str, action: str) -> str:
-        return self.broker.mint(Grant("mock_erp", resource, action, "act", "org_demo"))
+    def tok(self, resource: str, action: str, tool: str) -> str:
+        return self.broker.mint(
+            Grant("mock_erp", resource, action, "act", "org_demo", tool, "att_test")
+        )
 
     def po_args(self, key: str = "key-1") -> dict:
         return {"supplier_id": "SUP-10482", "ship_to": "Mall A loading bay", "need_by": "2026-11-20",
                 "currency": "SAR", "lines": [{"item": "Cleaning trolley", "quantity": 40, "unit_price": 960}],
-                "reference": "AOS-QQ-0001-PO1", "idempotency_key": key, "token": self.tok("erp_po", "create")}
+                "reference": "AOS-QQ-0001-PO1", "idempotency_key": key, "token": self.tok("erp_po", "create", "create_po")}
 
     async def test_server_exposes_every_declared_tool(self) -> None:
         async with Client(self.server) as c:
@@ -82,16 +109,24 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
         async with Client(self.server) as c:
             self.assertIn("error", payload(await c.call_tool("search_suppliers", {"category_id": "CAT-JAN-EQ"})))
             wrong = await c.call_tool("search_suppliers", {"category_id": "CAT-JAN-EQ",
-                                                           "token": self.tok("erp_po", "create")})
+                                                           "token": self.tok("erp_po", "create", "create_po")})
             self.assertIn("error", payload(wrong))
+            wrong_tool = await c.call_tool(
+                "search_suppliers",
+                {
+                    "category_id": "CAT-JAN-EQ",
+                    "token": self.tok("erp_supplier", "read", "browse_categories"),
+                },
+            )
+            self.assertIn("error", payload(wrong_tool))
             ok = payload(await c.call_tool("search_suppliers", {"category_id": "CAT-JAN-EQ",
-                                                                "token": self.tok("erp_supplier", "read")}))
+                                                                "token": self.tok("erp_supplier", "read", "search_suppliers")}))
             self.assertEqual(len(ok["items"]), 5)
 
     async def test_history_drives_ranking_signals(self) -> None:
         async with Client(self.server) as c:
             h = payload(await c.call_tool("get_supplier_history", {"supplier_id": "SUP-10482",
-                                                                   "token": self.tok("erp_supplier", "read")}))
+                                                                   "token": self.tok("erp_supplier", "read", "get_supplier_history")}))
         self.assertEqual(h["past_pos"], 3)
         self.assertEqual(h["on_time_pct"], 100.0)
 
@@ -114,7 +149,7 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
                     await c.call_tool("create_po", self.po_args())
         async with Client(self.server) as c:
             found = payload(await c.call_tool("find_po", {"reference": "AOS-QQ-0001-PO1",
-                                                          "token": self.tok("erp_po", "read")}))
+                                                          "token": self.tok("erp_po", "read", "find_po")}))
             retry = payload(await c.call_tool("create_po", self.po_args()))
             pos = payload(await c.call_tool("admin_list_pos", {}))
         self.assertTrue(found["found"])
@@ -137,14 +172,14 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
         self.cfg = ConnectorConfig(name="mock_mail", secret=SECRETS["mock_mail"])
         self.server, self.store = mock_mail.build_server(self.cfg, inbound_secret="inbound-test")
 
-    def tok(self, action: str) -> str:
-        return self.broker.mint(Grant("mock_mail", "mailbox", action, "act", "org_demo"))
+    def tok(self, action: str, tool: str) -> str:
+        return self.broker.mint(Grant("mock_mail", "mailbox", action, "act", "org_demo", tool, "att_test"))
 
     async def draft(self, c, key="rfq-najd-v2"):
         return payload(await c.call_tool("draft_message", {
             "to": "sales@najd.example", "subject": "Request for quotation: 40 cleaning trolleys (QQ-0001)",
             "body": "Please quote by 21 October.", "conversation_ref": "QQ-0001:SUP-10482",
-            "idempotency_key": key, "token": self.tok("draft")}))
+            "idempotency_key": key, "token": self.tok("draft", "draft_message")}))
 
     async def test_server_exposes_every_declared_tool(self) -> None:
         async with Client(self.server) as c:
@@ -154,11 +189,11 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
     async def test_send_is_idempotent_and_findable(self) -> None:
         async with Client(self.server) as c:
             d = await self.draft(c)
-            args = {"draft_id": d["draft_id"], "idempotency_key": "rfq-najd-v2", "token": self.tok("send")}
+            args = {"draft_id": d["draft_id"], "idempotency_key": "rfq-najd-v2", "token": self.tok("send", "send_message")}
             first = payload(await c.call_tool("send_message", args))
             again = payload(await c.call_tool("send_message", args))
             found = payload(await c.call_tool("find_message", {"idempotency_key": "rfq-najd-v2",
-                                                               "token": self.tok("read")}))
+                                                               "token": self.tok("read", "find_message")}))
             sent = payload(await c.call_tool("admin_list", {"folder": "sent"}))
         self.assertFalse(first["duplicate"])
         self.assertTrue(again["duplicate"])
@@ -170,24 +205,65 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
             d = await self.draft(c)
             res = payload(await c.call_tool("send_message", {"draft_id": d["draft_id"],
                                                              "idempotency_key": "rfq-najd-v2",
-                                                             "token": self.tok("draft")}))
+                                                             "token": self.tok("draft", "draft_message")}))
         self.assertIn("error", res)
 
     async def test_reply_raises_a_signed_inbound_event(self) -> None:
         async with Client(self.server) as c:
             d = await self.draft(c)
             await c.call_tool("send_message", {"draft_id": d["draft_id"], "idempotency_key": "rfq-najd-v2",
-                                               "token": self.tok("send")})
+                                               "token": self.tok("send", "send_message")})
             note = payload(await c.call_tool("admin_simulate_reply", {
                 "conversation_id": d["conversation_id"], "sender": "sales@najd.example",
                 "body": "SAR 960 per trolley, 14 days, 12-month warranty."}))
             thread = payload(await c.call_tool("read_thread", {"conversation_id": d["conversation_id"],
-                                                               "token": self.tok("read")}))
+                                                               "token": self.tok("read", "read_thread")}))
         self.assertEqual(note["payload"]["event"], "mail.message_received")
         self.assertEqual(note["payload"]["ref"], "QQ-0001:SUP-10482")
         self.assertTrue(verify(canonical(note["payload"]), note["signature"], "inbound-test"))
         self.assertFalse(verify(canonical(note["payload"]), note["signature"], "wrong-secret"))
         self.assertEqual([m["folder"] for m in thread["items"]], ["sent", "inbox"])
+
+
+def _worker_args_schema(schema: dict) -> dict:
+    props = {
+        k: {"type": v.get("type")}
+        for k, v in (schema.get("properties") or {}).items()
+        if k != "token" and isinstance(v, dict) and v.get("type")
+    }
+    required = [r for r in schema.get("required") or [] if r != "token"]
+    out: dict = {"type": "object", "properties": props}
+    if required:
+        out["required"] = required
+    return out
+
+
+class PackInputSchemaTests(unittest.IsolatedAsyncioTestCase):
+    async def test_mcp_read_tools_match_mock_server_schemas(self) -> None:
+        for connector in ("mock_erp", "mock_mail"):
+            doc = parse_yaml(
+                (REPO / "packs" / "procurement_demo" / "connectors" / f"{connector}.yaml").read_text()
+            )
+            cfg = ConnectorConfig(name=connector, secret=SECRETS[connector])
+            if connector == "mock_erp":
+                server, _ = mock_erp.build_server(cfg)
+            else:
+                server, _ = mock_mail.build_server(cfg, inbound_secret="inbound-test")
+            async with Client(server) as c:
+                listed = {t.name: t for t in (await c.list_tools()).tools}
+            for tname, spec in doc["spec"]["tools"].items():
+                if spec.get("class") != "read":
+                    continue
+                declared = spec.get("input_schema")
+                self.assertIsInstance(declared, dict, f"{connector}.{tname} missing input_schema")
+                mcp_tool = listed.get(tname)
+                self.assertIsNotNone(mcp_tool, tname)
+                mcp_schema = getattr(mcp_tool, "inputSchema", None) or getattr(mcp_tool, "input_schema", None)
+                self.assertEqual(
+                    _worker_args_schema(declared),
+                    _worker_args_schema(mcp_schema or {}),
+                    f"schema drift for {connector}.{tname}",
+                )
 
 
 if __name__ == "__main__":

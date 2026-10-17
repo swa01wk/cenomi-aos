@@ -12,6 +12,8 @@ from psycopg_pool import AsyncConnectionPool
 
 from ..kernel.auth import AuthError, read_session, read_worker_token, require_console
 from ..kernel.org import OrgModel
+from ..gateway.broker import CredentialBroker
+from ..gateway.gateway import ToolGateway
 from ..kernel.settings import Settings
 from ..sse import OutboxHub
 
@@ -21,6 +23,8 @@ class Kernel:
     settings: Settings
     org: OrgModel
     pool: AsyncConnectionPool
+    broker: CredentialBroker
+    gateway: ToolGateway
 
 
 def kernel(request: Request) -> Kernel:
