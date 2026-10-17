@@ -143,6 +143,7 @@ create table work.attempts (
   resume jsonb,                                     -- {"checkpoint_id":…, "signal":{…}}
   reserved_usd numeric(10,4) not null default 0,
   usage jsonb not null default '{}',                -- tokens_in, tokens_out, cost_usd, steps, actions
+  tool_observations jsonb not null default '[]',    -- tool results for this attempt (envelope tool_observations)
   failure_class text,
   trace_id text,
   admitted_at timestamptz not null default now(),
@@ -239,6 +240,14 @@ create table evidence.stream_heads (
   last_seq bigint not null default 0
 );
 
+create table evidence.tool_payloads (
+  ref text primary key,                             -- tp_… receipt storage for tool outcomes
+  org_id text not null,
+  content_hash text not null,
+  body jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 create table evidence.outbox (
   stream text not null,
   seq bigint not null,
@@ -252,6 +261,6 @@ create table evidence.outbox (
 
 -- Grants: the kernel owns all of this; the worker reaches none of it.
 grant select, insert, update, delete on all tables in schema registry, gov, work to aos_kernel;
-grant select, insert on evidence.execution_events, evidence.outbox to aos_kernel;
+grant select, insert on evidence.execution_events, evidence.outbox, evidence.tool_payloads to aos_kernel;
 grant select, insert, update on evidence.stream_heads to aos_kernel;
 grant usage, select on all sequences in schema registry, work, evidence to aos_kernel;

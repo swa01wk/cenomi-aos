@@ -17,7 +17,7 @@
         "unauthenticated", "not_permitted", "not_found", "validation_failed", "stale_version", "already_claimed",
         "policy_denied", "policy_never", "segregation_of_duties", "seat_not_active", "kill_switch_active",
         "approval_stale", "approval_expired", "fenced", "lease_expired", "budget_exhausted", "version_taken",
-        "conflict", "unavailable", "context_too_large", "internal"
+        "conflict", "unavailable", "context_too_large", "connector_failed", "internal"
       ]
     },
     "trace_id": {"type": "string", "description": "OpenTelemetry trace ID of the failed request; shown on the ErrorBanner."},

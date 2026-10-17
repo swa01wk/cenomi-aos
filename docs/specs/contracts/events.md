@@ -29,7 +29,7 @@ Names follow reference architecture v1.2 §29. The worker may **propose** only t
 | ToolRequested W | The graph asks for a tool | worker | `tool`, `args_sha256` |
 | ToolAuthorized | Policy allows a tool call | kernel | `tool`, `decision_id` |
 | ToolDenied | Policy refuses a tool call | kernel | `tool`, `decision_id`, `rule` |
-| ToolCompleted | The gateway gets a result or receipt | kernel | `tool`, `receipt_ref`, `duration_ms` |
+| ToolCompleted | The gateway finishes a tool call (success, failure or discarded) | kernel | `tool`, `receipt_ref`, `duration_ms`, `outcome` (`success`, `failed`, `discarded`) |
 | ArtifactProduced | A draft or person version is saved | kernel | `artifact_refs` |
 | ApprovalRequested | request_action returns REQUIRE_APPROVAL | kernel | `approval_id`, `payload_hash` |
 | CheckpointSaved W | The graph interrupts for approval or input | worker | `checkpoint_id`, `waiting_for` |

@@ -22,6 +22,7 @@
   "redacted_summary": "quotes.read for participant:requester → NEVER (requester_never_sees_quotes)",
   "attributes": {
     "tool": "read_artifact",
-    "decision_id": "pd_7f20"
+    "decision_id": "pd_7f20",
+    "rule": "requester_never_sees_quotes"
   }
 }

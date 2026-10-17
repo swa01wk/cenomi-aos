@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from psycopg_pool import AsyncConnectionPool
 
+from ..gateway.broker import CredentialBroker
+from ..gateway.gateway import ToolGateway
 from ..kernel.org import load_org, seed_sql
 from ..kernel.scheduler import start_scheduler
 from ..kernel.settings import Settings
@@ -26,6 +28,11 @@ async def seed(database_url: str, sql: str) -> None:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
+    if settings.gateway_timeout_seconds >= settings.worker_lease_seconds:
+        raise ValueError(
+            "AOS_GATEWAY_TIMEOUT_SECONDS must be less than the worker lease "
+            f"({settings.worker_lease_seconds}s)."
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -36,7 +43,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await pool.open(wait=True, timeout=15)
         hub = OutboxHub(settings.database_url, heartbeat_seconds=settings.sse_heartbeat_seconds)
         await hub.start(pool)
-        app.state.kernel = Kernel(settings=settings, org=org, pool=pool)
+        broker = CredentialBroker(settings.connector_secrets)
+        gateway = ToolGateway(
+            connector_urls=settings.connector_urls,
+            timeout_s=settings.gateway_timeout_seconds,
+        )
+        app.state.kernel = Kernel(
+            settings=settings,
+            org=org,
+            pool=pool,
+            broker=broker,
+            gateway=gateway,
+        )
         app.state.hub = hub
         sched_task, sched_stop = start_scheduler(
             pool, database_url=settings.database_url, interval_s=settings.scheduler_interval_seconds

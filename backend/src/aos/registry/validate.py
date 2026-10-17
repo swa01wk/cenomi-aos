@@ -92,6 +92,8 @@ class _Checker:
                                  f"{tool.reconcile_with!r} must be a read tool of the same provider")
                 if prov.spec.transport == "builtin" and not tool.implementation:
                     self.err("E_IMPLEMENTATION", "ToolProvider", pname, path, "a builtin tool needs an implementation")
+                if prov.spec.transport == "mcp" and tool.tool_class == "read" and not tool.input_schema:
+                    self.err("E_INPUT_SCHEMA", "ToolProvider", pname, path, "an mcp read tool needs input_schema")
 
     def check_artifacts(self) -> None:
         participants = {r for w in self.workflows.values() for r in w.spec.participants}

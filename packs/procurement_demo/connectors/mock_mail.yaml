@@ -7,8 +7,26 @@ spec:
   endpoint: ${MCP_MOCK_MAIL_URL}
   inbound: {event: mail.message_received, auth: hmac}
   tools:
-    read_thread: {resource: mailbox, action: read, class: read}
-    find_message: {resource: mailbox, action: read, class: read}
+    read_thread:
+      resource: mailbox
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [conversation_id]
+        properties:
+          conversation_id: {type: string}
+        additionalProperties: false
+    find_message:
+      resource: mailbox
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [idempotency_key]
+        properties:
+          idempotency_key: {type: string}
+        additionalProperties: false
     draft_message: {resource: mailbox, action: draft, class: staged_write}
     send_message: {resource: mailbox, action: send, class: committed_effect, reconcile_with: find_message}
   governance: {require_policy_evaluation: true, allow_direct_runtime_credentials: false}

@@ -74,22 +74,22 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     server = MCPServer("mock_erp", version="0.1.0",
                        instructions="Mock ERP for the AOS POC. Every call needs a broker token.")
 
-    def guard(token: str | None, resource: str, action: str) -> None:
+    def guard(token: str | None, resource: str, action: str, tool: str) -> None:
         try:
-            cfg.check(token, resource, action)
+            cfg.check(token, resource, action, tool=tool)
         except ConnectorError as exc:
             raise ToolError(str(exc)) from exc
 
     @server.tool()
     def browse_categories(query: str = "", token: str | None = None) -> dict:
         """List ERP categories whose name contains the query."""
-        guard(token, "erp_supplier", "read")
+        guard(token, "erp_supplier", "read", "browse_categories")
         return {"items": store.q("select id, name from category where lower(name) like ?", (f"%{query.lower()}%",))}
 
     @server.tool()
     def search_suppliers(category_id: str, token: str | None = None) -> dict:
         """Active suppliers mapped to a category."""
-        guard(token, "erp_supplier", "read")
+        guard(token, "erp_supplier", "read", "search_suppliers")
         rows = store.q("select id, name, email, category_id from supplier where category_id = ? and status = 'active'"
                        " order by id", (category_id,))
         if cfg.faults.oversized_reads:
@@ -99,7 +99,7 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     @server.tool()
     def get_supplier_history(supplier_id: str, token: str | None = None) -> dict:
         """Past orders for a supplier, with the on-time rate."""
-        guard(token, "erp_supplier", "read")
+        guard(token, "erp_supplier", "read", "get_supplier_history")
         rows = store.q("select po_number, category_id, ordered_on, on_time from history where supplier_id = ?"
                        " order by ordered_on", (supplier_id,))
         rate = round(100 * sum(r["on_time"] for r in rows) / len(rows), 1) if rows else None
@@ -109,7 +109,7 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     @server.tool()
     def find_po(reference: str, token: str | None = None) -> dict:
         """Look a purchase order up by the reference AOS wrote on it. Used to reconcile unknown outcomes."""
-        guard(token, "erp_po", "read")
+        guard(token, "erp_po", "read", "find_po")
         row = store.one("select * from po where reference = ?", (reference,))
         return {"found": row is not None, "po": _po_view(row) if row else None}
 
@@ -117,7 +117,7 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     async def create_po(supplier_id: str, ship_to: str, need_by: str, currency: str, lines: list[dict],
                         reference: str, idempotency_key: str, token: str | None = None) -> dict:
         """Create a purchase order. Idempotent: the same reference or key returns the existing order."""
-        guard(token, "erp_po", "create")
+        guard(token, "erp_po", "create", "create_po")
         existing = store.one("select * from po where reference = ? or idempotency_key = ?", (reference, idempotency_key))
         if existing:
             return {**_po_view(existing), "duplicate": True}

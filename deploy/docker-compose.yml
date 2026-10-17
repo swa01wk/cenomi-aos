@@ -26,6 +26,8 @@ services:
       AOS_DATABASE_URL: postgresql://aos_kernel:aos_kernel_dev@postgres:5432/aos
       AOS_SESSION_SECRET: ${AOS_SESSION_SECRET:-aos-dev-session-secret-change-me-0123456789abcdef}
       AOS_CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      AOS_CONNECTOR_SECRETS: '{"mock_erp":"${MOCK_ERP_SECRET:-dev-erp-secret}","mock_mail":"${MOCK_MAIL_SECRET:-dev-mail-secret}"}'
+      AOS_CONNECTOR_URLS: '{"mock_erp":"http://mock-erp:8101/mcp","mock_mail":"http://mock-mail:8102/mcp"}'
     ports: ["8000:8000"]
     depends_on:
       postgres: {condition: service_healthy}

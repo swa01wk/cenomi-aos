@@ -48,6 +48,14 @@ backend/src/aos/
 Everything outside `connectors/`, `verifiers/` and `tools/` is **pack-neutral**. It never names a pack, workflow,
 Skill, document type or domain word; those arrive as pack data. `tests/test_pack_neutral.py` enforces this.
 
+### Gateway broker tokens (M1 reads)
+
+For each allowed connector read, the gateway mints a JWT signed with that connector's secret (never
+`AOS_SESSION_SECRET`). Claims use `iss: aos-broker`, `aud` equal to the connector id (`mock_erp`, …), plus
+`res`, `act`, `tool`, `att` (attempt id) and a one-shot `sub` (broker action id). TTL is 60 seconds. The token
+is passed only to the MCP `token` argument; it is not returned to the worker or stored on events. Connectors
+verify expiry with an explicit clock check (`verify_exp` off in decode so tests can freeze time).
+
 ## Request handling rules
 
 1. **One transaction per command.** State change, Decision Record, execution event, outbox rows and (when listed in

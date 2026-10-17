@@ -50,6 +50,57 @@ async def record_context_denied(
     return decision_id
 
 
+async def record_tool_denied(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    instance_id: str,
+    task_id: str,
+    attempt_id: str,
+    correlation_id: str,
+    seat: str,
+    tool: str,
+    code: str,
+    rule: str,
+    title: str,
+    detail: str,
+    status: int,
+) -> CommittedRefusal:
+    decision_id = ids.new_decision_id()
+    await conn.execute(
+        "insert into gov.decision_records ("
+        " id, org_id, subject_kind, subject_id, event, value, actor, actor_role"
+        ") values (%s, %s, 'instance', %s, 'tool.denied', %s, %s, %s)",
+        (decision_id, org_id, instance_id, code, seat, None),
+    )
+    await audit_store.record(
+        conn,
+        org_id=org_id,
+        actor=seat,
+        action="tool.denied",
+        subject=f"instance:{instance_id}",
+        data={"tool": tool, "code": code, "rule": rule, "decision_id": decision_id},
+    )
+    from .outbox import ExecutionEventWrite, write_execution_event
+
+    await write_execution_event(
+        conn,
+        ExecutionEventWrite(
+            org_id=org_id,
+            run_id=instance_id,
+            event_type="ToolDenied",
+            actor_kind="seat",
+            actor_id=seat,
+            correlation_id=correlation_id,
+            redacted_summary=f"{tool} refused: {rule}",
+            task_id=task_id,
+            attempt_id=attempt_id,
+            attributes={"tool": tool, "decision_id": decision_id, "rule": rule},
+        ),
+    )
+    return CommittedRefusal(code, status, title, detail, decision_id, rule=rule)
+
+
 async def refuse_context_viewer_not_participant(
     conn: AsyncConnection,
     *,

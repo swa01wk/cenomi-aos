@@ -6,9 +6,44 @@ spec:
   transport: mcp
   endpoint: ${MCP_MOCK_ERP_URL}
   tools:
-    browse_categories: {resource: erp_supplier, action: read, class: read}
-    search_suppliers: {resource: erp_supplier, action: read, class: read}
-    get_supplier_history: {resource: erp_supplier, action: read, class: read}
-    find_po: {resource: erp_po, action: read, class: read}
+    browse_categories:
+      resource: erp_supplier
+      action: read
+      class: read
+      input_schema:
+        type: object
+        properties:
+          query: {type: string}
+        additionalProperties: false
+    search_suppliers:
+      resource: erp_supplier
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [category_id]
+        properties:
+          category_id: {type: string}
+        additionalProperties: false
+    get_supplier_history:
+      resource: erp_supplier
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [supplier_id]
+        properties:
+          supplier_id: {type: string}
+        additionalProperties: false
+    find_po:
+      resource: erp_po
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [reference]
+        properties:
+          reference: {type: string}
+        additionalProperties: false
     create_po: {resource: erp_po, action: create, class: committed_effect, reconcile_with: find_po}
   governance: {require_policy_evaluation: true, allow_direct_runtime_credentials: false}
