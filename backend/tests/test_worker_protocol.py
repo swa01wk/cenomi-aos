@@ -23,21 +23,18 @@ async def _ok_step(attempt: WorkerAttempt, ctx):
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
-        self.setUp()
-
     async def test_happy_path_submits_once(self) -> None:
-        self._start_job()
-        client = make_http_client(self, "w1")
+        await asyncio.to_thread(self._start_job)
+        client = await make_http_client(self, "w1")
         worker = Worker("w1", client, FakeRuntime([_ok_step]), ("assist",))
         self.assertEqual(await worker.run_once(), "submitted")
         self.assertEqual(await worker.run_once(), "idle")
         await client.aclose()
 
     async def test_heartbeats_keep_attempt_alive_past_claim_lease(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
         lease = 3.0
-        client = make_http_client(self, "w1", settings=settings_with_lease(self, lease))
+        client = await make_http_client(self, "w1", settings=settings_with_lease(self, lease))
         release = asyncio.Event()
 
         async def slow_step(attempt: WorkerAttempt, ctx):
@@ -53,15 +50,15 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         claim_mono = time.monotonic()
         while time.monotonic() < claim_mono + lease:
             await asyncio.sleep(0.05)
-        self._run_tick()
+        await asyncio.to_thread(self._run_tick)
         release.set()
         self.assertEqual(await run_task, "submitted")
         await client.aclose()
 
     async def test_heartbeats_disabled_fenced_after_expiry_tick(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
         lease = 3.0
-        client = make_http_client(self, "w1", settings=settings_with_lease(self, lease))
+        client = await make_http_client(self, "w1", settings=settings_with_lease(self, lease))
         release = asyncio.Event()
 
         async def slow_step(attempt: WorkerAttempt, ctx):
@@ -74,15 +71,15 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         claim_mono = time.monotonic()
         while time.monotonic() < claim_mono + lease:
             await asyncio.sleep(0.05)
-        self._run_tick()
+        await asyncio.to_thread(self._run_tick)
         release.set()
         self.assertEqual(await run_task, "fenced")
         await client.aclose()
 
     async def test_stalled_worker_is_fenced_and_cannot_commit(self) -> None:
-        self._start_job()
-        client_a = make_http_client(self, "A", settings=settings_with_lease(self, 0.35))
-        client_b = make_http_client(self, "B", settings=settings_with_lease(self, 0.35))
+        await asyncio.to_thread(self._start_job)
+        client_a = await make_http_client(self, "A", settings=settings_with_lease(self, 0.35))
+        client_b = await make_http_client(self, "B", settings=settings_with_lease(self, 0.35))
         gate = asyncio.Event()
 
         async def stalls(attempt: WorkerAttempt, ctx):
@@ -94,7 +91,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
 
         task_a = asyncio.create_task(worker_a.run_once())
         await asyncio.sleep(0.45)
-        self._run_tick()
+        await asyncio.to_thread(self._run_tick)
         self.assertEqual(await worker_b.run_once(), "submitted")
         gate.set()
         self.assertEqual(await task_a, "fenced")
@@ -102,23 +99,23 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         await client_b.aclose()
 
     async def test_failures_are_classified(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
 
         async def bad(attempt: WorkerAttempt, ctx):
             raise AttemptFailed("invalid_output", "output did not match the brief schema")
 
-        client = make_http_client(self, "w1")
+        client = await make_http_client(self, "w1")
         worker = Worker("w1", client, FakeRuntime([bad]), ("assist",))
         self.assertEqual(await worker.run_once(), "failed:invalid_output")
         await client.aclose()
 
     async def test_unexpected_errors_are_internal_not_retried(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
 
         async def boom(attempt: WorkerAttempt, ctx):
             raise RuntimeError("connector exploded")
 
-        client = make_http_client(self, "w1")
+        client = await make_http_client(self, "w1")
         worker = Worker("w1", client, FakeRuntime([boom]), ("assist",))
         self.assertEqual(await worker.run_once(), "failed:internal")
         task_id = _pg.admin_sql(self.db, "select id from work.tasks order by created_at desc limit 1;").stdout.strip()

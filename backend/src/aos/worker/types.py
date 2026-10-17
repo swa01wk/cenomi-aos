@@ -1,7 +1,5 @@
 """Worker-side API shapes (TypedDict); not generated from OpenAPI."""
 
-from __future__ import annotations
-
 from typing import Any, NotRequired, TypedDict
 
 

@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 _PKG = Path(__file__).resolve().parent
-_REPO_ROOT = _PKG.parents[4]
+_REPO_ROOT = _PKG.parents[3]
 
 
 def schema_dir() -> Path:

@@ -17,11 +17,8 @@ from .worker_harness import WorkerHarness, make_http_client, settings_with_lease
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
-        self.setUp()
-
     async def test_fake_runtime_call_tool_and_submit(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
 
         async def script(attempt: WorkerAttempt, ctx):
             await ctx.get_contract()
@@ -29,14 +26,14 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             await ctx.call_tool("browse_categories", {"query": "chair"})
             return minimal_agent_result(attempt, text="Listed categories.")
 
-        client = make_http_client(self)
+        client = await make_http_client(self)
         worker = Worker("worker-test-1", client, FakeRuntime([script]), ("assist",))
         self.assertEqual(await worker.run_once(), "submitted")
         await client.aclose()
 
     async def test_lease_expiry_cancels_runtime_no_submit(self) -> None:
-        self._start_job()
-        client = make_http_client(self, settings=settings_with_lease(self, 2.0))
+        await asyncio.to_thread(self._start_job)
+        client = await make_http_client(self, settings=settings_with_lease(self, 2.0))
         block = asyncio.Event()
         submit_calls = 0
         real_submit = client.submit_result
@@ -61,8 +58,9 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         )
         run_task = asyncio.create_task(worker.run_once())
         await asyncio.sleep(2.5)
-        self._run_tick()
+        await asyncio.to_thread(self._run_tick)
         await asyncio.sleep(0.3)
-        self.assertEqual(await run_task, "fenced")
+        # Bounded so a hung runtime fails the test instead of hanging make check.
+        self.assertEqual(await asyncio.wait_for(run_task, 10), "fenced")
         self.assertEqual(submit_calls, 0)
         await client.aclose()

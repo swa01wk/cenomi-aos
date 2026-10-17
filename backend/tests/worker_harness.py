@@ -24,18 +24,25 @@ def settings_with_lease(harness: WorkerHarness, lease_seconds: float) -> Setting
         session_secret=harness.settings.session_secret,
         scheduler_interval_seconds=60.0,
         worker_lease_seconds=lease_seconds,
+        gateway_timeout_seconds=min(harness.settings.gateway_timeout_seconds, lease_seconds / 2),
         connector_secrets=harness.settings.connector_secrets,
         connector_urls=harness.settings.connector_urls,
     )
 
 
-def make_http_client(
+async def make_http_client(
     harness: WorkerHarness,
     worker_id: str = "worker-test-1",
     *,
     settings: Settings | None = None,
+    invoke_hook=None,
 ) -> HttpKernelClient:
     app = create_app(settings or harness.settings)
+    lifespan = app.router.lifespan_context(app)
+    await lifespan.__aenter__()
+    harness.addAsyncCleanup(lifespan.__aexit__, None, None, None)
+    if invoke_hook is not None:
+        app.state.kernel.gateway._invoke_hook = invoke_hook
     token = issue_worker_token(ORG.organization.id, worker_id, harness.settings.session_secret)
     raw = httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api")
     return HttpKernelClient("http://test/api", token, client=raw)

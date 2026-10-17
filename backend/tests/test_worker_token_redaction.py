@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import unittest
 
@@ -17,13 +18,10 @@ from .worker_harness import WorkerHarness, make_http_client
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class WorkerTokenRedactionTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
-        self.setUp()
-
     async def test_token_not_in_logs_or_repr(self) -> None:
-        self._start_job()
+        await asyncio.to_thread(self._start_job)
         token = self.worker_auth()["Authorization"].split(" ", 1)[1]
-        client = make_http_client(self)
+        client = await make_http_client(self)
         worker = Worker("worker-test-1", client, FakeRuntime([assist_complete]), ("assist",))
 
         logging.getLogger("httpx").setLevel(logging.DEBUG)
