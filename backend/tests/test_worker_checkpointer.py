@@ -54,6 +54,20 @@ class EnsureSearchPathTests(unittest.TestCase):
         self.assertIn("%20", out)
         self.assertNotIn("+search_path", out)
 
+    def test_ensure_search_path_keeps_other_params_and_existing_option(self) -> None:
+        base = "postgresql://aos_worker:aos_worker_dev@127.0.0.1:5432/aos"
+        self.assertEqual(
+            _ensure_search_path(base + "?sslmode=disable"),
+            base + "?sslmode=disable&options=-c%20search_path%3Dlg_checkpoints",
+        )
+        already = base + "?options=-c%20search_path%3Dlg_checkpoints"
+        self.assertEqual(_ensure_search_path(already), already)
+
+    def test_ensure_search_path_refuses_other_options(self) -> None:
+        url = "postgresql://aos_worker:aos_worker_dev@127.0.0.1:5432/aos?options=-c%20statement_timeout%3D5000"
+        with self.assertRaisesRegex(RuntimeError, "search_path=lg_checkpoints"):
+            _ensure_search_path(url)
+
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class WorkerCheckpointerTests(unittest.TestCase):

@@ -7,7 +7,6 @@ import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-from urllib import parse as urlparse
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from langchain_core.runnables import RunnableConfig
@@ -25,12 +24,9 @@ log = logging.getLogger("aos.worker.checkpointer")
 
 _SETUP_ADVISORY_LOCK = 0xA05_0004_001
 _SEARCH_PATH_OPT = "-c search_path=lg_checkpoints"
+# Pre-encoded for a libpq URI: libpq decodes %XX but not "+" as a space, so the space must be %20.
+_SEARCH_PATH_QUERY = "options=-c%20search_path%3Dlg_checkpoints"
 _WORKER_ROLE = "aos_worker"
-
-
-def _url_quote_component(s: str, safe: str = "", encoding: str | None = None, errors: str | None = None) -> str:
-    fn = getattr(urlparse, "qu" + "ote")
-    return fn(s, safe, encoding, errors)
 
 
 def validate_checkpoint_database_url(raw: str) -> str:
@@ -48,21 +44,18 @@ def validate_checkpoint_database_url(raw: str) -> str:
 
 
 def _ensure_search_path(url: str) -> str:
+    """Pin the connection to lg_checkpoints. Other libpq options would need their own encoding, so refuse them."""
     parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    existing = query.get("options", "")
-    if _SEARCH_PATH_OPT in existing or "search_path=lg_checkpoints" in existing:
+    existing = dict(parse_qsl(parts.query, keep_blank_values=True)).get("options", "")
+    if "search_path=lg_checkpoints" in existing:
         return url
-    query["options"] = f"{existing} {_SEARCH_PATH_OPT}".strip() if existing else _SEARCH_PATH_OPT
-    return urlunsplit(
-        (
-            parts.scheme,
-            parts.netloc,
-            parts.path,
-            urlparse.urlencode(query, quote_via=_url_quote_component),
-            parts.fragment,
+    if existing:
+        raise RuntimeError(
+            "AOS_CHECKPOINT_DATABASE_URL sets libpq options without search_path=lg_checkpoints; "
+            "drop the options or add -c search_path=lg_checkpoints"
         )
-    )
+    query = f"{parts.query}&{_SEARCH_PATH_QUERY}" if parts.query else _SEARCH_PATH_QUERY
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
 def langgraph_thread_id(attempt: WorkerAttempt) -> str:
