@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
@@ -17,6 +18,7 @@ from ..kernel.seats import EvalRunJob, SeatError
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
+from ..sse import InstanceStreamError, instance_event_stream, preflight_instance_stream
 from .deps import ConsoleDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, needs_role
 
 router = APIRouter()
@@ -546,6 +548,37 @@ async def post_turn(
     if isinstance(result, CommittedRefusal):
         return _refusal_response(request, result)
     return result
+
+
+@router.get("/instances/{id}/events", tags=["instances"])
+async def stream_instance_events(
+    request: Request,
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+    cursor: str | None = None,
+) -> StreamingResponse:
+    try:
+        await preflight_instance_stream(k.pool, org_id=p.org_id, instance_id=id, person_id=p.person_id)
+    except InstanceStreamError as exc:
+        _raise_instance_error(
+            instances.InstanceError(exc.code, exc.status, exc.title, exc.detail)
+        )
+    hub = request.app.state.hub
+    resume = last_event_id or cursor
+    return StreamingResponse(
+        instance_event_stream(
+            hub,
+            k.pool,
+            org_id=p.org_id,
+            instance_id=id,
+            person_id=p.person_id,
+            cursor=resume,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ------------------------------------------------------------------ audit (Console)

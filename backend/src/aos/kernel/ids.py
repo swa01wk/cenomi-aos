@@ -104,5 +104,18 @@ def ui_event_cursor(stream: str, seq: int) -> str:
     return f"{stream}:{seq}"
 
 
+def parse_ui_event_cursor(cursor: str) -> tuple[str, int]:
+    """Split ``<stream>:<seq>`` on the last colon (stream names contain ``:``)."""
+    if not cursor or ":" not in cursor:
+        raise ValueError("cursor must be '<stream>:<seq>'")
+    stream, seq_s = cursor.rsplit(":", 1)
+    if not stream or not seq_s.isdigit():
+        raise ValueError("cursor must be '<stream>:<seq>'")
+    seq = int(seq_s)
+    if seq < 0:
+        raise ValueError("cursor seq must be >= 0")
+    return stream, seq
+
+
 def new_event_id() -> UUID:
     return uuid4()
