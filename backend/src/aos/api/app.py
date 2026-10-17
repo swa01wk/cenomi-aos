@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg_pool import AsyncConnectionPool
 
 from ..kernel.org import load_org, seed_sql
+from ..kernel.scheduler import start_scheduler
 from ..kernel.settings import Settings
 from ..sse import OutboxHub
 from .deps import Kernel
@@ -37,9 +38,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await hub.start(pool)
         app.state.kernel = Kernel(settings=settings, org=org, pool=pool)
         app.state.hub = hub
+        sched_task, sched_stop = start_scheduler(
+            pool, database_url=settings.database_url, interval_s=settings.scheduler_interval_seconds
+        )
         try:
             yield
         finally:
+            sched_stop.set()
+            await sched_task
             await hub.stop()
             await pool.close()
 

@@ -54,7 +54,7 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
 | `instance.state_changed` | both | participants, Console | `StageStepper`, lists |
 | `participant.bound` | instance | participants | Job header people |
 | `task.state_changed` | instance | buyer, Console | `TaskStatus` |
-| `attempt.started` / `attempt.ended` | instance | buyer, Console | `TaskStatus`, "Agent working" |
+| `attempt.started` / `attempt.ended` | instance | every participant role on the job (from `work.participants`) | `TaskStatus`, "Agent working" |
 | `turn.created` | instance | the conversation's participants | `PersonMessage` |
 | `agent.message.delta` | instance | the participant the turn answers | `StreamingText` |
 | `agent.message.completed` | instance | conversation participants | `AgentMessage` (typed blocks) |

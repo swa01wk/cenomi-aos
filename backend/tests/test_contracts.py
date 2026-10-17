@@ -195,6 +195,23 @@ class OpenApiTests(unittest.TestCase):
         }
         self.assertTrue(m1_instances <= served, f"M1 instance routes missing: {m1_instances - served}")
 
+    def test_m1_worker_core_operations_match_the_running_app(self) -> None:
+        try:
+            from aos.api import create_app
+            from aos.kernel.settings import Settings
+        except ImportError as exc:
+            self.skipTest(f"FastAPI unavailable: {exc}")
+        app = create_app(Settings.from_env(seed_on_start=False))
+        served = {(m, p.removeprefix("/api")) for p, item in app.openapi()["paths"].items() if p.startswith("/api")
+                  for m in item if m in METHODS}
+        m1_worker_a = {
+            ("post", "/worker/attempts/claim"),
+            ("post", "/worker/attempts/{id}/heartbeat"),
+            ("get", "/worker/attempts/{id}/contract"),
+            ("post", "/worker/attempts/{id}/fail"),
+        }
+        self.assertTrue(m1_worker_a <= served, f"M1 worker (05-A) routes missing: {m1_worker_a - served}")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,9 @@ from pathlib import Path
 
 import yaml
 
+from .kernel.auth import issue_worker_token
+from .kernel.org import load_org
+from .kernel.settings import Settings
 from .registry import validate_pack
 
 
@@ -27,6 +30,14 @@ def _validate(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _worker_token(args: argparse.Namespace) -> int:
+    settings = Settings.from_env()
+    org = load_org(settings.org_file)
+    token = issue_worker_token(org.organization.id, args.worker_id, settings.session_secret)
+    print(token)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aos", description="AOS pack tooling")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -35,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--org", help="organization YAML to check owners and placements against")
     v.add_argument("--json", action="store_true", help="print the report as JSON")
     v.set_defaults(func=_validate)
+    wt = sub.add_parser("worker-token", help="mint a worker service JWT (aud aos-worker) for development")
+    wt.add_argument("--worker-id", required=True, help="worker process id (token sub claim)")
+    wt.set_defaults(func=_worker_token)
     args = parser.parse_args(argv)
     return args.func(args)
 
