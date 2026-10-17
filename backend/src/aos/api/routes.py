@@ -577,7 +577,7 @@ async def stream_instance_events(
             cursor=resume,
         ),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache"},
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

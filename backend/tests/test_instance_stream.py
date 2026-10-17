@@ -250,6 +250,18 @@ class InstanceStreamTests(unittest.TestCase):
         self.assertEqual(r.status_code, 403, r.text)
         self.assertEqual(r.json()["code"], "not_permitted")
 
+    def test_stream_response_unbuffered_headers(self) -> None:
+        self._activate_seat()
+        inst_id = self._start()["instance_id"]
+        with self.client.stream(
+            "GET",
+            self._events_url(inst_id),
+            headers=self.login("faisal"),
+        ) as resp:
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.headers.get("cache-control"), "no-cache")
+            self.assertEqual(resp.headers.get("x-accel-buffering"), "no")
+
     def test_no_cursor_snapshot_required(self) -> None:
         self._activate_seat()
         inst_id = self._start()["instance_id"]
