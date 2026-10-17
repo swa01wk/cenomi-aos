@@ -1,46 +1,113 @@
-"""The worker protocol: how an agent-worker claims, works on and finishes one Task attempt.
-
-The worker holds no credentials and no database access. Every command carries the attempt id
-and its fencing token; the kernel rejects any command whose token is not the current one, so a
-worker that stalled and lost its lease can never commit late work (reference architecture 19.4).
-"""
+"""Worker protocol: claim, heartbeat, runtime, submit or fail."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import asyncio
+import time
 from typing import Any, Protocol
 
-
-class Fenced(Exception):
-    """The kernel answered 409 FENCED: another attempt owns this Task now. Stop without effects."""
-
-
-@dataclass(frozen=True)
-class Attempt:
-    attempt_id: str
-    task_id: str
-    fencing_token: int
-    lease_seconds: float
-    contract: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class Submission:
-    expected_task_version: int
-    input_artifact_digests: dict[str, str]
-    result_artifact_ids: list[str]
-    summary: str = ""
+from .errors import Fenced
+from .failure import fail_attempt_classes
+from .types import AgentResult, WorkerAttempt
 
 
 class KernelClient(Protocol):
-    """What the worker may ask of the kernel. Implemented over HTTP in production, in memory in tests."""
+    async def claim(self, worker_id: str, lanes: list[str]) -> WorkerAttempt | None: ...
+    async def heartbeat(self, attempt: WorkerAttempt) -> dict[str, Any]: ...
+    async def get_contract(self, attempt: WorkerAttempt) -> dict[str, Any]: ...
+    async def assemble_context(self, attempt: WorkerAttempt, *, reason: str) -> dict[str, Any]: ...
+    async def post_events(
+        self,
+        attempt: WorkerAttempt,
+        *,
+        events: list[dict[str, Any]] | None = None,
+        stream: list[dict[str, Any]] | None = None,
+    ) -> None: ...
+    async def call_tool(self, attempt: WorkerAttempt, tool: str, args: dict[str, Any]) -> dict[str, Any]: ...
+    async def save_draft(self, attempt: WorkerAttempt, body: dict[str, Any]) -> dict[str, Any]: ...
+    async def ask_questions(
+        self,
+        attempt: WorkerAttempt,
+        *,
+        blocks: list[dict[str, Any]],
+        questions: list[str] | None = None,
+    ) -> dict[str, Any]: ...
+    async def submit_result(self, attempt: WorkerAttempt, result: AgentResult) -> dict[str, Any]: ...
+    async def fail_attempt(self, attempt: WorkerAttempt, failure_class: str, message: str) -> None: ...
 
-    def claim(self, worker_id: str, lanes: list[str]) -> Attempt | None: ...
 
-    def heartbeat(self, attempt: Attempt) -> None: ...
+class AttemptFailed(Exception):
+    def __init__(self, failure_class: str, message: str):
+        if failure_class not in fail_attempt_classes():
+            raise ValueError(failure_class)
+        super().__init__(message)
+        self.failure_class = failure_class
 
-    def event(self, attempt: Attempt, kind: str, data: dict[str, Any]) -> None: ...
 
-    def submit(self, attempt: Attempt, submission: Submission) -> dict[str, Any]: ...
+class AttemptContext:
+    """Kernel calls for one attempt; respects local and remote fencing."""
 
-    def fail(self, attempt: Attempt, failure_class: str, message: str) -> None: ...
+    def __init__(
+        self,
+        attempt: WorkerAttempt,
+        kernel: KernelClient,
+        fenced: asyncio.Event,
+        *,
+        ignore_local_lease_deadline: bool = False,
+    ):
+        self.attempt = attempt
+        self.kernel = kernel
+        self.fenced = fenced
+        self._ignore_local_lease = ignore_local_lease_deadline
+        self._local_deadline = time.monotonic() + float(attempt["lease_seconds"])
+
+    def extend_lease(self, *, heartbeat_sent_at: float | None = None) -> None:
+        base = heartbeat_sent_at if heartbeat_sent_at is not None else time.monotonic()
+        self._local_deadline = base + float(self.attempt["lease_seconds"])
+
+    def lease_expired(self) -> bool:
+        if self._ignore_local_lease:
+            return False
+        if time.monotonic() >= self._local_deadline:
+            self.fenced.set()
+            return True
+        return False
+
+    def check(self) -> None:
+        if self.fenced.is_set():
+            raise Fenced(self.attempt["attempt_id"])
+        if not self._ignore_local_lease and time.monotonic() >= self._local_deadline:
+            self.fenced.set()
+            raise Fenced(self.attempt["attempt_id"])
+
+    async def post_events(self, **kwargs: Any) -> None:
+        self.check()
+        await self.kernel.post_events(self.attempt, **kwargs)
+
+    async def get_contract(self) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.get_contract(self.attempt)
+
+    async def assemble_context(self, *, reason: str) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.assemble_context(self.attempt, reason=reason)
+
+    async def call_tool(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.call_tool(self.attempt, tool, args)
+
+    async def save_draft(self, body: dict[str, Any]) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.save_draft(self.attempt, body)
+
+    async def ask_questions(
+        self,
+        blocks: list[dict[str, Any]],
+        questions: list[str] | None = None,
+    ) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.ask_questions(self.attempt, blocks=blocks, questions=questions)
+
+    async def submit_result(self, result: AgentResult) -> dict[str, Any]:
+        self.check()
+        return await self.kernel.submit_result(self.attempt, result)

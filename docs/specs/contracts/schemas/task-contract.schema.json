@@ -117,6 +117,21 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "failure_category": {
+      "type": "string",
+      "description": "Why an attempt or task failed; kernel events and worker reports use these names.",
+      "enum": [
+        "model_error",
+        "tool_timeout",
+        "invalid_output",
+        "budget_exhausted",
+        "internal",
+        "ambiguous_effect",
+        "stale_input",
+        "policy_denied",
+        "cancelled"
+      ]
+    },
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "classification": {"enum": ["shareable", "internal", "restricted"]},
     "versioned_ref": {"type": "object", "required": ["name", "version"], "properties": {"name": {"type": "string"}, "version": {"type": "integer"}}, "additionalProperties": false},

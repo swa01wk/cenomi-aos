@@ -59,6 +59,19 @@ services:
     depends_on:
       api: {condition: service_healthy}
 
+  worker:
+    build: {context: .., dockerfile: backend/Dockerfile}
+    command: ["python", "-m", "aos.worker"]
+    restart: "no"
+    environment:
+      AOS_API_URL: http://api:8000/api
+      AOS_WORKER_TOKEN: ${AOS_WORKER_TOKEN:?set AOS_WORKER_TOKEN from aos worker-token on the host}
+      AOS_RUNTIME: fake
+      # Task lane returns when task Skills exist (M2); assist-only for M1.
+      AOS_WORKER_LANES: assist
+    depends_on:
+      api: {condition: service_healthy}
+
 volumes:
   pgdata:
   mockdata:

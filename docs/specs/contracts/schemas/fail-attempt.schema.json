@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/fail-attempt.schema.json",
+  "title": "FailAttempt",
+  "description": "Worker abort of the current attempt (POST /worker/attempts/{id}/fail).",
+  "type": "object",
+  "required": ["failure_class", "message"],
+  "properties": {
+    "failure_class": {
+      "allOf": [
+        {"$ref": "task-contract.schema.json#/$defs/failure_category"},
+        {
+          "enum": [
+            "model_error",
+            "tool_timeout",
+            "invalid_output",
+            "budget_exhausted",
+            "internal"
+          ]
+        }
+      ]
+    },
+    "message": {"type": "string", "maxLength": 2000}
+  },
+  "additionalProperties": false
+}
