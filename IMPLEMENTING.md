@@ -141,7 +141,7 @@ and line; don't change code.
 
 ## 6. Pitfalls to tell the agent about
 
-- **Reference DDL moves into migrations.** M1-BE-01 copies `docs/specs/backend/ddl/0003_m1_seats_work.sql` to
+- **Reference DDL moves into migrations.** M1-BE-01 copies the M1 reference DDL to
   `backend/migrations/0003_m1.sql`. Delete the docs copy and drop its entry from `TABLES` in
   `backend/tests/test_reference_ddl.py` in the same PR. Same for 0004–0006 in later milestones.
 - **The contract test grows with you.** `test_contracts.py` checks served routes against `openapi.yaml` for M0.

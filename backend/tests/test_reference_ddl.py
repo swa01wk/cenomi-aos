@@ -14,21 +14,16 @@ from tests import _pg
 DDL = Path(__file__).resolve().parents[2] / "docs" / "specs" / "backend" / "ddl"
 
 TABLES = {
-    "0003": ["registry.seats", "registry.seat_checks", "gov.decision_records", "gov.budget_ledger", "work.instances",
-             "work.participants", "work.tasks", "work.attempts", "work.turns", "work.artifacts",
-             "work.artifact_versions", "work.pending_items", "evidence.execution_events", "evidence.outbox"],
     "0004": ["work.instance_transitions", "work.regions", "work.timers", "work.demo_clock", "work.notifications"],
     "0005": ["gov.policy_decisions", "gov.approvals", "gov.approval_steps", "work.action_executions",
              "work.inbound_messages"],
     "0006": ["gov.kill_switches", "gov.credential_revocations", "evidence.outcome_records"],
 }
 
-UNIQUE_INDEXES = ["seats_one_live", "attempts_one_live", "approval_steps_distinct"]
+UNIQUE_INDEXES = ["approval_steps_distinct"]
 
 CHECKS = [  # (table, fragment of the check definition)
-    ("registry.seats", "activated_by <> configured_by"),
     ("gov.kill_switches", "lifted_by <> activated_by"),
-    ("gov.budget_ledger", "<= limit_usd"),
 ]
 
 

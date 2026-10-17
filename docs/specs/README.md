@@ -50,7 +50,7 @@ tables and tests. The file ends with an exit gate checklist and a definition of 
   frontend and test rules attach by path.
 - Work one story at a time and point Cursor at the story plus the files it names. For example: *"Implement
   M1-BE-03 from docs/specs/milestones/M1-seat-and-chat.md. Use the operations in contracts/openapi.yaml and the
-  tables in backend/ddl/0003_m1_seats_work.sql. Write the listed tests."*
+  tables in backend/migrations/0003_m1.sql. Write the listed tests."*
 - When a story needs something the contract doesn't have, change the contract first (spec, schema, example and
   DDL) in the same change. `make test` runs `test_contracts.py`, which catches drift between the code and
   `openapi.yaml`.

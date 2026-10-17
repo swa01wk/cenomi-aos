@@ -13,6 +13,7 @@ from psycopg_pool import AsyncConnectionPool
 from ..kernel.org import load_org, seed_sql
 from ..kernel.settings import Settings
 from .deps import Kernel
+from .problems import register_problem_handlers
 from .routes import router
 
 
@@ -39,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AOS kernel", version="0.1.0-m0", lifespan=lifespan,
                   description="Lifecycle, permission and progression for AOS Seats. M0: org, packs, audit.")
+    register_problem_handlers(app)
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"],
                        allow_headers=["*"])
     app.include_router(router, prefix="/api")

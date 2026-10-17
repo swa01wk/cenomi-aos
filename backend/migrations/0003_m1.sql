@@ -1,5 +1,5 @@
--- M1 reference DDL: Seats, jobs, Tasks and attempts, artifacts, conversation, events, budgets.
--- Applies on top of backend/migrations/0000–0002. Copy to backend/migrations/0003_*.sql when implementing M1.
+-- M1: Seats, jobs, Tasks and attempts, artifacts, conversation, events, budgets.
+-- Applies on top of backend/migrations/0000–0002.
 -- Conventions: text ids with a readable prefix; every mutable row has `version` for optimistic checks;
 -- timestamps are timestamptz; JSON is jsonb. Nothing here names a supplier, an RFQ or a price.
 

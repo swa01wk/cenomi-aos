@@ -4,7 +4,7 @@ FastAPI + psycopg 3 + PostgreSQL, one kernel process plus a scheduler loop, plus
 The kernel owns lifecycle, permission and progression; nothing else commits state (ADR 001).
 
 - API contract: `../contracts/openapi.yaml`. Event contract: `../contracts/events.md`.
-- Tables: `ddl/0003`–`0006` (reference DDL, applied and constraint-tested on top of `backend/migrations/0000`–`0002`).
+- Tables: M1+ in `backend/migrations/`; reference DDL `ddl/0004`–`0006` (constraint-tested on top of migrations).
 
 ## Module layout
 

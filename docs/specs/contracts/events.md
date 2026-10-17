@@ -79,18 +79,30 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
 
 ## Outbox mechanics (backend)
 
+Per **ADR 013**, the Postgres outbox table is the stream source; `LISTEN/NOTIFY` wakes the SSE hub. There is no
+Redis. `pg_notify` is called **inside** the same transaction as the outbox insert; Postgres delivers notifications
+when that transaction commits and discards them on rollback.
+
 ```
 BEGIN
   UPDATE work.instances SET state = 'shortlisting', version = version + 1 WHERE id = 'QQ-0001' AND version = :expected
   INSERT INTO gov.decision_records (...)
-  INSERT INTO evidence.execution_events (...)            -- evidence
-  INSERT INTO evidence.outbox (stream, seq, type, data, audience)   -- one row per stream the change reaches
-  SELECT audit append (head row locked)                  -- authority events only
+  INSERT INTO evidence.execution_events (...)                         -- evidence
+  INSERT INTO evidence.outbox (stream, seq, event_type, data, audience)  -- one row per stream the change reaches
+  SELECT pg_notify('aos_outbox', '<stream>')                          -- once per stream touched; commit delivers
+  SELECT audit append (head row locked)                               -- authority events only
 COMMIT
-NOTIFY aos_outbox, '<stream>'                            -- after commit; the SSE hub wakes and reads new rows
 ```
 
-- `evidence.outbox.seq` is per stream (`instance:QQ-0001`, `user:noura`), allocated with a row lock on
-  `evidence.stream_heads`. The cursor is `<stream>:<seq>`.
-- The SSE hub reads `seq > cursor` and re-checks visibility at send time, because a viewer's role can change.
-- No Redis. Postgres `LISTEN/NOTIFY` wakes the hub; the outbox table is the source of truth.
+- `evidence.outbox.seq` is per **outbox stream** (`instance:QQ-0001`, `user:noura`), allocated atomically on
+  `evidence.stream_heads` with `INSERT … ON CONFLICT DO UPDATE … RETURNING last_seq`. The SSE cursor is
+  `<stream>:<seq>` (UiEvent `id`). Only streams whose names start with `instance:` or `user:` receive outbox
+  rows and `pg_notify` payloads.
+- Outbox rows store `event_type` (UiEvent `type`), `data` (UiEvent payload), and `created_at` (UiEvent `at`).
+- **`evidence.stream_heads` also holds execution counters:** `aggregate_seq` is monotonic per `run_id`,
+  allocated on a row keyed `run:<run_id>` (same upsert pattern), independent of instance row locks. The `run:`
+  prefix is **reserved for kernel sequencing**; those rows are never read as outbox streams, never notified on
+  `aos_outbox`, and never appear in SSE cursors.
+- Persisted execution-event column is `org_id`; the JSON schema field is `tenant_id`.
+- The SSE hub reads `seq > cursor` from `evidence.outbox` only (outbox stream names) and re-checks visibility at
+  send time, because a viewer's role can change.
