@@ -13,7 +13,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M1-BE-01 Foundations for work state (migration from `ddl/0003`, ids, outbox)
 - [ ] M1-FE-01 Move to Vite and the router
 - [ ] M1-FE-02 Shared components
-- [ ] M1-BE-02 Publish requests
+- [x] M1-BE-02 Publish requests
 - [ ] M1-BE-03 Seat lifecycle
 - [ ] M1-FE-03 Console: publish and Seats
 - [ ] M1-BE-04 Jobs and conversation

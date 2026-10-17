@@ -33,7 +33,7 @@
 - Operations: `requestPublish`, `listPublishRequests`, `approvePublishPart`, `rejectPublish`.
 - Parts: `policies` (role `risk`) when the version has Policy objects; `seats_and_workflows` (the pack owner).
 - All parts approved → `pack_versions.status = published`, `published_at`; definitions immutable (M0 trigger).
-- Audit: `pack.publish_requested`, `pack.publish_part_approved`, `pack.published`.
+- Audit: `pack.publish_requested`, `pack.publish_part_approved`, `pack.publish_rejected`, `pack.published`.
 - **Tests:** requester cannot approve any part (403); a rejected part closes the request; publishing twice is a no-op.
 
 ### M1-BE-03 Seat lifecycle

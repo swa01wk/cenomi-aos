@@ -32,6 +32,7 @@ the runtime allocation shape.
 | Decision record | `dr_` + 16 lowercase hex | `new_decision_id()` |
 | Eval run | `ev_` + 16 lowercase hex | `new_eval_run_id()` |
 | Execution event | UUID | `event_id` in `execution-event.schema.json` |
+| Publish request | UUID string | `registry.publish_requests.id` (`PR-12` in examples is narrative only) |
 
 ## Checks
 
