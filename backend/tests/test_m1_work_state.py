@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import unittest
+from collections.abc import Callable
 from datetime import timezone
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from psycopg.rows import dict_row
 from aos.api.problems import KernelProblem, register_problem_handlers
 from aos.kernel import ids, outbox
 from aos.kernel.org import load_org, seed_sql
-from aos.kernel.outbox import ExecutionEventWrite
+from aos.kernel.outbox import ExecutionEventWrite, OutboxRow
 
 from . import _pg
 
@@ -196,105 +197,102 @@ on conflict (id) do nothing;
 """
 
 
-async def _listen_for_notifies(url: str, expected: set[str], *, timeout: float) -> set[str]:
+async def _seed_job(url: str) -> None:
+    async with await psycopg.AsyncConnection.connect(url, autocommit=True) as conn:
+        await conn.execute(_seed_instance_sql())
+
+
+def _outbox_rows(inst: str, *, to_state: str, version: int) -> list[OutboxRow]:
+    return [
+        OutboxRow(
+            stream=ids.stream_instance(inst),
+            event_type="instance.state_changed",
+            instance_id=inst,
+            audience={"roles": ["requester"]},
+            data={"instance_id": inst, "from": "intake", "to": to_state, "version": version},
+        ),
+        OutboxRow(
+            stream=ids.stream_user("person_a"),
+            event_type="instance.state_changed",
+            instance_id=inst,
+            audience={"person_id": "person_a"},
+            data={"instance_id": inst, "from": "intake", "to": to_state, "version": version},
+        ),
+    ]
+
+
+async def _apply_state_bundle(
+    url: str,
+    *,
+    expected_version: int,
+    to_state: str,
+    execution_events: int = 1,
+    rollback: bool = False,
+) -> None:
+    await _seed_job(url)
+    inst = "JX-0001"
+    async with await psycopg.AsyncConnection.connect(url) as conn:
+        try:
+            async with conn.transaction():
+                cur = await conn.execute(
+                    "update work.instances set state = %s, version = version + 1 where id = %s and version = %s",
+                    (to_state, inst, expected_version),
+                )
+                if cur.rowcount != 1:
+                    raise AssertionError(f"expected one row updated, got {cur.rowcount}")
+                for n in range(execution_events):
+                    await outbox.write_execution_event(
+                        conn,
+                        ExecutionEventWrite(
+                            org_id="org_demo",
+                            run_id=inst,
+                            event_type="RunCreated",
+                            actor_kind="kernel",
+                            actor_id="kernel",
+                            correlation_id="corr_m1_jx0001",
+                            redacted_summary=f"state changed for test ({n + 1})",
+                        ),
+                    )
+                await outbox.append_outbox_many(
+                    conn,
+                    _outbox_rows(inst, to_state=to_state, version=expected_version + 1),
+                )
+                if rollback:
+                    raise RuntimeError("rollback on purpose")
+        except RuntimeError:
+            if not rollback:
+                raise
+
+
+async def _collect_notifies(
+    url: str,
+    ready: asyncio.Event,
+    *,
+    until: Callable[[set[str]], bool],
+    timeout: float = 3.0,
+) -> set[str]:
     got: set[str] = set()
     async with await psycopg.AsyncConnection.connect(url, autocommit=True) as conn:
         await conn.execute(f"listen {outbox.OUTBOX_CHANNEL}")
+        ready.set()
         deadline = asyncio.get_running_loop().time() + timeout
-        while got != expected and asyncio.get_running_loop().time() < deadline:
+        while asyncio.get_running_loop().time() < deadline:
+            if until(got):
+                break
             try:
                 async with asyncio.timeout(max(0.05, deadline - asyncio.get_running_loop().time())):
                     async for notify in conn.notifies():
                         got.add(notify.payload)
+                        if until(got):
+                            return got
             except TimeoutError:
                 break
     return got
 
 
-async def _commit_bundle(url: str) -> None:
-    async with await psycopg.AsyncConnection.connect(url) as conn:
-        await conn.execute(_seed_instance_sql())
-        inst = "JX-0001"
-        inst_stream = ids.stream_instance(inst)
-        user_stream = ids.stream_user("person_a")
-        async with conn.transaction():
-            await conn.execute(
-                "update work.instances set state = %s, version = version + 1 where id = %s and version = 1",
-                ("state_b", inst),
-            )
-            await outbox.write_execution_event(
-                conn,
-                ExecutionEventWrite(
-                    org_id="org_demo",
-                    run_id=inst,
-                    event_type="RunCreated",
-                    actor_kind="kernel",
-                    actor_id="kernel",
-                    correlation_id="corr_m1_jx0001",
-                    redacted_summary="state changed for test",
-                ),
-            )
-            await outbox.append_outbox(
-                conn,
-                stream=inst_stream,
-                event_type="instance.state_changed",
-                instance_id=inst,
-                audience={"roles": ["requester"]},
-                data={"instance_id": inst, "from": "intake", "to": "state_b", "version": 2},
-            )
-            await outbox.append_outbox(
-                conn,
-                stream=user_stream,
-                event_type="instance.state_changed",
-                instance_id=inst,
-                audience={"person_id": "person_a"},
-                data={"instance_id": inst, "from": "intake", "to": "state_b", "version": 2},
-            )
-
-
-async def _rollback_bundle(url: str) -> None:
-    async with await psycopg.AsyncConnection.connect(url) as conn:
-        await conn.execute(_seed_instance_sql())
-        inst = "JX-0001"
-        inst_stream = ids.stream_instance(inst)
-        user_stream = ids.stream_user("person_a")
-        try:
-            async with conn.transaction():
-                await conn.execute(
-                    "update work.instances set state = %s, version = version + 1 where id = %s and version = 1",
-                    ("state_b", inst),
-                )
-                await outbox.write_execution_event(
-                    conn,
-                    ExecutionEventWrite(
-                        org_id="org_demo",
-                        run_id=inst,
-                        event_type="RunCreated",
-                        actor_kind="kernel",
-                        actor_id="kernel",
-                        correlation_id="corr_m1_jx0001",
-                        redacted_summary="state changed for test",
-                    ),
-                )
-                await outbox.append_outbox(
-                    conn,
-                    stream=inst_stream,
-                    event_type="instance.state_changed",
-                    instance_id=inst,
-                    audience={"roles": ["requester"]},
-                    data={"instance_id": inst, "from": "intake", "to": "state_b", "version": 2},
-                )
-                await outbox.append_outbox(
-                    conn,
-                    stream=user_stream,
-                    event_type="instance.state_changed",
-                    instance_id=inst,
-                    audience={"person_id": "person_a"},
-                    data={"instance_id": inst, "from": "intake", "to": "state_b", "version": 2},
-                )
-                raise RuntimeError("rollback on purpose")
-        except RuntimeError:
-            pass
+async def _notify_sentinel(url: str) -> None:
+    async with await psycopg.AsyncConnection.connect(url, autocommit=True) as conn:
+        await conn.execute("select pg_notify(%s, %s)", (outbox.OUTBOX_CHANNEL, "sentinel"))
 
 
 @unittest.skipUnless(_pg.available(), "needs a local Postgres")
@@ -319,7 +317,7 @@ class OutboxTransactionTests(unittest.IsolatedAsyncioTestCase):
         return version, int(ev["c"]), int(ob["c"]), state
 
     async def test_transaction_commits_state_event_and_two_outbox_rows(self) -> None:
-        await _commit_bundle(self.url)
+        await _apply_state_bundle(self.url, expected_version=1, to_state="state_b")
         version, ev_count, ob_count, state = await self._counts()
         self.assertEqual(version, 2)
         self.assertEqual(state, "state_b")
@@ -347,28 +345,81 @@ class OutboxTransactionTests(unittest.IsolatedAsyncioTestCase):
             jsonschema.validate(doc, EXECUTION_EVENT_SCHEMA)
 
     async def test_rolled_back_transaction_leaves_no_rows(self) -> None:
-        await _rollback_bundle(self.url)
+        await _apply_state_bundle(self.url, expected_version=1, to_state="state_b", rollback=True)
         version, ev_count, ob_count, state = await self._counts()
         self.assertEqual(version, 1)
         self.assertEqual(state, "intake")
         self.assertEqual(ev_count, 0)
         self.assertEqual(ob_count, 0)
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            n = await (await conn.execute("select count(*) from evidence.stream_heads")).fetchone()
+            self.assertEqual(n[0], 0)
+
+    async def test_outbox_and_aggregate_seq_monotonic(self) -> None:
+        inst = "JX-0001"
+        inst_stream = ids.stream_instance(inst)
+        user_stream = ids.stream_user("person_a")
+        await _apply_state_bundle(self.url, expected_version=1, to_state="state_b")
+        async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
+            rows = await (await conn.execute(
+                "select stream, seq from evidence.outbox order by stream")).fetchall()
+            self.assertEqual([(r["stream"], r["seq"]) for r in rows], [(inst_stream, 1), (user_stream, 1)])
+            seqs = await (await conn.execute(
+                "select aggregate_seq from evidence.execution_events order by aggregate_seq")).fetchall()
+            self.assertEqual([r["aggregate_seq"] for r in seqs], [1])
+
+        await _apply_state_bundle(self.url, expected_version=2, to_state="state_c", execution_events=2)
+        async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
+            rows = await (await conn.execute(
+                "select stream, seq from evidence.outbox order by stream, seq")).fetchall()
+            self.assertEqual(
+                [(r["stream"], r["seq"]) for r in rows],
+                [(inst_stream, 1), (inst_stream, 2), (user_stream, 1), (user_stream, 2)],
+            )
+            seqs = await (await conn.execute(
+                "select aggregate_seq from evidence.execution_events order by aggregate_seq")).fetchall()
+            self.assertEqual([r["aggregate_seq"] for r in seqs], [1, 2, 3])
+
+    async def test_append_outbox_rejects_run_stream(self) -> None:
+        await _seed_job(self.url)
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                with self.assertRaises(ValueError):
+                    await outbox.append_outbox(
+                        conn,
+                        stream=ids.aggregate_seq_stream("JX-0001"),
+                        event_type="instance.state_changed",
+                        instance_id="JX-0001",
+                        audience={"roles": ["requester"]},
+                        data={},
+                    )
+
+    async def test_next_instance_id_from_db(self) -> None:
+        await _seed_job(self.url)
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            self.assertEqual(await ids.next_instance_id(conn, "JX"), "JX-0001")
+            self.assertEqual(await ids.next_instance_id(conn, "JX"), "JX-0002")
 
     async def test_listen_receives_notify_on_commit_not_on_rollback(self) -> None:
         inst = "JX-0001"
         expected = {ids.stream_instance(inst), ids.stream_user("person_a")}
 
-        listen_task = asyncio.create_task(_listen_for_notifies(self.url, expected, timeout=3.0))
-        await asyncio.sleep(0.05)
-        await _commit_bundle(self.url)
-        got = await listen_task
-        self.assertEqual(got, expected)
+        ready = asyncio.Event()
+        listen_task = asyncio.create_task(
+            _collect_notifies(self.url, ready, until=lambda got: got == expected),
+        )
+        await ready.wait()
+        await _apply_state_bundle(self.url, expected_version=1, to_state="state_b")
+        self.assertEqual(await listen_task, expected)
 
-        listen_task = asyncio.create_task(_listen_for_notifies(self.url, set(), timeout=0.4))
-        await asyncio.sleep(0.05)
-        await _rollback_bundle(self.url)
-        got = await listen_task
-        self.assertEqual(got, set())
+        ready = asyncio.Event()
+        listen_task = asyncio.create_task(
+            _collect_notifies(self.url, ready, until=lambda got: got == {"sentinel"}),
+        )
+        await ready.wait()
+        await _apply_state_bundle(self.url, expected_version=2, to_state="state_c", rollback=True)
+        await _notify_sentinel(self.url)
+        self.assertEqual(await listen_task, {"sentinel"})
 
 
 if __name__ == "__main__":

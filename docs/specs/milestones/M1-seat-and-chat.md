@@ -23,7 +23,8 @@
 
 ### M1-BE-01 Foundations for work state
 - Apply M1 work-state DDL as `backend/migrations/0003_m1.sql` (moved from the former reference file `ddl/0003`).
-- Add `kernel/ids.py`, `kernel/outbox.py` (stream heads, outbox rows, `NOTIFY aos_outbox` after commit),
+- Add `kernel/ids.py`, `kernel/outbox.py` (stream heads, outbox rows, in-transaction `pg_notify` on `aos_outbox`,
+  delivered when the command commits),
   execution-event writer, `api/problems.py` (`KernelProblem` → `application/problem+json`, `trace_id`).
 - **Done when:** a test writes a state change, an execution event and two outbox rows in one transaction and a
   rolled-back transaction leaves none of them.

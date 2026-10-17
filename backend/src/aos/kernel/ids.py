@@ -18,7 +18,7 @@ AGGREGATE_SEQ_STREAM_PREFIX = "run:"
 OUTBOX_STREAM_PREFIXES = ("instance:", "user:")
 
 # Contract: docs/specs/contracts/README.md (Kernel identifiers). Examples/ use narrative demo ids.
-_PREFIXED_SUFFIX_HEX_LEN = 8
+_SUFFIX_BYTES = 8
 
 
 def validate_instance_prefix(prefix: str) -> str:
@@ -48,7 +48,7 @@ async def next_instance_id(conn: AsyncConnection, prefix: str) -> str:
 
 
 def _new_prefixed_id(label: str) -> str:
-    return f"{label}{secrets.token_hex(_PREFIXED_SUFFIX_HEX_LEN)}"
+    return f"{label}{secrets.token_hex(_SUFFIX_BYTES)}"
 
 
 def new_task_id() -> str:

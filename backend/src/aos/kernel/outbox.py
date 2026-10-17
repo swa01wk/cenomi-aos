@@ -3,8 +3,7 @@
 Postgres delivers ``pg_notify`` payloads when the surrounding transaction commits and discards
 them on rollback, so NOTIFY is issued inside the same transaction as the outbox insert.
 
-Open question: ``run_id`` for execution events that are not tied to a work instance is not defined
-in the contract yet; callers must supply an explicit ``run_id`` until the spec does.
+Execution events are instance-scoped: ``run_id`` is the instance id (see ``evidence.execution_events`` DDL).
 """
 
 from __future__ import annotations
@@ -41,6 +40,15 @@ async def notify_stream(conn: AsyncConnection, stream: str) -> None:
     await conn.execute("select pg_notify(%s, %s)", (OUTBOX_CHANNEL, stream))
 
 
+@dataclass(frozen=True)
+class OutboxRow:
+    stream: str
+    event_type: str
+    instance_id: str | None
+    audience: dict[str, Any]
+    data: dict[str, Any]
+
+
 async def append_outbox(
     conn: AsyncConnection,
     *,
@@ -63,6 +71,23 @@ async def append_outbox(
     )
     await notify_stream(conn, stream)
     return seq
+
+
+async def append_outbox_many(conn: AsyncConnection, rows: list[OutboxRow]) -> list[int]:
+    """Append several outbox rows in sorted stream order to avoid deadlocks on shared heads."""
+    seqs: list[int] = []
+    for row in sorted(rows, key=lambda r: r.stream):
+        seqs.append(
+            await append_outbox(
+                conn,
+                stream=row.stream,
+                event_type=row.event_type,
+                instance_id=row.instance_id,
+                audience=row.audience,
+                data=row.data,
+            )
+        )
+    return seqs
 
 
 @dataclass(frozen=True)

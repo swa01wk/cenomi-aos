@@ -103,6 +103,9 @@ COMMIT
   allocated on a row keyed `run:<run_id>` (same upsert pattern), independent of instance row locks. The `run:`
   prefix is **reserved for kernel sequencing**; those rows are never read as outbox streams, never notified on
   `aos_outbox`, and never appear in SSE cursors.
+- Execution events are **instance-scoped** (`run_id` = instance id). Seat lifecycle evidence uses
+  `registry.seat_events`, not `execution_events`. When several outbox streams are touched in one command, append
+  rows in **sorted stream name order** (`append_outbox_many`) so shared `user:` heads lock consistently.
 - Persisted execution-event column is `org_id`; the JSON schema field is `tenant_id`.
 - The SSE hub reads `seq > cursor` from `evidence.outbox` only (outbox stream names) and re-checks visibility at
   send time, because a viewer's role can change.
