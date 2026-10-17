@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from ..kernel import audit_store, publish, registry_store, seats
+from ..kernel import audit_store, instances, publish, registry_store, seats
 from ..kernel.publish import PublishRefusal
-from ..kernel.seats import CommittedRefusal, SeatError
+from ..kernel.refusal import CommittedRefusal
+from ..kernel.seats import SeatError
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
@@ -27,6 +28,20 @@ def _raise_publish_refusal(exc: PublishRefusal) -> None:
 
 def _raise_seat_error(exc: SeatError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_instance_error(exc: instances.InstanceError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _refusal_response(request: Request, refusal: CommittedRefusal):
+    extra = {"decision_id": refusal.decision_id}
+    if refusal.rule:
+        extra["rule"] = refusal.rule
+    return problem_response(
+        request,
+        KernelProblem(refusal.code, refusal.status, refusal.title, refusal.detail, **extra),
+    )
 
 
 @router.get("/healthz", tags=["ops"])
@@ -269,13 +284,7 @@ async def activate_seat(
     except SeatError as exc:
         _raise_seat_error(exc)
     if isinstance(result, CommittedRefusal):
-        extra = {"decision_id": result.decision_id}
-        if result.rule:
-            extra["rule"] = result.rule
-        return problem_response(
-            request,
-            KernelProblem(result.code, result.status, result.title, result.detail, **extra),
-        )
+        return _refusal_response(request, result)
     return result
 
 
@@ -297,6 +306,120 @@ async def reject_publish(id: str, p: ConsoleDep, conn: TxDep, body: RejectPublis
         )
     except PublishRefusal as exc:
         _raise_publish_refusal(exc)
+
+
+# ------------------------------------------------------------------ workspace / instances (M1-BE-04 A)
+
+class StartInstanceBody(BaseModel):
+    seat: str
+    workflow: str
+    first_message: str = Field(max_length=4000)
+
+
+class PostTurnBody(BaseModel):
+    text: str = Field(max_length=4000)
+    client_turn_id: str
+
+
+@router.get("/workspace/digital-workers", tags=["workspace"])
+async def list_digital_workers(p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
+    items = await instances.list_digital_workers(conn, k.org, p.org_id, p.person_id, p.roles)
+    return {"items": items}
+
+
+@router.get("/instances", tags=["instances"])
+async def list_my_instances(
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    participant: Annotated[Literal["me"], Query()],
+    status: Annotated[Literal["active", "waiting_on_me", "closed"] | None, Query()] = None,
+) -> dict:
+    items = await instances.list_my_instances(conn, k.org, p.org_id, p.person_id, status=status)
+    return {"items": items}
+
+
+@router.post("/instances", tags=["instances"], status_code=201)
+async def start_instance(
+    request: Request,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: StartInstanceBody,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+):
+    try:
+        result = await instances.start_instance(
+            conn,
+            k.org,
+            org_id=p.org_id,
+            actor=p.person_id,
+            roles=p.roles,
+            seat_name=body.seat,
+            workflow_name=body.workflow,
+            first_message=body.first_message,
+            idempotency_key=idempotency_key,
+            packs_dir=k.settings.packs_dir,
+        )
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+    if isinstance(result, CommittedRefusal):
+        return _refusal_response(request, result)
+    return result
+
+
+@router.get("/instances/{id}", tags=["instances"])
+async def get_instance(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
+    try:
+        return await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+
+
+@router.get("/instances/{id}/turns", tags=["instances"])
+async def list_turns(
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    before_seq: int | None = None,
+    limit: Annotated[int, Query(le=100)] = 50,
+) -> dict:
+    try:
+        items = await instances.list_turns_page(
+            conn, k.org, p.org_id, id, p.person_id, before_seq=before_seq, limit=limit
+        )
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+    return {"items": items}
+
+
+@router.post("/instances/{id}/turns", tags=["instances"], status_code=202)
+async def post_turn(
+    id: str,
+    request: Request,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: PostTurnBody,
+):
+    try:
+        result = await instances.post_turn(
+            conn,
+            k.org,
+            org_id=p.org_id,
+            instance_id=id,
+            actor=p.person_id,
+            roles=p.roles,
+            text=body.text,
+            client_turn_id=body.client_turn_id,
+            packs_dir=k.settings.packs_dir,
+        )
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+    if isinstance(result, CommittedRefusal):
+        return _refusal_response(request, result)
+    return result
 
 
 # ------------------------------------------------------------------ audit (Console)

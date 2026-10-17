@@ -154,6 +154,10 @@ class LimitsSpec(Strict):
     run_minutes: int = Field(gt=0)
     actions_per_run: int = Field(gt=0)
     daily_cost_usd: float = Field(gt=0)
+    attempt_cost_usd: float = Field(gt=0)
+    attempt_tokens: int = Field(gt=0)
+    attempt_steps: int = Field(gt=0, description="Model calls per attempt (TaskContract budget.steps).")
+    attempt_actions: int = Field(gt=0, description="Tool and action calls per attempt (TaskContract budget.actions).")
 
 
 class DelegationSpec(Strict):
@@ -328,6 +332,7 @@ class Participant(Strict):
     bind: Literal["at_creation", "by_claim", "by_rule", "by_decision"]
     queue: str | None = None
     rule: str | None = None
+    org_roles: list[Name] = Field(default_factory=list)
 
 
 class ParallelRegion(Strict):

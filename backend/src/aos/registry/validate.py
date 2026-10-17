@@ -262,6 +262,14 @@ class _Checker:
         if t.verifier:
             self.ref("WorkflowDefinition", wname, f"{path}.verifier", "Verifier", t.verifier, self.verifiers)
 
+    def _org_role_names(self) -> set[str]:
+        if not self.org:
+            return set()
+        names: set[str] = set(self.org.get("owner_roles", []))
+        for person in self.org.get("people", {}).values():
+            names.update(person.get("roles", []))
+        return names
+
     def check_workflows(self) -> None:
         for wname, wf in self.workflows.items():
             w = wf.spec
@@ -276,9 +284,28 @@ class _Checker:
                 self.err("E_NO_SEAT", K, wname, "spec.seat_role", f"no Seat has role {w.seat_role!r}")
             if w.initial not in states:
                 self.err("E_REF", K, wname, "spec.initial", f"no state {w.initial!r}")
+            org_roles = self._org_role_names()
             for i, r in enumerate(w.start_roles):
                 if r not in participants:
                     self.err("E_REF", K, wname, f"spec.start_roles[{i}]", f"{r!r} is not a participant")
+                p = w.participants[r]
+                if not p.org_roles:
+                    self.err(
+                        "E_PARTICIPANT",
+                        K,
+                        wname,
+                        f"spec.participants.{r}.org_roles",
+                        "a start role participant needs org_roles",
+                    )
+                for j, orole in enumerate(p.org_roles):
+                    if orole not in org_roles:
+                        self.err(
+                            "E_REF",
+                            K,
+                            wname,
+                            f"spec.participants.{r}.org_roles[{j}]",
+                            f"{orole!r} is not an org role",
+                        )
             for pname, p in w.participants.items():
                 if p.bind == "by_claim" and not p.queue:
                     self.err("E_PARTICIPANT", K, wname, f"spec.participants.{pname}", "by_claim needs a queue")

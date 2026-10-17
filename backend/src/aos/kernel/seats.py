@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -14,6 +13,7 @@ from ..model_registry import model_alias_registered
 from . import audit_store, ids
 from .org import OrgModel
 from .outbox import OutboxRow, append_outbox_many
+from .refusal import CommittedRefusal
 
 CHECK_NAMES = (
     "pack_version_published",
@@ -26,16 +26,6 @@ CHECK_NAMES = (
 
 RULE_NOT_CONFIGURER = "seat.activate.not_configurer"
 RULE_NOT_OWNER = "seat.activate.not_owner"
-
-
-@dataclass(frozen=True)
-class CommittedRefusal:
-    code: str
-    status: int
-    title: str
-    detail: str
-    decision_id: str
-    rule: str | None = None
 
 
 class SeatError(Exception):
@@ -59,11 +49,41 @@ def resolve_owner_person_id(org: OrgModel, owner: str) -> str:
     )
 
 
-def seat_audience(org: OrgModel, *, owner_person_id: str, placement: str) -> list[str]:
+def _org_roles_for_start_participant(wdoc: dict, participant_name: str) -> set[str]:
+    spec = wdoc.get("spec") or {}
+    participant = (spec.get("participants") or {}).get(participant_name) or {}
+    return set(participant.get("org_roles") or [])
+
+
+def may_start_workflow(wdoc: dict, caller_org_roles: set[str]) -> str | None:
+    """If the caller may start this workflow, return the workflow participant role to bind (e.g. requester)."""
+    spec = wdoc.get("spec") or {}
+    for role_name in spec.get("start_roles") or []:
+        allowed = _org_roles_for_start_participant(wdoc, role_name)
+        if allowed & caller_org_roles:
+            return role_name
+    return None
+
+
+def seat_audience(
+    org: OrgModel,
+    *,
+    owner_person_id: str,
+    placement: str,
+    workflow_docs: list[dict] | None = None,
+) -> list[str]:
     people = {owner_person_id}
     for pid, person in org.people.items():
         if person.team == placement:
             people.add(pid)
+    if workflow_docs:
+        for wdoc in workflow_docs:
+            spec = wdoc.get("spec") or {}
+            for role_name in spec.get("start_roles") or []:
+                allowed = _org_roles_for_start_participant(wdoc, role_name)
+                for pid, person in org.people.items():
+                    if set(person.roles) & allowed:
+                        people.add(pid)
     return sorted(people)
 
 
@@ -345,8 +365,18 @@ async def _emit_state_changed(
     to_state: str,
     owner_person_id: str,
     placement: str,
+    pack_version_id: str | None = None,
 ) -> None:
-    audience_ids = seat_audience(org, owner_person_id=owner_person_id, placement=placement)
+    workflow_docs: list[dict] | None = None
+    if pack_version_id:
+        defs = await _load_definitions(conn, pack_version_id)
+        workflow_docs = list(defs.get("WorkflowDefinition", {}).values())
+    audience_ids = seat_audience(
+        org,
+        owner_person_id=owner_person_id,
+        placement=placement,
+        workflow_docs=workflow_docs,
+    )
     rows = [
         OutboxRow(
             stream=ids.stream_user(pid),
@@ -632,6 +662,7 @@ async def configure_seat(
             to_state="CONFIGURED",
             owner_person_id=row[5],
             placement=row[4],
+            pack_version_id=str(row[2]),
         )
         return await project_seat_detail(conn, org_id, updated)
 
@@ -739,6 +770,7 @@ async def approve_seat(
         to_state="APPROVED",
         owner_person_id=row[5],
         placement=row[4],
+        pack_version_id=str(row[2]),
     )
     return await project_seat_detail(conn, org_id, updated)
 
@@ -933,5 +965,6 @@ async def activate_seat(
         to_state="ACTIVE",
         owner_person_id=owner_person_id,
         placement=row[4],
+        pack_version_id=str(row[2]),
     )
     return await project_seat_detail(conn, org_id, updated)

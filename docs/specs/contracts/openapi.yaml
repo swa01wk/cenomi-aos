@@ -310,7 +310,11 @@ paths:
       operationId: listDigitalWorkers
       x-milestone: M1
       x-screens: [WS-New, WS-MyJobs]
-      description: Active Seats placed where the caller can use them, and the workflows the caller's roles may start on each.
+      description: >-
+        Active Seats whose audience includes the caller (`seat_audience`: seat owner, placement team, and anyone whose
+        org roles may start one of the Seat's workflows). Each seat lists workflows the caller may start: for each name
+        in `start_roles`, the workflow participant's `org_roles` must intersect the caller's org roles from the session;
+        the starter is bound as that participant (e.g. requester).
       responses:
         '200': {description: Digital workers, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/DigitalWorker'}}}}}}}
   /inbox:
@@ -358,9 +362,10 @@ paths:
       x-milestone: M1
       x-screens: [WS-New]
       description: |
-        Start a job. Admits only if the Seat is ACTIVE and not killed, the caller holds a start role, and the workflow is
-        in the Seat's pinned pack version. Pins the instance to that version, binds the requester, opens the assist Task
-        and admits the first chat turn. In M1 the instance stays in its initial state; M2 runs the workflow.
+        Start a job. Admits only if the Seat is ACTIVE and not killed, the caller's org roles intersect the `org_roles`
+        of a workflow participant listed in `start_roles` (gate 4), and the workflow is in the Seat's pinned pack
+        version. Pins the instance to that version, binds the caller as that participant (e.g. requester), opens the
+        assist Task and admits the first chat turn. In M1 the instance stays in its initial state; M2 runs the workflow.
       parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
       requestBody:
         required: true
