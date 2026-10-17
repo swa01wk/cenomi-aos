@@ -334,6 +334,31 @@ class JobsConversationTests(unittest.TestCase):
             ).stdout.strip()
             self.assertEqual(skill, "alt_intake")
 
+    def test_start_budget_backstop_leaves_no_partial_rows(self) -> None:
+        self._activate_seat()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into gov.budget_ledger (org_id, seat, day, limit_usd, reserved_usd, settled_usd)
+            values ('org_demo', '{SEAT}', current_date, 20, 20, 0)
+            on conflict (org_id, seat, day) do update
+            set reserved_usd = 20, settled_usd = 0, limit_usd = 20;
+            """,
+        )
+        with patch("aos.kernel.admission._budget_fits", new_callable=AsyncMock, return_value=True):
+            r = self._start(message="Backstop start")
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual(r.json()["code"], "budget_exhausted")
+        self.assertIn("decision_id", r.json())
+        for table in ("work.instances", "work.tasks", "work.turns", "work.attempts"):
+            count = _pg.admin_sql(self.db, f"select count(*) from {table}").stdout.strip()
+            self.assertEqual(count, "0", table)
+        dr = _pg.admin_sql(
+            self.db,
+            f"select value from gov.decision_records where id = '{r.json()['decision_id']}'",
+        ).stdout.strip()
+        self.assertEqual(dr, "budget_exhausted")
+
     def test_budget_backstop_when_ledger_check_fails(self) -> None:
         self._activate_seat()
         start = self._start()
@@ -360,6 +385,11 @@ class JobsConversationTests(unittest.TestCase):
         self.assertEqual(r.status_code, 403, r.text)
         self.assertEqual(r.json()["code"], "budget_exhausted")
         self.assertIn("decision_id", r.json())
+        turn_count = _pg.admin_sql(
+            self.db,
+            "select count(*) from work.turns where client_turn_id = 'bt-backstop'",
+        ).stdout.strip()
+        self.assertEqual(turn_count, "0")
         dr = _pg.admin_sql(
             self.db,
             f"select value from gov.decision_records where id = '{r.json()['decision_id']}'",
@@ -367,6 +397,23 @@ class JobsConversationTests(unittest.TestCase):
         self.assertEqual(dr, "budget_exhausted")
         audit = self.client.get("/api/console/audit?limit=20", headers=self.login("risk")).json()["items"]
         self.assertTrue(any(a["action"] == "admission.denied" for a in audit))
+
+    def test_unknown_workflow_is_404_without_decision_record(self) -> None:
+        self._activate_seat()
+        before = _pg.admin_sql(
+            self.db, "select count(*) from gov.decision_records where event = 'admission.denied'"
+        ).stdout.strip()
+        r = self.client.post(
+            "/api/instances",
+            headers=self.login("faisal"),
+            json={"seat": SEAT, "workflow": "not_a_real_workflow", "first_message": "Hi"},
+        )
+        self.assertEqual(r.status_code, 404, r.text)
+        self.assertEqual(r.json()["code"], "not_found")
+        after = _pg.admin_sql(
+            self.db, "select count(*) from gov.decision_records where event = 'admission.denied'"
+        ).stdout.strip()
+        self.assertEqual(before, after)
 
     def test_start_idempotency_unique_race_returns_snapshot(self) -> None:
         self._activate_seat()

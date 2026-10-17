@@ -96,40 +96,29 @@ def _pack_material_error(exc: PackMaterialError) -> InstanceError:
     return InstanceError(exc.code, exc.status, exc.title, exc.detail)
 
 
-async def _admit_attempt_or_refuse(
-    conn: AsyncConnection,
-    ctx: AdmissionContext,
-    *,
-    org_id: str,
-    seat: str,
-    daily_limit_usd: float,
-    task_id: str,
-    attempt_id: str,
-    turn_id: str | None,
-    attempt_n: int,
-    reservation_usd: float,
-) -> CommittedRefusal | int:
-    try:
-        async with conn.transaction():
-            return await task_ops.admit_attempt(
-                conn,
-                org_id=org_id,
-                seat=seat,
-                daily_limit_usd=daily_limit_usd,
-                task_id=task_id,
-                attempt_id=attempt_id,
-                turn_id=turn_id,
-                attempt_n=attempt_n,
-                reservation_usd=reservation_usd,
-            )
-    except pg_errors.CheckViolation as exc:
-        if exc.diag.table_name == "budget_ledger":
-            return await refuse_budget_exhausted(conn, ctx)
-        raise
-    except pg_errors.UniqueViolation as exc:
-        if exc.diag.constraint_name == "attempts_one_live":
-            return await refuse_live_attempt_conflict(conn, ctx)
-        raise
+def _is_budget_ledger_violation(exc: BaseException) -> bool:
+    return isinstance(exc, pg_errors.CheckViolation) and exc.diag.table_name == "budget_ledger"
+
+
+def _is_one_live_violation(exc: BaseException) -> bool:
+    return isinstance(exc, pg_errors.UniqueViolation) and exc.diag.constraint_name == "attempts_one_live"
+
+
+def _is_instance_idempotency_violation(exc: BaseException) -> bool:
+    return (
+        isinstance(exc, pg_errors.UniqueViolation)
+        and exc.diag.constraint_name == "instances_org_id_created_by_idempotency_key_key"
+    )
+
+
+async def _refusal_from_admit_backstop(
+    conn: AsyncConnection, ctx: AdmissionContext, exc: BaseException
+) -> CommittedRefusal | None:
+    if _is_budget_ledger_violation(exc):
+        return await refuse_budget_exhausted(conn, ctx)
+    if _is_one_live_violation(exc):
+        return await refuse_live_attempt_conflict(conn, ctx)
+    return None
 
 
 def _seat_limits(seat_doc: dict) -> dict[str, Any]:
@@ -419,6 +408,13 @@ async def start_instance(
     pack_name, pack_ver, pack_digest, pack_status = await _pack_meta(conn, org_id, str(pack_version_id))
     defs = await _load_definitions(conn, str(pack_version_id))
     wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name)
+    if wdoc is None:
+        raise InstanceError(
+            "not_found",
+            404,
+            "Workflow not found",
+            f"No workflow {workflow_name!r} on this seat.",
+        )
     seat_doc = defs.get("Seat", {}).get(seat_name)
     limits_doc = seat_doc or {}
     limits = _seat_limits(limits_doc) if seat_doc else {}
@@ -451,8 +447,6 @@ async def start_instance(
         return refusal
     if seat_state != "ACTIVE":
         raise InstanceError("not_found", 404, "Seat not found", f"No active seat {seat_name!r}.")
-    if wdoc is None:
-        raise InstanceError("not_found", 404, "Workflow not found", f"No workflow {workflow_name!r} on this seat.")
     if seat_doc is None:
         raise InstanceError("not_found", 404, "Seat definition missing", f"Seat {seat_name!r} not on pack.")
 
@@ -495,6 +489,8 @@ async def start_instance(
     correlation_id = secrets.token_hex(16)
     title = (first_message[:80] + "…") if len(first_message) > 80 else first_message
     initial_state = (wdoc.get("spec") or {}).get("initial")
+    person_name = org.people[actor].name
+    turn: dict[str, Any]
     try:
         async with conn.transaction():
             await conn.execute(
@@ -516,92 +512,97 @@ async def start_instance(
                     correlation_id,
                 ),
             )
-    except pg_errors.UniqueViolation:
-        raced = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
-        if raced:
-            return await build_snapshot(conn, org, org_id, raced, actor)
+            await conn.execute(
+                "insert into work.participants (instance_id, role, person_id, bound_by)"
+                " values (%s, %s, %s, 'creation')",
+                (instance_id, participant_role, actor),
+            )
+            await task_ops.insert_assist_task(
+                conn,
+                task_id=task_id,
+                instance_id=instance_id,
+                skill=template["skill"],
+                work_type=template["work_type"],
+                contract=contract,
+                max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
+            )
+            turn = await insert_person_turn(
+                conn,
+                instance_id=instance_id,
+                person_id=actor,
+                text=first_message,
+                client_turn_id=idempotency_key or ids.new_turn_id(),
+            )
+            await task_ops.admit_attempt(
+                conn,
+                org_id=org_id,
+                seat=seat_name,
+                daily_limit_usd=float(limits["daily_cost_usd"]),
+                task_id=task_id,
+                attempt_id=attempt_id,
+                turn_id=turn["turn_id"],
+                attempt_n=1,
+                reservation_usd=reservation,
+            )
+            await conn.execute(
+                "update work.turns set attempt_id = %s where id = %s",
+                (attempt_id, turn["turn_id"]),
+            )
+            turn["attempt_id"] = attempt_id
+            await write_execution_event(
+                conn,
+                ExecutionEventWrite(
+                    org_id=org_id,
+                    run_id=instance_id,
+                    event_type="RunCreated",
+                    actor_kind="person",
+                    actor_id=actor,
+                    correlation_id=correlation_id,
+                    redacted_summary=f"Started job {instance_id}",
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                ),
+            )
+            turn_payload = {
+                "turn_id": turn["turn_id"],
+                "seq": turn["seq"],
+                "author": {"kind": "person", "id": actor, "name": person_name},
+                "blocks": turn["blocks"],
+                "at": turn["at"],
+                "attempt_id": attempt_id,
+            }
+            outbox_rows = [
+                OutboxRow(
+                    stream=ids.stream_user(actor),
+                    event_type="instance.created",
+                    instance_id=instance_id,
+                    audience={"person_id": actor},
+                    data={"instance_id": instance_id, "title": title, "workflow": workflow_name},
+                ),
+                OutboxRow(
+                    stream=ids.stream_instance(instance_id),
+                    event_type="turn.created",
+                    instance_id=instance_id,
+                    audience={"roles": [participant_role]},
+                    data={"instance_id": instance_id, "turn": turn_payload},
+                ),
+            ]
+            seqs = await append_outbox_many(conn, outbox_rows)
+    except pg_errors.UniqueViolation as exc:
+        if _is_instance_idempotency_violation(exc):
+            raced = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
+            if raced:
+                return await build_snapshot(conn, org, org_id, raced, actor)
+            raise
+        refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
+        if refusal:
+            return refusal
         raise
-    await conn.execute(
-        "insert into work.participants (instance_id, role, person_id, bound_by)"
-        " values (%s, %s, %s, 'creation')",
-        (instance_id, participant_role, actor),
-    )
-    await task_ops.insert_assist_task(
-        conn,
-        task_id=task_id,
-        instance_id=instance_id,
-        skill=template["skill"],
-        work_type=template["work_type"],
-        contract=contract,
-        max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
-    )
-    turn = await insert_person_turn(
-        conn,
-        instance_id=instance_id,
-        person_id=actor,
-        text=first_message,
-        client_turn_id=idempotency_key or ids.new_turn_id(),
-    )
-    admit = await _admit_attempt_or_refuse(
-        conn,
-        ctx,
-        org_id=org_id,
-        seat=seat_name,
-        daily_limit_usd=float(limits["daily_cost_usd"]),
-        task_id=task_id,
-        attempt_id=attempt_id,
-        turn_id=turn["turn_id"],
-        attempt_n=1,
-        reservation_usd=reservation,
-    )
-    if isinstance(admit, CommittedRefusal):
-        return admit
-    await conn.execute(
-        "update work.turns set attempt_id = %s where id = %s",
-        (attempt_id, turn["turn_id"]),
-    )
-    turn["attempt_id"] = attempt_id
-
-    await write_execution_event(
-        conn,
-        ExecutionEventWrite(
-            org_id=org_id,
-            run_id=instance_id,
-            event_type="RunCreated",
-            actor_kind="person",
-            actor_id=actor,
-            correlation_id=correlation_id,
-            redacted_summary=f"Started job {instance_id}",
-            task_id=task_id,
-            attempt_id=attempt_id,
-        ),
-    )
-    person_name = org.people[actor].name
-    turn_payload = {
-        "turn_id": turn["turn_id"],
-        "seq": turn["seq"],
-        "author": {"kind": "person", "id": actor, "name": person_name},
-        "blocks": turn["blocks"],
-        "at": turn["at"],
-        "attempt_id": attempt_id,
-    }
-    outbox_rows = [
-        OutboxRow(
-            stream=ids.stream_user(actor),
-            event_type="instance.created",
-            instance_id=instance_id,
-            audience={"person_id": actor},
-            data={"instance_id": instance_id, "title": title, "workflow": workflow_name},
-        ),
-        OutboxRow(
-            stream=ids.stream_instance(instance_id),
-            event_type="turn.created",
-            instance_id=instance_id,
-            audience={"roles": [participant_role]},
-            data={"instance_id": instance_id, "turn": turn_payload},
-        ),
-    ]
-    seqs = await append_outbox_many(conn, outbox_rows)
+    except pg_errors.CheckViolation as exc:
+        refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
+        if refusal:
+            return refusal
+        raise
     cursor = ids.ui_event_cursor(ids.stream_instance(instance_id), seqs[ids.stream_instance(instance_id)])
     snap = await build_snapshot(conn, org, org_id, instance_id, actor)
     snap["cursor"] = cursor
@@ -718,50 +719,55 @@ async def post_turn(
 
     attempt_id = ids.new_attempt_id()
     attempt_n = int(attempts_used) + 1
-    turn = await insert_person_turn(
-        conn,
-        instance_id=instance_id,
-        person_id=actor,
-        text=text,
-        client_turn_id=client_turn_id,
-        attempt_id=None,
-    )
     seat_doc = (await _load_definitions(conn, str(pvid))).get("Seat", {}).get(seat_name) or {}
     daily_limit = float(_seat_limits(seat_doc)["daily_cost_usd"])
-    admit = await _admit_attempt_or_refuse(
-        conn,
-        ctx,
-        org_id=org_id,
-        seat=seat_name,
-        daily_limit_usd=daily_limit,
-        task_id=task_id,
-        attempt_id=attempt_id,
-        turn_id=turn["turn_id"],
-        attempt_n=attempt_n,
-        reservation_usd=reservation,
-    )
-    if isinstance(admit, CommittedRefusal):
-        return admit
-    await conn.execute(
-        "update work.turns set attempt_id = %s where id = %s",
-        (attempt_id, turn["turn_id"]),
-    )
-    row = await find_turn_by_client_id(conn, instance_id, actor, client_turn_id)
-    assert row is not None
-    turn_payload = project_turn(row, person_name=org.people[actor].name)
-    await append_outbox_many(
-        conn,
-        [
-            OutboxRow(
-                stream=ids.stream_instance(instance_id),
-                event_type="turn.created",
+    try:
+        async with conn.transaction():
+            turn = await insert_person_turn(
+                conn,
                 instance_id=instance_id,
-                audience={"roles": my_roles},
-                data={"instance_id": instance_id, "turn": turn_payload},
+                person_id=actor,
+                text=text,
+                client_turn_id=client_turn_id,
+                attempt_id=None,
             )
-        ],
-    )
-    return {"turn": turn_payload, "attempt_id": attempt_id}
+            await task_ops.admit_attempt(
+                conn,
+                org_id=org_id,
+                seat=seat_name,
+                daily_limit_usd=daily_limit,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                turn_id=turn["turn_id"],
+                attempt_n=attempt_n,
+                reservation_usd=reservation,
+            )
+            await conn.execute(
+                "update work.turns set attempt_id = %s where id = %s",
+                (attempt_id, turn["turn_id"]),
+            )
+            row = await find_turn_by_client_id(conn, instance_id, actor, client_turn_id)
+            assert row is not None
+            turn_payload = project_turn(row, person_name=org.people[actor].name)
+            await append_outbox_many(
+                conn,
+                [
+                    OutboxRow(
+                        stream=ids.stream_instance(instance_id),
+                        event_type="turn.created",
+                        instance_id=instance_id,
+                        audience={"roles": my_roles},
+                        data={"instance_id": instance_id, "turn": turn_payload},
+                    )
+                ],
+            )
+    except (pg_errors.CheckViolation, pg_errors.UniqueViolation) as exc:
+        refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
+        if refusal:
+            return refusal
+        raise
+    else:
+        return {"turn": turn_payload, "attempt_id": attempt_id}
 
 
 async def list_turns_page(
