@@ -208,6 +208,7 @@ class OpenApiTests(unittest.TestCase):
             ("post", "/worker/attempts/claim"),
             ("post", "/worker/attempts/{id}/heartbeat"),
             ("get", "/worker/attempts/{id}/contract"),
+            ("post", "/worker/attempts/{id}/context"),
             ("post", "/worker/attempts/{id}/fail"),
         }
         self.assertTrue(m1_worker_a <= served, f"M1 worker (05-A) routes missing: {m1_worker_a - served}")

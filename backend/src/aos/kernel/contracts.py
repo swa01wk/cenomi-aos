@@ -72,6 +72,30 @@ def verify_pinned_pack_on_disk(
         )
 
 
+def load_skill_instructions(packs_dir: Path, contract: dict[str, Any]) -> str:
+    pack = contract.get("pack") or {}
+    pack_name = pack.get("name")
+    skill = (contract.get("skill") or {}).get("name")
+    if not pack_name or not skill:
+        raise PackMaterialError(
+            "internal",
+            500,
+            "Contract is incomplete",
+            "Missing pack or skill on the frozen contract.",
+        )
+    root = packs_dir / str(pack_name) / "skills" / str(skill)
+    rel = "instructions.md"
+    path = root / rel
+    if not path.is_file():
+        raise PackMaterialError(
+            "conflict",
+            409,
+            "Skill instructions missing",
+            f"Instructions file for skill {skill!r} is not on disk.",
+        )
+    return path.read_text(encoding="utf-8")
+
+
 def _instructions_sha256(packs_dir: Path, pack_name: str, skill_doc: dict) -> str:
     rel = (skill_doc.get("spec") or {}).get("instructions") or "instructions.md"
     skill_name = skill_doc.get("metadata", {}).get("name", "")

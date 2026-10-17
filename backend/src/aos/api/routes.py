@@ -650,6 +650,10 @@ class FailAttemptBody(BaseModel):
     message: str = Field(max_length=2000)
 
 
+class AssembleContextBody(BaseModel):
+    reason: Literal["start", "resume", "tool_result", "input_changed", "policy_changed", "explicit"]
+
+
 @router.post("/worker/attempts/claim", tags=["worker"])
 async def claim_attempt(
     w: WorkerDep,
@@ -728,6 +732,38 @@ async def get_attempt_contract(
         _raise_worker_fence_error(exc)
     if isinstance(result, CommittedFenced):
         return _fenced_response(request, result)
+    return result
+
+
+@router.post("/worker/attempts/{id}/context", tags=["worker"])
+async def assemble_context_route(
+    id: str,
+    request: Request,
+    w: WorkerDep,
+    k: KernelDep,
+    conn: TxDep,
+    token: FencingDep,
+    body: AssembleContextBody,
+):
+    try:
+        result = await worker_attempts.assemble_context(
+            conn,
+            org_id=w.org_id,
+            attempt_id=id,
+            worker_id=w.worker_id,
+            fencing_token=token,
+            refresh_reason=body.reason,
+            packs_dir=k.settings.packs_dir,
+            org=k.org,
+        )
+    except WorkerFenceError as exc:
+        _raise_worker_fence_error(exc)
+    except worker_attempts.WorkerError as exc:
+        _raise_worker_error(exc)
+    if isinstance(result, CommittedFenced):
+        return _fenced_response(request, result)
+    if isinstance(result, CommittedRefusal):
+        return _refusal_response(request, result)
     return result
 
 

@@ -18,7 +18,7 @@ spec:
     shortlist_count: int
     quote_count: int
     invited_count: int
-    po_amount: decimal
+    po_amount: {type: decimal, classification: restricted}
   events: [intent_identified, all_quotes_received]
   states:
     intake:

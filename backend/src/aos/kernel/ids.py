@@ -79,6 +79,10 @@ def new_contract_id() -> str:
     return _new_prefixed_id("tc_")
 
 
+def new_envelope_id() -> str:
+    return _new_prefixed_id("ce_")
+
+
 def new_eval_run_id() -> str:
     return _new_prefixed_id("ev_")
 

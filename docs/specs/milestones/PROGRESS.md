@@ -18,7 +18,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [ ] M1-FE-03 Console: publish and Seats
 - [x] M1-BE-04 Jobs and conversation
 - [x] M1-BE-05 Worker protocol
-- [ ] M1-BE-06 Context assembler and visibility
+- [x] M1-BE-06 Context assembler and visibility
 - [ ] M1-BE-07 Gateway reads
 - [ ] M1-AG-01 Runtime and worker process
 - [ ] M1-AG-04 Checkpointer

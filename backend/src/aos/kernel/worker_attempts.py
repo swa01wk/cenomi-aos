@@ -16,6 +16,8 @@ from .admission import (
     count_live_seat_attempts,
     task_has_live_attempt,
 )
+from .contracts import PackMaterialError, load_skill_instructions
+from .refusal import CommittedRefusal
 from .instances import _load_definitions, _pack_meta, _refusal_from_admit_backstop, _seat_limits
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 from .worker_fence import CommittedFenced, require_claimed_attempt, write_attempt_fenced
@@ -367,25 +369,6 @@ async def heartbeat(
     return {"lease_expires_at": lease_until.isoformat().replace("+00:00", "Z"), "cancel_requested": False}
 
 
-def load_skill_instructions(packs_dir: Path, contract: dict[str, Any]) -> str:
-    pack = contract.get("pack") or {}
-    pack_name = pack.get("name")
-    skill = (contract.get("skill") or {}).get("name")
-    if not pack_name or not skill:
-        raise WorkerError("internal", 500, "Contract is incomplete", "Missing pack or skill on the frozen contract.")
-    root = packs_dir / str(pack_name) / "skills" / str(skill)
-    rel = "instructions.md"
-    path = root / rel
-    if not path.is_file():
-        raise WorkerError(
-            "conflict",
-            409,
-            "Skill instructions missing",
-            f"Instructions file for skill {skill!r} is not on disk.",
-        )
-    return path.read_text(encoding="utf-8")
-
-
 async def get_contract(
     conn: AsyncConnection,
     *,
@@ -400,8 +383,43 @@ async def get_contract(
     )
     if isinstance(gate, CommittedFenced):
         return gate
-    instructions = load_skill_instructions(packs_dir, gate.contract)
+    try:
+        instructions = load_skill_instructions(packs_dir, gate.contract)
+    except PackMaterialError as exc:
+        raise WorkerError(exc.code, exc.status, exc.title, exc.detail) from exc
     return {"contract": gate.contract, "skill_instructions": instructions}
+
+
+async def assemble_context(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    attempt_id: str,
+    worker_id: str,
+    fencing_token: int,
+    refresh_reason: str,
+    packs_dir: Path,
+    org,
+) -> dict[str, Any] | CommittedFenced | CommittedRefusal:
+    from .context import ContextError, assemble_context as build_envelope
+
+    gate = await require_claimed_attempt(
+        conn, org_id=org_id, attempt_id=attempt_id, worker_id=worker_id, fencing_token=fencing_token
+    )
+    if isinstance(gate, CommittedFenced):
+        return gate
+    try:
+        return await build_envelope(
+            conn,
+            org=org,
+            gate=gate,
+            refresh_reason=refresh_reason,  # type: ignore[arg-type]
+            packs_dir=packs_dir,
+        )
+    except ContextError as exc:
+        raise WorkerError(exc.code, exc.status, exc.title, exc.detail) from exc
+    except PackMaterialError as exc:
+        raise WorkerError(exc.code, exc.status, exc.title, exc.detail) from exc
 
 
 async def fail_attempt(

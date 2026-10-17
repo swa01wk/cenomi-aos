@@ -369,6 +369,16 @@ class Timer(Strict):
         return v
 
 
+AttributeType = Literal["int", "decimal", "string", "bool", "date"]
+
+
+class WorkflowAttributeSpec(Strict):
+    """Workflow instance attribute: type plus classification (short YAML form defaults to internal)."""
+
+    type: AttributeType
+    classification: Literal["shareable", "internal", "restricted"] = "internal"
+
+
 class WorkflowSpec(Strict):
     title: str
     description: str = ""
@@ -378,7 +388,20 @@ class WorkflowSpec(Strict):
     seat_role: Name
     initial: Name
     participants: dict[Name, Participant] = Field(min_length=1)
-    attributes: dict[Name, Literal["int", "decimal", "string", "bool", "date"]] = {}
+    attributes: dict[Name, WorkflowAttributeSpec] = {}
+
+    @field_validator("attributes", mode="before")
+    @classmethod
+    def _normalize_attributes(cls, v: object) -> object:
+        if not isinstance(v, dict):
+            return v
+        out: dict[str, object] = {}
+        for key, val in v.items():
+            if isinstance(val, str):
+                out[key] = {"type": val, "classification": "internal"}
+            else:
+                out[key] = val
+        return out
     events: list[Name] = []
     states: dict[Name, StateSpec] = Field(min_length=2)
     parallel: list[ParallelRegion] = []
