@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Action: reconcile an unknown result</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Action: reconcile an unknown result · Example run QQ-0001 · Stop 13 of 17 · Console as Platform admin</span>
+    <span style="font-size: 16px; font-weight: 600;">The ERP times out; AOS reconciles instead of retrying</span>
+    <span style="font-size: 13px; color: #4A5160;">With the demo's ERP fault on, the PO write commits in the ERP but the reply never arrives. The gateway does not blindly retry: it looks the PO up by the reference it wrote, finds it, and records success. Exactly one PO exists, and the read-back matches what Noura and Khalid approved.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: action_execution ae_311 · intent persisted before the call · timeout → UNKNOWN · reconcile find_po(ref) → PO-778201 · SUCCEEDED without retry · payload_match PASS</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="WS-PO-Approval.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-Closed.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: closed and handed over</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Platform admin</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Platform team · on call</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: #6B7280;">Tools and connectors / Gateway executions</span>
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Every external effect, once</h1>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-label="Executions" style="flex: 1 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 480px;">
+        <thead>
+          <tr style="background: #F5F6F8; text-align: left; color: #4A5160;">
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Execution</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Tool</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Connector</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA; background: #F7F9FE; box-shadow: inset 3px 0 0 #2B59C3;">
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_311</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">create_po</td>
+            <td style="padding: 10px 14px;">mock ERP</td>
+            <td style="padding: 10px 14px;"><span style="font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">Succeeded · reconciled</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_207</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">send_message</td>
+            <td style="padding: 10px 14px;">mock mail</td>
+            <td style="padding: 10px 14px;"><span style="font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">Succeeded</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_206</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">send_message</td>
+            <td style="padding: 10px 14px;">mock mail</td>
+            <td style="padding: 10px 14px;"><span style="font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">Succeeded</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_205</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">send_message</td>
+            <td style="padding: 10px 14px;">mock mail</td>
+            <td style="padding: 10px 14px;"><span style="font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">Succeeded</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="ae" style="flex: 1 1 480px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">ae_311 · QQ-0001 · Task po_create</span>
+        <h2 id="ae" style="margin: 0; font-size: 16px; font-weight: 600;">create_po: unknown outcome, reconciled</h2>
+      </div>
+      <dl style="margin: 0; display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px 12px; font-size: 13px;">
+        <dt style="color: #6B7280;">Idempotency key</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">sha256(task|create_po|SUP-10482|9f3a…c21)</dd>
+        <dt style="color: #6B7280;">Approvals</dt><dd style="margin: 0;">Noura (content), Khalid (release)</dd>
+        <dt style="color: #6B7280;">Reference</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">AOS-QQ-0001-PO1</dd>
+      </dl>
+      <ol aria-label="Execution steps" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: 13px;">
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:02</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span>Intent persisted with the idempotency key, before any call</span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:02</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span>Policy re-checked with fresh attributes: both approvals valid, digest unchanged</span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:03</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span>Broker issued a 60-second token for <span style="font-family: 'IBM Plex Mono', monospace;">erp_po.create</span></span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:03</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span>Called <span style="font-family: 'IBM Plex Mono', monospace;">create_po</span> on mock ERP with the key and reference</span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 10px; margin: 2px -10px; border-radius: 8px; background: #FDF1DE;"><span style="color: #8A4B08; font-family: 'IBM Plex Mono', monospace;">09:31:33</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #C2760C;"></span><span style="color: #15171C;">No reply after 30 seconds. Outcome UNKNOWN, so no retry yet</span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:34</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span>Reconcile: looked up POs by reference <span style="font-family: 'IBM Plex Mono', monospace;">AOS-QQ-0001-PO1</span>, found <span style="font-family: 'IBM Plex Mono', monospace;">PO-778201</span></span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:34</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #16693F;"></span><span>Action Result SUCCEEDED (reconciled, 0 retries)</span></li>
+        <li style="display: grid; grid-template-columns: 72px 14px minmax(0, 1fr); gap: 10px; padding: 7px 0;"><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace;">09:31:36</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #16693F;"></span><span><span style="font-family: 'IBM Plex Mono', monospace;">payload_match</span> PASS: the PO read back equals the approved payload</span></li>
+      </ol>
+      <div style="padding: 10px 12px; border-radius: 8px; background: #F5F6F8; font-size: 12px; color: #4A5160;">Fault injected by the demo switch <span style="font-family: 'IBM Plex Mono', monospace;">timeout_after_commit</span>. Without reconciliation, a blind retry would have created a second PO.</div>
+    </section>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

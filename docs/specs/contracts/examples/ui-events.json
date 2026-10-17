@@ -1,0 +1,84 @@
+[
+  {
+    "id": "QQ-0001:640",
+    "type": "agent.message.delta",
+    "at": "2026-10-15T10:03:01Z",
+    "instance_id": "QQ-0001",
+    "data": {
+      "instance_id": "QQ-0001",
+      "turn_id": "turn_9",
+      "seq": 3,
+      "text": "Thanks. Two things are still open: "
+    }
+  },
+  {
+    "id": "QQ-0001:655",
+    "type": "pending.created",
+    "at": "2026-10-15T10:05:00Z",
+    "instance_id": "QQ-0001",
+    "data": {
+      "instance_id": "QQ-0001",
+      "pending": {
+        "pending_id": "pend_31",
+        "instance_id": "QQ-0001",
+        "kind": "decision",
+        "event": "decision.brief_confirmed",
+        "title": "Confirm the brief",
+        "for_role": "requester",
+        "for_person_id": "faisal",
+        "options": [
+          {
+            "value": "confirm",
+            "label": "Confirm brief v2"
+          }
+        ],
+        "artifact_ref": {
+          "artifact_id": "art_qq0001_brief",
+          "version": 2
+        },
+        "approval_id": null,
+        "due_at": null,
+        "status": "open",
+        "created_at": "2026-10-15T10:05:00Z"
+      }
+    }
+  },
+  {
+    "id": "QQ-0001:1201",
+    "type": "agent.message.completed",
+    "at": "2026-10-21T11:03:13Z",
+    "instance_id": "QQ-0001",
+    "data": {
+      "instance_id": "QQ-0001",
+      "turn": {
+        "turn_id": "turn_77",
+        "seq": 77,
+        "author": {
+          "kind": "seat",
+          "id": "seat_sourcing_poc",
+          "name": "Sourcing Agent"
+        },
+        "at": "2026-10-21T11:03:13Z",
+        "attempt_id": "att_qq0001_assist_14",
+        "blocks": [
+          {
+            "kind": "refusal",
+            "title": "Quoted prices aren't shared with requesters",
+            "detail": "Noura, the buyer, can tell you the outcome.",
+            "decision_id": "pd_7f20",
+            "rule": "requester_never_sees_quotes"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "QQ-0001:1310",
+    "type": "snapshot.required",
+    "at": "2026-10-21T17:00:00Z",
+    "instance_id": "QQ-0001",
+    "data": {
+      "reason": "gap"
+    }
+  }
+]

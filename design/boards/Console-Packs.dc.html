@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Domain packs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Domain packs · Example run QQ-0001 · Stop 1 of 17 · Console as Platform admin</span>
+    <span style="font-size: 16px; font-weight: 600;">Publish the procurement_demo pack</span>
+    <span style="font-size: 13px; color: #4A5160;">The pack arrives from Git as YAML. Validation and simulation are green, Risk approves the policies and the Head of Procurement approves the Seat and workflow, so v1 is published and can no longer change.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: aos validate ✓ · aos simulate → closed (fake model) · publish_request PR-12 approved ×2 · definitions immutable</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All stops</a>
+    <a href="Console-Activation.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: test the Seat</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Platform admin</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Platform team</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Domain packs / <span style="font-family: 'IBM Plex Mono', monospace;">procurement_demo</span></span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">procurement_demo v1</h1>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 600;">Published</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">git main@a41c09e · kernel aos/v1 · 39 files</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Sync from Git</button>
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Diff versions</button>
+    </div>
+  </header>
+
+  <section aria-label="What the pack contains" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">1</span><span style="font-size: 12px; color: #4A5160;">Seat</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">5</span><span style="font-size: 12px; color: #4A5160;">Skills</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">1</span><span style="font-size: 12px; color: #4A5160;">Workflow</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">2</span><span style="font-size: 12px; color: #4A5160;">Policies</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">6</span><span style="font-size: 12px; color: #4A5160;">Verifiers</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">6</span><span style="font-size: 12px; color: #4A5160;">Artifact types</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">3</span><span style="font-size: 12px; color: #4A5160;">Connectors</span></div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column;"><span style="font-size: 22px; font-weight: 600;">2</span><span style="font-size: 12px; color: #4A5160;">Eval suites</span></div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-labelledby="val" style="flex: 1 1 380px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h2 id="val" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">aos validate</h2><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">0 errors</span></div>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>All 34 YAML files match their kind's schema</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Every reference resolves (skills, resources, verifiers, views)</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Each Task template targets a role that allows its Work Type</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Guards and policy conditions use declared attributes only</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>No domain field on a kernel kind</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Every committed-effect tool has a policy rule</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="sim" style="flex: 1 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h2 id="sim" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">aos simulate quick_quote</h2><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Reached closed</span></div>
+      <ol aria-label="Simulated path" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; font-family: 'IBM Plex Mono', monospace;">
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">intake</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">shortlisting</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">rfq_drafting</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">rfq_sending</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">awaiting_quotes</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">comparison</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #EEF1F5;">ordering</li><li aria-hidden="true" style="color: #6B7280;">→</li>
+        <li style="padding: 3px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F;">closed</li>
+      </ol>
+      <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; font-size: 13px;">
+        <div><dt style="color: #6B7280;">Tasks created</dt><dd style="margin: 0;">9, each exactly once</dd></div>
+        <div><dt style="color: #6B7280;">Committed effects</dt><dd style="margin: 0;">4, all approved by scripted people</dd></div>
+        <div><dt style="color: #6B7280;">Model</dt><dd style="margin: 0;">Fake, scripted; no network</dd></div>
+        <div><dt style="color: #6B7280;">Dead ends</dt><dd style="margin: 0;">None; every guard can be true</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section aria-labelledby="pr" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+      <h2 id="pr" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">Publish request <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">PR-12</span></h2>
+      <span style="font-size: 12px; color: #4A5160;">Requested by Platform admin · 13 Oct 09:12</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+        <span style="width: 26px; height: 26px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; flex: 0 0 26px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7"></path></svg></span>
+        <div style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Risk · policies and authority profile</span><span style="font-size: 12px; color: #4A5160;">Approved 13 Oct 10:05</span></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+        <span style="width: 26px; height: 26px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; flex: 0 0 26px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7"></path></svg></span>
+        <div style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Head of Procurement · Seat and workflow</span><span style="font-size: 12px; color: #4A5160;">Approved 13 Oct 11:30 · published</span></div>
+      </div>
+    </div>
+    <span style="font-size: 12px; color: #4A5160;">Published versions are immutable. A change becomes v2; running events stay on the version they started with.</span>
+  </section>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

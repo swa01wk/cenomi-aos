@@ -1,0 +1,10 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: quote_triage, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [analysis]
+  instructions: instructions.md
+  reads: [job_snapshot, rfq_email, recent_messages]
+  produces: [quote]
+  may_request: [read_thread]
+  verifiers: []

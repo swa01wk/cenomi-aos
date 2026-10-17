@@ -1,0 +1,15 @@
+---
+description: Testing rules
+globs: backend/tests/**,web/src/**/*.test.tsx,web/e2e/**
+alwaysApply: false
+---
+
+# Testing rules
+
+- Every story's tests in its milestone file are written with the code, not after.
+- Kernel tests use a scratch Postgres via `backend/tests/_pg.py`, the fake model and the in-process MCP mocks. No test
+  calls a real model or the network.
+- Failure paths use the connectors' fault switches and a frozen clock, not sleeps.
+- Contract tests (`test_contracts.py`) must stay green; when the spec changes, update examples in
+  `docs/specs/contracts/examples/` too.
+- Playwright specs are named after the walkthrough stop they prove (`e2e/stop-07-rfq-approval.spec.ts`).

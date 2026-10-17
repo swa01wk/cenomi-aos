@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Verifier
+metadata: {name: sources_cited, version: 1, owner: head_of_procurement}
+spec:
+  description: Every ranked supplier cites at least one ERP source that exists.
+  method: rule
+  applies_to: [supplier_list]
+  implementation: aos.verifiers.sources_cited

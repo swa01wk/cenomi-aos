@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Component sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1700px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Shared · Built in M1</span>
+    <span style="font-size: 16px; font-weight: 600;">Tokens and components</span>
+    <span style="font-size: 13px; color: #4A5160;">The colours, type and components every screen above is made from, with the React component name each one becomes in web/src/components. Build these first; screens only compose them.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">web/src/components/* · tokens in web/src/styles/tokens.css · no model-written HTML: chat renders typed blocks only</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Back to the start</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; background: #F5F6F8;">
+<main style="max-width: 1320px; margin: 0 auto; padding: 28px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+
+  <section aria-labelledby="tok" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;"><h2 id="tok" style="margin: 0; font-size: 15px; font-weight: 600;">Colour tokens</h2><span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">web/src/styles/tokens.css</span></div>
+    <ul style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; font-size: 12px;">
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #15171C;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--ink #15171C</span><span style="color: #4A5160;">Text, primary dark buttons</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #4A5160;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--ink-2 #4A5160</span><span style="color: #4A5160;">Secondary text</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #6B7280;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--ink-3 #6B7280</span><span style="color: #4A5160;">Meta, captions</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #E2E5EA;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--line #E2E5EA</span><span style="color: #4A5160;">Borders, rules</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #F5F6F8; border: 1px solid #E2E5EA;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--canvas #F5F6F8</span><span style="color: #4A5160;">Page ground</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #2B59C3;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--accent #2B59C3</span><span style="color: #4A5160;">Primary action, current</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #EAF0FC;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--accent-soft #EAF0FC</span><span style="color: #4A5160;">Agent avatar, info</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #16693F;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--ok #16693F</span><span style="color: #4A5160;">Pass, active, done</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #8A4B08;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--warn #8A4B08</span><span style="color: #4A5160;">Waiting, leaves AOS</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #A6261C;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--bad #A6261C</span><span style="color: #4A5160;">Refused, failed, kill</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #111418;"></span><span style="font-family: 'IBM Plex Mono', monospace;">--nav #111418</span><span style="color: #4A5160;">Console menu</span></li>
+      <li style="display: flex; flex-direction: column; gap: 6px;"><span style="height: 40px; border-radius: 8px; background: #EEF3FB; border: 1px dashed #B9C8E6;"></span><span style="font-family: 'IBM Plex Mono', monospace;">design only</span><span style="color: #4A5160;">Spec banners; not built</span></li>
+    </ul>
+    <div style="display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: baseline; padding-top: 12px; border-top: 1px solid #E2E5EA;">
+      <span style="font-size: 24px; font-weight: 600;">Page title 24/600</span>
+      <span style="font-size: 15px; font-weight: 600;">Section 15/600</span>
+      <span style="font-size: 14px;">Body 14/400, IBM Plex Sans</span>
+      <span style="font-size: 12px; color: #4A5160;">Meta 12/400</span>
+      <span style="font-size: 12px; font-family: 'IBM Plex Mono', monospace;">IDs QQ-0001 · IBM Plex Mono 12</span>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); gap: 16px; align-items: start;">
+    <section aria-labelledby="cmp-btn" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-btn" style="margin: 0; font-size: 15px; font-weight: 600;">Button <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;Button variant&gt;</span></h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; border: none; font: inherit; font-weight: 500; cursor: pointer;">Primary</button>
+        <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Secondary</button>
+        <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #15171C; color: #FFFFFF; border: none; font: inherit; cursor: pointer;">Dark</button>
+        <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #A6261C; color: #FFFFFF; border: none; font: inherit; cursor: pointer;">Danger</button>
+        <button type="button" disabled style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #E2E5EA; background: #F5F6F8; color: #6B7280; font: inherit;">Disabled, with reason</button>
+        <button type="button" aria-label="Send" style="width: 44px; height: 44px; border-radius: 8px; border: none; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9h11M10 5l4 4-4 4"></path></svg></button>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">44 px tall in the Workspace, 40 px in the Console. A disabled button always says why in its label or tooltip.</span>
+    </section>
+
+    <section aria-labelledby="cmp-pill" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-pill" style="margin: 0; font-size: 15px; font-weight: 600;">Status and stage <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;StatusPill&gt; &lt;StageStepper&gt;</span></h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">ACTIVE</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">APPROVED</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">WAITING_APPROVAL</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #FCE8E6; color: #A6261C; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">KILLED</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">DRAFT</span>
+      </div>
+      <ol aria-label="Workflow stages" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px;">
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">intake</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">shortlisting</li>
+        <li aria-current="step" style="padding: 3px 10px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 500;">rfq drafting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">rfq sending</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">…</li>
+      </ol>
+      <span style="font-size: 12px; color: #4A5160;">Kernel states print as returned (monospace caps); workflow stages use the state's label from the pack.</span>
+    </section>
+
+    <section aria-labelledby="cmp-chat" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-chat" style="margin: 0; font-size: 15px; font-weight: 600;">Conversation <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;AgentMessage&gt; &lt;PersonMessage&gt; &lt;SourceChip&gt; &lt;ArtifactChip&gt;</span></h2>
+      <div style="display: flex; gap: 10px;">
+        <span style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</span>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span>I saved your brief as a draft. Two things are still open: the delivery date and place, and who signs off on quality.</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <a href="Main.dc.html" style="display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; border: 1px solid #C9CED6; background: #FFFFFF; font-size: 12px; text-decoration: none; color: #15171C;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 1.5h4l2 2v7H3z"></path></svg>Brief v2 · draft</a>
+            <a href="WS-Shortlist.dc.html" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #C9CED6; background: #FFFFFF; font-size: 12px; text-decoration: none; color: #15171C;">ERP supplier performance · 2025–26</a>
+          </div>
+        </div>
+      </div>
+      <div style="align-self: flex-end; max-width: 78%; background: #EEF1F5; border-radius: 12px 12px 4px 12px; padding: 12px 14px;">By 20 Nov to the Mall A loading bay. I'll check quality myself on delivery.<div style="font-size: 11px; color: #6B7280; margin-top: 6px;">Faisal · 10:04</div></div>
+      <span style="font-size: 12px; color: #4A5160;">Agent text renders as plain text with typed blocks (chips, cards). The model never supplies HTML.</span>
+    </section>
+
+    <section aria-labelledby="cmp-dec" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-dec" style="margin: 0; font-size: 15px; font-weight: 600;">Decision card <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;DecisionCard pending&gt;</span></h2>
+      <div role="group" aria-label="Decision: confirm the brief" style="background: #F7F9FE; border: 1px solid #2B59C3; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;"><span style="font-weight: 600; font-size: 15px;">Confirm the brief</span><span style="font-size: 12px; color: #4A5160;">Decision · you, as requester</span></div>
+        <span style="color: #4A5160;">Brief v2 is complete. Confirming makes it final and lets the buyer start.</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; border: none; font: inherit; font-weight: 500; cursor: pointer;">Confirm brief v2</button>
+          <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Change something</button>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Sends POST /api/pending/:id/decide with the artifact version shown; a stale version is refused (409).</span>
+    </section>
+
+    <section aria-labelledby="cmp-ap" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-ap" style="margin: 0; font-size: 15px; font-weight: 600;">Approval card <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;ApprovalCard approval&gt;</span></h2>
+      <div role="group" aria-label="Approval: create purchase order" style="border: 1px solid #F0D3A6; background: #FFFCF6; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;"><span style="font-weight: 600; font-size: 15px;">Create PO in the ERP · SAR 38,400</span><span style="font-size: 12px; color: #8A4B08;">Step 2 of 2 · due 22 Oct 17:00</span></div>
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px;"><li style="padding: 3px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F;">1 · Noura approved content</li><li style="padding: 3px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08;">2 · You, procurement approver</li></ol>
+        <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Exactly this payload · sha256 9f3a…c21 · expires 22 Oct 17:00</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; border: none; font: inherit; font-weight: 500; cursor: pointer;">Approve</button>
+          <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Reject with reason</button>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Shows exactly what will run. Any edit creates a new version and a new approval. The requester's own step is never offered to them.</span>
+    </section>
+
+    <section aria-labelledby="cmp-tbl" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-tbl" style="margin: 0; font-size: 15px; font-weight: 600;">Artifact sheet <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;ArtifactSheet columns&gt;</span></h2>
+      <div style="overflow-x: auto; border: 1px solid #E2E5EA; border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead><tr style="background: #F5F6F8; text-align: left;"><th scope="col" style="padding: 8px 12px; color: #4A5160;">Rank</th><th scope="col" style="padding: 8px 12px; color: #4A5160;">Supplier</th><th scope="col" style="padding: 8px 12px; color: #4A5160; text-align: right;">Total</th><th scope="col" style="padding: 8px 12px; color: #4A5160; text-align: right;">Score</th></tr></thead>
+          <tbody style="font-variant-numeric: tabular-nums;"><tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px;">1</td><td style="padding: 8px 12px;">Najd Supplies</td><td style="padding: 8px 12px; text-align: right;">SAR 38,400</td><td style="padding: 8px 12px; text-align: right;">92.4</td></tr></tbody>
+        </table>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Columns come from the artifact type's view. The kernel removes columns a viewer may not see before sending; the browser never receives them.</span>
+    </section>
+
+    <section aria-labelledby="cmp-tl" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="cmp-tl" style="margin: 0; font-size: 15px; font-weight: 600;">Timeline entry <span style="font-size: 12px; font-weight: 400; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">&lt;TimelineItem record&gt;</span></h2>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0; font-size: 13px;">
+        <li style="display: grid; grid-template-columns: 56px 16px minmax(0, 1fr); gap: 10px; padding: 8px 0;"><span style="color: #6B7280; font-variant-numeric: tabular-nums;">11:58</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #8A4B08;"></span><span><span style="font-weight: 500;">Policy</span> · <span style="font-family: 'IBM Plex Mono', monospace;">mailbox.send</span> → REQUIRE_APPROVAL<br><span style="font-size: 12px; color: #4A5160;">rule rfq_send · decision pd_6c11</span></span></li>
+        <li style="display: grid; grid-template-columns: 56px 16px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px solid #E2E5EA;"><span style="color: #6B7280; font-variant-numeric: tabular-nums;">12:10</span><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #16693F;"></span><span><span style="font-weight: 500;">Decision</span> · Noura approved 3 sends<br><span style="font-size: 12px; color: #4A5160;">approval AP-0009 · bound to 3 digests</span></span></li>
+      </ol>
+      <span style="font-size: 12px; color: #4A5160;">One component for every record kind: event, decision, policy result, action, timer. The dot colour is the kind's tone.</span>
+    </section>
+  </div>
+</main>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

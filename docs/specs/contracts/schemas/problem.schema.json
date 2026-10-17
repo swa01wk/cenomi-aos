@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/problem.schema.json",
+  "title": "Problem",
+  "description": "Every non-2xx response from the kernel API (RFC 9457 problem details, application/problem+json). The UI chooses its state component from `status` and `code` (see design board States).",
+  "type": "object",
+  "required": ["type", "title", "status", "code"],
+  "properties": {
+    "type": {"type": "string", "description": "URI reference naming the problem type, e.g. https://aos.local/problems/stale_version"},
+    "title": {"type": "string", "description": "Short, human sentence safe to show as a heading."},
+    "status": {"type": "integer", "minimum": 400, "maximum": 599},
+    "detail": {"type": "string", "description": "Plain-language explanation safe to show to the signed-in person. Never contains data above their clearance."},
+    "instance": {"type": "string"},
+    "code": {
+      "type": "string",
+      "enum": [
+        "unauthenticated", "not_permitted", "not_found", "validation_failed", "stale_version", "already_claimed",
+        "policy_denied", "policy_never", "segregation_of_duties", "seat_not_active", "kill_switch_active",
+        "approval_stale", "approval_expired", "fenced", "lease_expired", "budget_exhausted", "version_taken",
+        "conflict", "unavailable", "internal"
+      ]
+    },
+    "trace_id": {"type": "string", "description": "OpenTelemetry trace ID of the failed request; shown on the ErrorBanner."},
+    "decision_id": {"type": "string", "description": "Policy or Decision Record behind a refusal (codes policy_*, segregation_of_duties)."},
+    "rule": {"type": "string", "description": "Policy rule that decided a refusal, e.g. requester_never_sees_quotes."},
+    "current_version": {"type": "integer", "description": "For stale_version and already_claimed: the version the client must reload."},
+    "errors": {
+      "type": "array",
+      "description": "Field errors for validation_failed (422).",
+      "items": {
+        "type": "object",
+        "required": ["pointer", "message"],
+        "properties": {
+          "pointer": {"type": "string", "description": "JSON Pointer into the request body, e.g. /content/quantity"},
+          "message": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

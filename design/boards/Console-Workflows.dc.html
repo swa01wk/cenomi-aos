@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Workflows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Console · Built in M2</span>
+    <span style="font-size: 16px; font-weight: 600;">Workflow definition</span>
+    <span style="font-size: 13px; color: #4A5160;">Any published workflow as the kernel will run it, here the example pack's Quick Quote: states, the Task each state creates, the events that move it on, guards, timers, the parallel branch and who must decide. Read-only: changes arrive as a new pack version.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /console/workflows/:name · GET /api/console/workflows/quick_quote?version=1 · reads registry.definitions (WorkflowDefinition)</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Console-Instances.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: instances</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Head of Procurement</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Process owner · Procurement</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Define / Workflows / <span style="font-family: 'IBM Plex Mono', monospace;">quick_quote</span></span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Quick Quote</h1>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 600;">Published v1</span>
+      </div>
+      <span style="font-size: 13px; color: #4A5160;">Find suppliers, collect quotes and raise a purchase order. Started by a requester from New job; run by the sourcing_agent role.</span>
+    </div>
+    <div role="tablist" aria-label="View" style="display: flex; gap: 4px; padding: 4px; background: #EEF1F5; border-radius: 8px;">
+      <button type="button" role="tab" aria-selected="true" style="height: 32px; padding: 0 12px; border: none; border-radius: 6px; background: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer;">Graph</button>
+      <button type="button" role="tab" aria-selected="false" style="height: 32px; padding: 0 12px; border: none; border-radius: 6px; background: none; font: inherit; color: #4A5160; cursor: pointer;">YAML</button>
+    </div>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-label="States and transitions" style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">1 · initial</span>
+          <span style="font-weight: 600;">Intake</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #F5F6F8; font-family: 'IBM Plex Mono', monospace;">request_intake<br>✓ brief_schema</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">decision.<wbr>brief_confirmed</span> by requester</span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">2 · join</span>
+          <span style="font-weight: 600;">Shortlisting</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #F5F6F8;">No Task; waits for the buyer and the discovery branch</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">decision.<wbr>shortlist_confirmed</span> by buyer, if <span style="font-family: 'IBM Plex Mono', monospace;">shortlist_count &gt;= 3</span></span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">3</span>
+          <span style="font-weight: 600;">RFQ drafting</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #F5F6F8; font-family: 'IBM Plex Mono', monospace;">rfq_draft · rfq_authoring<br>✓ leak_check</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">task.<wbr>completed.<wbr>rfq_draft</span></span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">4 · leaves AOS</span>
+          <span style="font-weight: 600;">RFQ sending</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #FDF1DE; font-family: 'IBM Plex Mono', monospace;">rfq_send · rfq_authoring<br>✓ recipient_check · needs approval</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">task.<wbr>completed.<wbr>rfq_send</span>; starts timer quote_deadline</span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">5 · event-driven</span>
+          <span style="font-weight: 600;">Awaiting quotes</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #F5F6F8; font-family: 'IBM Plex Mono', monospace;">on mail.message_received:<br>quote_triage, one per reply</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">timer.<wbr>quotes_closed</span> or <span style="font-family: 'IBM Plex Mono', monospace;">event.<wbr>all_quotes_received</span>, if <span style="font-family: 'IBM Plex Mono', monospace;">quote_count &gt;= 2</span></span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">6</span>
+          <span style="font-weight: 600;">Comparison</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #F5F6F8; font-family: 'IBM Plex Mono', monospace;">quote_comparison<br>✓ score_recompute</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">decision.<wbr>supplier_selected</span> by buyer; locks the comparison</span>
+        </li>
+        <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">7 · leaves AOS</span>
+          <span style="font-weight: 600;">Ordering</span>
+          <span style="font-size: 12px; padding: 6px 8px; border-radius: 6px; background: #FDF1DE; font-family: 'IBM Plex Mono', monospace;">po_create · quote_comparison<br>✓ payload_match · needs approval</span>
+          <span style="font-size: 12px; color: #4A5160; border-top: 1px dashed #C9CED6; padding-top: 8px;">→ on <span style="font-family: 'IBM Plex Mono', monospace;">task.<wbr>completed.<wbr>po_create</span>; handover, Outcome Record, timers cancelled</span>
+        </li>
+        <li style="background: #E3F4EA; border: 1px solid #A9D9BC; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+          <span style="font-size: 11px; color: #16693F; font-family: 'IBM Plex Mono', monospace;">8 · final</span>
+          <span style="font-weight: 600;">Closed</span>
+          <span style="font-size: 12px; color: #16693F;">No exits. Records stay; nothing can reopen it.</span>
+        </li>
+      </ol>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <div style="flex: 1 1 320px; min-width: 0; padding: 14px; border-radius: 10px; border: 1px dashed #2B59C3; background: #F7F9FE; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; color: #2B59C3; font-family: 'IBM Plex Mono', monospace; font-weight: 500;">parallel branch · discovery</span>
+          <span style="font-size: 13px;">Starts <span style="font-family: 'IBM Plex Mono', monospace;">supplier_lookup</span> (✓ sources_cited) when intake raises <span style="font-family: 'IBM Plex Mono', monospace;">event.intent_identified</span>.</span>
+          <span style="font-size: 12px; color: #4A5160;">Joins at Shortlisting, all required, only if both sides used the same <span style="font-family: 'IBM Plex Mono', monospace;">brief_version</span>.</span>
+        </div>
+        <div style="flex: 1 1 260px; min-width: 0; padding: 14px; border-radius: 10px; border: 1px solid #E2E5EA; background: #FFFFFF; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-weight: 500;">timer · quote_deadline</span>
+          <span style="font-size: 13px;">5 days after the RFQs go out (15 minutes on the demo clock). Emits <span style="font-family: 'IBM Plex Mono', monospace;">quotes_closed</span> exactly once.</span>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Amber Tasks commit effects outside AOS; the policy <span style="font-family: 'IBM Plex Mono', monospace;">quick_quote_gates</span> requires an approval before each one runs.</span>
+    </section>
+
+    <aside aria-label="Definition details" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <section aria-labelledby="parts" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="parts" style="margin: 0; font-size: 15px; font-weight: 600;">Participants</h2>
+        <dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; font-size: 13px;">
+          <dt style="font-family: 'IBM Plex Mono', monospace;">requester</dt><dd style="margin: 0; color: #4A5160;">at creation</dd>
+          <dt style="font-family: 'IBM Plex Mono', monospace;">buyer</dt><dd style="margin: 0; color: #4A5160;">by claim</dd>
+          <dt style="font-family: 'IBM Plex Mono', monospace;">procurement_approver</dt><dd style="margin: 0; color: #4A5160;">by rule</dd>
+        </dl>
+      </section>
+      <section aria-labelledby="attrs" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="attrs" style="margin: 0; font-size: 15px; font-weight: 600;">Attributes guards read</h2>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
+          <li style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5;">brief_version</li>
+          <li style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5;">shortlist_count</li>
+          <li style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5;">quote_count</li>
+          <li style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5;">invited_count</li>
+          <li style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5;">po_amount</li>
+        </ul>
+      </section>
+      <section aria-labelledby="stg" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="stg" style="margin: 0; font-size: 15px; font-weight: 600;">Stage targets</h2>
+        <dl style="margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; font-size: 13px;">
+          <dt>Awaiting quotes</dt><dd style="margin: 0;">5 days</dd>
+          <dt>Comparison</dt><dd style="margin: 0;">1 day</dd>
+          <dt>Any approval</dt><dd style="margin: 0;">1 day</dd>
+        </dl>
+      </section>
+      <a href="Console-Instances.dc.html" style="height: 40px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center; justify-content: center;">See running instances</a>
+    </aside>
+  </div>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

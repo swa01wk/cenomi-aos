@@ -1,0 +1,38 @@
+{
+  "schema_version": "aos.agent_result/1",
+  "contract_id": "tc_qq0001rfqdraft",
+  "attempt_id": "att_qq0001_rfqdraft_2",
+  "status": "completed",
+  "output_artifact_refs": [
+    {
+      "artifact_id": "art_qq0001_rfq_SUP-10482",
+      "version": 2,
+      "content_hash": "2750c5b6da5f19adec94cef90e1ec2e3e0730c780ed587a585fb82e5abdd9144"
+    }
+  ],
+  "evidence_refs": [
+    {
+      "kind": "tool_receipt",
+      "ref": "rcpt_leakcheck_31"
+    },
+    {
+      "kind": "model_call",
+      "ref": "mc_88"
+    }
+  ],
+  "input_versions": {
+    "brief_version": 2,
+    "shortlist_count": 3
+  },
+  "proposed_actions": [],
+  "proposed_graph_changes": [],
+  "consumed_budget": {
+    "tokens_in": 9120,
+    "tokens_out": 1430,
+    "cost_usd": 0.11,
+    "time_s": 41.2,
+    "steps": 4,
+    "actions": 6
+  },
+  "summary": "Drafted 3 RFQ emails without the internal budget; leak check passed on each."
+}

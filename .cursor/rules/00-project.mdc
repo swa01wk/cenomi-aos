@@ -1,0 +1,31 @@
+---
+description: AOS POC — how this repo is organised and how to implement a milestone
+alwaysApply: true
+---
+
+# AOS POC
+
+AOS is a governance kernel for digital workers. The kernel owns lifecycle, permission and progression; the agent (a
+LangGraph graph inside one Task attempt) only proposes. The POC proves it with one example journey from the
+`procurement_demo` pack, Quick Quote QQ-0001. The kernel, Console and Workspace are pack-neutral: domain names,
+stages, fields and policies come from the pack, never from platform code.
+
+## Where things are
+- `docs/plan/north-star.md` — what the POC must prove. `docs/specs/milestones/M*.md` — the work, milestone by milestone.
+- `docs/specs/trace-map.md` — every design board → route → components → API → kernel records → agent parts.
+- `docs/specs/contracts/openapi.yaml` — the only API surface. `contracts/schemas/*.json` — TaskContract,
+  ContextEnvelope, AgentResult, ExecutionEvent, UiEvent, Problem. `contracts/events.md` — event catalogue.
+- `docs/specs/backend/README.md` + `backend/ddl/*.sql` — kernel rules and tables.
+- `docs/specs/agent/harness.md` + `agent/skills/*.md` — the worker and each Skill.
+- `docs/specs/frontend/README.md` — routes, components, stream handling.
+- `design/png/*.png` and `design/boards/*.dc.html` — the screens. `docs/adr/` — decisions.
+- `packs/procurement_demo/` — the domain pack (YAML); `seed/org.yaml` — the organization.
+
+## How to work
+1. Implement the stories of the current milestone file in order; each names its operations, tables and tests.
+2. Never invent an endpoint, field, event type or table. If you need one, add it to the contract (openapi.yaml,
+   schema or DDL) in the same change and say so in the PR.
+3. Operation IDs, paths and schema names in code match `openapi.yaml` exactly. `backend/tests/test_contracts.py`
+   checks served routes against the spec.
+4. Keep M0 code working: `make test` and `make validate` stay green.
+5. Plain words in UI copy, error titles and summaries. No emoji.

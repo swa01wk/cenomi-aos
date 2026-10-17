@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/execution-event.schema.json",
+  "title": "ExecutionEvent",
+  "description": "Canonical, versioned evidence event (reference architecture v1.2 section 29). Written by the kernel in the same transaction as the state change it describes (transactional outbox) and kept in evidence.execution_events. Workers propose the model/tool events of their attempt; the kernel stamps ids, sequence and correlation. Payloads are stored by reference; only a redacted summary travels in the event.",
+  "type": "object",
+  "required": ["event_id", "schema_version", "event_type", "occurred_at", "tenant_id", "run_id", "actor", "correlation_id", "aggregate_seq", "redacted_summary"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid"},
+    "schema_version": {"const": "aos.execution_event/1"},
+    "event_type": {
+      "enum": [
+        "RunCreated", "TaskDispatched", "AgentStarted", "ModelInvoked", "ToolRequested", "ToolAuthorized", "ToolDenied", "ToolCompleted",
+        "ArtifactProduced", "ApprovalRequested", "CheckpointSaved", "TaskResultProposed", "TaskAccepted", "TaskRejected", "TaskFailed",
+        "TaskCancelled", "AttemptFenced", "BudgetExceeded"
+      ]
+    },
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "tenant_id": {"type": "string", "description": "org_id."},
+    "run_id": {"type": "string", "description": "instance_id, e.g. QQ-0001."},
+    "workflow_id": {"type": "string", "examples": ["quick_quote@1"]},
+    "task_id": {"type": ["string", "null"]},
+    "attempt_id": {"type": ["string", "null"]},
+    "actor": {"type": "object", "required": ["kind", "id"], "properties": {"kind": {"enum": ["seat", "person", "kernel", "connector", "demo"]}, "id": {"type": "string"}}, "additionalProperties": false},
+    "correlation_id": {"type": "string"},
+    "causation_id": {"type": ["string", "null"], "description": "event_id that caused this one."},
+    "aggregate_seq": {"type": "integer", "minimum": 1, "description": "Monotonic per run; consumers dedupe on (run_id, aggregate_seq)."},
+    "contract_version": {"type": ["integer", "null"]},
+    "graph_revision": {"type": ["string", "null"], "description": "Pinned pack version, e.g. procurement_demo@1."},
+    "artifact_refs": {"type": "array", "items": {"type": "string", "description": "artifact_id@version"}},
+    "payload_ref": {"type": ["string", "null"], "description": "Access-controlled reference to the full payload (prompt, tool args, response) when prompt capture is on."},
+    "redacted_summary": {"type": "string", "maxLength": 400},
+    "attributes": {
+      "type": "object",
+      "description": "Typed extras. ModelInvoked: model, tokens_in, tokens_out, cost_usd. Tool*: tool, decision_id, args_sha256. Approval*: approval_id.",
+      "additionalProperties": {"type": ["string", "number", "integer", "boolean", "null"]}
+    }
+  },
+  "additionalProperties": false
+}

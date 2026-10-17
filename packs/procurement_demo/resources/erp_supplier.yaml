@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Resource
+metadata: {name: erp_supplier, version: 1, owner: head_of_procurement}
+spec:
+  description: Supplier master, categories and history in the ERP
+  actions: [read]
+  lives_in: connector
+  classification: internal

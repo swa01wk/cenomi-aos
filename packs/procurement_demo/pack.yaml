@@ -1,0 +1,11 @@
+apiVersion: aos/v1
+kind: Pack
+metadata: {name: procurement_demo, version: 1, owner: head_of_procurement}
+spec:
+  kernel: aos/v1
+  description: Quick Quote on the Sourcing Agent. A request for quotation from intake to purchase order.
+  observability:
+    stage_targets: {awaiting_quotes: 5d, comparison: 1d}
+    approval_due_default: 1d
+    seat_alerts: {never_rate_per_day: 3, rework_rate: 0.15}
+    prompt_capture: false

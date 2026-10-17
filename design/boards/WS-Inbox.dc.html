@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace: Inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Workspace · Built in M3</span>
+    <span style="font-size: 16px; font-weight: 600;">Inbox and notifications</span>
+    <span style="font-size: 13px; color: #4A5160;">Everything waiting on this person across jobs: approvals, decisions and notices, oldest due first. The bell in any job header opens the same list.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /workspace/inbox · GET /api/inbox · POST /api/inbox/:id/read · items open the job at its pending card</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Demo-Controls.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: demo controls</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Workspace" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E2E5EA; padding: 20px 16px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px;">Workspace</span>
+      <span style="font-size: 12px; color: #6B7280;">Sourcing</span>
+    </div>
+  </div>
+  <a href="WS-New.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+    New job
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <a href="WS-MyJobs.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; "><span>My jobs</span></a>
+    <a href="WS-Queue.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; "><span>Sourcing queue</span><span style="font-size: 12px; color: #4A5160;">2</span></a>
+    <a href="WS-Inbox.dc.html" aria-current="page" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; background: #EEF1F5; font-weight: 500;"><span>Inbox</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span></a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">Digital workers</span>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #E2E5EA; border-radius: 8px;">
+      <div style="width: 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Sourcing Agent</span>
+        <span style="font-size: 12px; color: #16693F;">Active · v1</span>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">N</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Noura</span>
+        <span style="font-size: 12px; color: #6B7280;">Sourcing · buyer</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 28px 36px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Inbox</h1>
+      <span style="color: #4A5160;">What is waiting on you across all jobs, soonest due first.</span>
+    </div>
+    <button type="button" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Mark notices read</button>
+  </header>
+
+  <section aria-labelledby="needs" style="display: flex; flex-direction: column; gap: 10px;">
+    <h2 id="needs" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">Needs your decision · 1</h2>
+    <article style="background: #FFFFFF; border: 1px solid #2B59C3; border-radius: 12px; padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center;">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+        <span style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;"><span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 600;">Approval</span><span style="font-size: 12px; color: #6B7280;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0003</span> · Uniforms, security team</span></span>
+        <span style="font-weight: 600;">Create the purchase order · SAR 18,600</span>
+        <span style="font-size: 13px; color: #4A5160;">Below SAR 25,000, so yours is the only approval. Check the payload against the comparison you selected. Due tomorrow 10:15.</span>
+      </div>
+      <a href="WS-PO-Approval.dc.html" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; font-weight: 500;">Review and approve</a>
+    </article>
+    <p style="margin: 0; font-size: 12px; color: #4A5160;">Decisions (confirm a brief, confirm a shortlist, select a supplier) and approvals share this list. Each opens the job at its card.</p>
+  </section>
+
+  <section aria-labelledby="fyi" style="display: flex; flex-direction: column; gap: 10px;">
+    <h2 id="fyi" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">For your information</h2>
+    <ul style="margin: 0; padding: 0; list-style: none; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 12px;">
+      <li style="display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 14px 18px; align-items: baseline;"><span style="flex-grow: 1;">Supplier reply from Gulf Hygiene Co. captured as a quote</span><span style="font-size: 12px; color: #6B7280;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0005</span> · 08:50</span></li>
+      <li style="display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 14px 18px; align-items: baseline; border-top: 1px solid #E2E5EA;"><span style="flex-grow: 1;">RFQ drafts reworked once: the leak check removed an internal budget line</span><span style="font-size: 12px; color: #6B7280;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0005</span> · yesterday 15:58</span></li>
+      <li style="display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 14px 18px; align-items: baseline; border-top: 1px solid #E2E5EA; color: #6B7280;"><span style="flex-grow: 1;">PO-778201 created; QQ-0001 closed with a handover to Faisal</span><span style="font-size: 12px;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span> · 22 Oct · read</span></li>
+    </ul>
+  </section>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

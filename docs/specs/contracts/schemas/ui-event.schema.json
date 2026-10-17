@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/ui-event.schema.json",
+  "title": "UiEvent",
+  "description": "One message on a Server-Sent Events stream (GET /api/instances/{id}/events, GET /api/events). A redacted projection of kernel events for one viewer: the kernel filters by participant role and visibility before sending. `id` is the resume cursor (SSE id / Last-Event-ID). A gap or an unknown cursor yields snapshot.required, and the client reloads the snapshot (guidebook C10).",
+  "type": "object",
+  "required": ["id", "type", "at", "data"],
+  "properties": {
+    "id": {"type": "string", "description": "Cursor: '<stream>:<seq>', strictly increasing per stream."},
+    "type": {"type": "string"},
+    "at": {"type": "string", "format": "date-time"},
+    "instance_id": {"type": ["string", "null"]},
+    "data": {"type": "object"}
+  },
+  "oneOf": [
+    {"properties": {"type": {"const": "snapshot.required"}, "data": {"$ref": "#/$defs/SnapshotRequired"}}},
+    {"properties": {"type": {"const": "instance.created"}, "data": {"$ref": "#/$defs/InstanceRef"}}},
+    {"properties": {"type": {"const": "instance.state_changed"}, "data": {"$ref": "#/$defs/InstanceStateChanged"}}},
+    {"properties": {"type": {"const": "participant.bound"}, "data": {"$ref": "#/$defs/ParticipantBound"}}},
+    {"properties": {"type": {"const": "task.state_changed"}, "data": {"$ref": "#/$defs/TaskStateChanged"}}},
+    {"properties": {"type": {"const": "attempt.started"}, "data": {"$ref": "#/$defs/AttemptStarted"}}},
+    {"properties": {"type": {"const": "attempt.ended"}, "data": {"$ref": "#/$defs/AttemptEnded"}}},
+    {"properties": {"type": {"const": "turn.created"}, "data": {"$ref": "#/$defs/TurnEvent"}}},
+    {"properties": {"type": {"const": "agent.message.delta"}, "data": {"$ref": "#/$defs/MessageDelta"}}},
+    {"properties": {"type": {"const": "agent.message.completed"}, "data": {"$ref": "#/$defs/TurnEvent"}}},
+    {"properties": {"type": {"const": "agent.tool.activity"}, "data": {"$ref": "#/$defs/ToolActivity"}}},
+    {"properties": {"type": {"const": "artifact.version_created"}, "data": {"$ref": "#/$defs/ArtifactVersionCreated"}}},
+    {"properties": {"type": {"const": "pending.created"}, "data": {"$ref": "#/$defs/PendingCreated"}}},
+    {"properties": {"type": {"const": "pending.resolved"}, "data": {"$ref": "#/$defs/PendingResolved"}}},
+    {"properties": {"type": {"const": "approval.requested"}, "data": {"$ref": "#/$defs/ApprovalRequested"}}},
+    {"properties": {"type": {"const": "approval.step_decided"}, "data": {"$ref": "#/$defs/ApprovalStepDecided"}}},
+    {"properties": {"type": {"const": "approval.resolved"}, "data": {"$ref": "#/$defs/ApprovalResolved"}}},
+    {"properties": {"type": {"const": "action.state_changed"}, "data": {"$ref": "#/$defs/ActionStateChanged"}}},
+    {"properties": {"type": {"const": "timer.fired"}, "data": {"$ref": "#/$defs/TimerFired"}}},
+    {"properties": {"type": {"const": "verification.completed"}, "data": {"$ref": "#/$defs/VerificationCompleted"}}},
+    {"properties": {"type": {"const": "seat.state_changed"}, "data": {"$ref": "#/$defs/SeatStateChanged"}}},
+    {"properties": {"type": {"const": "kill_switch.changed"}, "data": {"$ref": "#/$defs/KillSwitchChanged"}}},
+    {"properties": {"type": {"const": "notification.created"}, "data": {"$ref": "#/$defs/Notification"}}}
+  ],
+  "$defs": {
+    "SnapshotRequired": {"type": "object", "required": ["reason"], "properties": {"reason": {"enum": ["cursor_unknown", "gap", "visibility_changed", "server_restart"]}}, "additionalProperties": false},
+    "InstanceRef": {"type": "object", "required": ["instance_id", "title", "state", "version"], "properties": {"instance_id": {"type": "string"}, "title": {"type": "string"}, "state": {"type": "string"}, "version": {"type": "integer"}}, "additionalProperties": false},
+    "InstanceStateChanged": {"type": "object", "required": ["instance_id", "from", "to", "version"], "properties": {"instance_id": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}, "version": {"type": "integer"}, "decision_id": {"type": ["string", "null"]}}, "additionalProperties": false},
+    "ParticipantBound": {"type": "object", "required": ["instance_id", "role", "person_id", "name", "bound_by"], "properties": {"instance_id": {"type": "string"}, "role": {"type": "string"}, "person_id": {"type": "string"}, "name": {"type": "string"}, "bound_by": {"enum": ["creation", "claim", "rule"]}}, "additionalProperties": false},
+    "TaskStateChanged": {"type": "object", "required": ["instance_id", "task_id", "template", "from", "to"], "properties": {"instance_id": {"type": "string"}, "task_id": {"type": "string"}, "template": {"type": "string"}, "from": {"$ref": "#/$defs/TaskState"}, "to": {"$ref": "#/$defs/TaskState"}}, "additionalProperties": false},
+    "TaskState": {"enum": ["CREATED", "READY", "RUNNING", "WAITING_INPUT", "WAITING_APPROVAL", "VERIFYING", "COMPLETED", "EXCEPTION", "FAILED", "CANCELLED"]},
+    "AttemptStarted": {"type": "object", "required": ["instance_id", "task_id", "attempt_id", "n"], "properties": {"instance_id": {"type": "string"}, "task_id": {"type": "string"}, "attempt_id": {"type": "string"}, "n": {"type": "integer"}}, "additionalProperties": false},
+    "AttemptEnded": {"type": "object", "required": ["instance_id", "task_id", "attempt_id", "outcome"], "properties": {"instance_id": {"type": "string"}, "task_id": {"type": "string"}, "attempt_id": {"type": "string"}, "outcome": {"enum": ["submitted", "waiting_approval", "needs_input", "fenced", "failed", "cancelled"]}, "failure_class": {"type": ["string", "null"]}}, "additionalProperties": false},
+    "Turn": {
+      "type": "object",
+      "required": ["turn_id", "seq", "author", "blocks", "at"],
+      "properties": {
+        "turn_id": {"type": "string"}, "seq": {"type": "integer"},
+        "author": {"type": "object", "required": ["kind", "id", "name"], "properties": {"kind": {"enum": ["person", "seat", "system"]}, "id": {"type": "string"}, "name": {"type": "string"}}, "additionalProperties": false},
+        "blocks": {"type": "array", "items": {"$ref": "#/$defs/Block"}},
+        "at": {"type": "string", "format": "date-time"},
+        "attempt_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "Block": {
+      "description": "Typed message content. The UI renders these with fixed components; no HTML or Markdown from the model is ever rendered as markup.",
+      "type": "object",
+      "required": ["kind"],
+      "oneOf": [
+        {"properties": {"kind": {"const": "text"}, "text": {"type": "string"}}, "required": ["text"]},
+        {"properties": {"kind": {"const": "artifact_chip"}, "artifact_id": {"type": "string"}, "artifact_type": {"type": "string"}, "version": {"type": "integer"}, "label": {"type": "string"}}, "required": ["artifact_id", "version", "label"]},
+        {"properties": {"kind": {"const": "source_chip"}, "source_ref": {"type": "string"}, "label": {"type": "string"}}, "required": ["source_ref", "label"]},
+        {"properties": {"kind": {"const": "refusal"}, "title": {"type": "string"}, "detail": {"type": "string"}, "decision_id": {"type": "string"}, "rule": {"type": "string"}}, "required": ["title", "decision_id"]},
+        {"properties": {"kind": {"const": "pending_ref"}, "pending_id": {"type": "string"}}, "required": ["pending_id"]},
+        {"properties": {"kind": {"const": "notice"}, "text": {"type": "string"}, "tone": {"enum": ["info", "warn", "bad", "ok"]}}, "required": ["text"]}
+      ]
+    },
+    "TurnEvent": {"type": "object", "required": ["instance_id", "turn"], "properties": {"instance_id": {"type": "string"}, "turn": {"$ref": "#/$defs/Turn"}}, "additionalProperties": false},
+    "MessageDelta": {"type": "object", "required": ["instance_id", "turn_id", "seq", "text"], "properties": {"instance_id": {"type": "string"}, "turn_id": {"type": "string"}, "seq": {"type": "integer"}, "text": {"type": "string"}}, "additionalProperties": false},
+    "ToolActivity": {"type": "object", "required": ["instance_id", "attempt_id", "tool", "label", "state"], "properties": {"instance_id": {"type": "string"}, "attempt_id": {"type": "string"}, "tool": {"type": "string"}, "label": {"type": "string", "description": "Plain words, e.g. 'Searching suppliers in the ERP'."}, "state": {"enum": ["requested", "allowed", "denied", "completed", "failed"]}}, "additionalProperties": false},
+    "ArtifactVersionCreated": {"type": "object", "required": ["instance_id", "artifact_id", "artifact_type", "version", "status", "by"], "properties": {"instance_id": {"type": "string"}, "artifact_id": {"type": "string"}, "artifact_type": {"type": "string"}, "version": {"type": "integer"}, "status": {"enum": ["draft", "final", "locked"]}, "by": {"type": "string"}}, "additionalProperties": false},
+    "PendingItem": {
+      "type": "object",
+      "required": ["pending_id", "instance_id", "kind", "title", "for_role", "status", "created_at"],
+      "properties": {
+        "pending_id": {"type": "string"}, "instance_id": {"type": "string"},
+        "kind": {"enum": ["decision", "approval", "question"]},
+        "event": {"type": "string", "description": "Decision event it will raise, e.g. decision.brief_confirmed.", "examples": ["decision.shortlist_confirmed"]},
+        "title": {"type": "string"}, "detail": {"type": "string"},
+        "for_role": {"type": "string"}, "for_person_id": {"type": ["string", "null"]},
+        "options": {"type": "array", "items": {"type": "object", "required": ["value", "label"], "properties": {"value": {"type": "string"}, "label": {"type": "string"}}, "additionalProperties": false}},
+        "artifact_ref": {"type": ["object", "null"], "properties": {"artifact_id": {"type": "string"}, "version": {"type": "integer"}}},
+        "approval_id": {"type": ["string", "null"]},
+        "due_at": {"type": ["string", "null"], "format": "date-time"},
+        "status": {"enum": ["open", "resolved", "voided", "expired"]},
+        "created_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "PendingCreated": {"type": "object", "required": ["instance_id", "pending"], "properties": {"instance_id": {"type": "string"}, "pending": {"$ref": "#/$defs/PendingItem"}}, "additionalProperties": false},
+    "PendingResolved": {"type": "object", "required": ["instance_id", "pending_id", "outcome"], "properties": {"instance_id": {"type": "string"}, "pending_id": {"type": "string"}, "outcome": {"type": "string"}, "by": {"type": "string"}}, "additionalProperties": false},
+    "ApprovalRequested": {"type": "object", "required": ["instance_id", "approval_id", "action", "step", "of"], "properties": {"instance_id": {"type": "string"}, "approval_id": {"type": "string"}, "action": {"type": "string"}, "step": {"type": "integer"}, "of": {"type": "integer"}}, "additionalProperties": false},
+    "ApprovalStepDecided": {"type": "object", "required": ["approval_id", "step", "decision", "by"], "properties": {"approval_id": {"type": "string"}, "step": {"type": "integer"}, "decision": {"enum": ["approved", "rejected"]}, "by": {"type": "string"}}, "additionalProperties": false},
+    "ApprovalResolved": {"type": "object", "required": ["approval_id", "outcome"], "properties": {"approval_id": {"type": "string"}, "outcome": {"enum": ["approved", "rejected", "voided", "expired"]}}, "additionalProperties": false},
+    "ActionStateChanged": {"type": "object", "required": ["action_id", "tool", "state"], "properties": {"action_id": {"type": "string"}, "tool": {"type": "string"}, "state": {"enum": ["INTENDED", "EXECUTING", "SUCCEEDED", "FAILED", "UNKNOWN", "RECONCILED"]}, "receipt_ref": {"type": ["string", "null"]}}, "additionalProperties": false},
+    "TimerFired": {"type": "object", "required": ["instance_id", "timer", "emits"], "properties": {"instance_id": {"type": "string"}, "timer": {"type": "string"}, "emits": {"type": "string"}}, "additionalProperties": false},
+    "VerificationCompleted": {"type": "object", "required": ["instance_id", "task_id", "verifier", "verdict"], "properties": {"instance_id": {"type": "string"}, "task_id": {"type": "string"}, "verifier": {"type": "string"}, "verdict": {"enum": ["PASS", "REWORK", "FAIL"]}, "findings": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
+    "SeatStateChanged": {"type": "object", "required": ["seat", "from", "to"], "properties": {"seat": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}}, "additionalProperties": false},
+    "KillSwitchChanged": {"type": "object", "required": ["kill_switch_id", "scope", "target", "active"], "properties": {"kill_switch_id": {"type": "string"}, "scope": {"enum": ["seat", "workflow", "instance"]}, "target": {"type": "string"}, "active": {"type": "boolean"}}, "additionalProperties": false},
+    "Notification": {"type": "object", "required": ["notification_id", "text", "at"], "properties": {"notification_id": {"type": "string"}, "text": {"type": "string"}, "instance_id": {"type": ["string", "null"]}, "at": {"type": "string", "format": "date-time"}}, "additionalProperties": false}
+  }
+}

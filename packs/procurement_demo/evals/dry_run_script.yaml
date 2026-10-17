@@ -1,0 +1,14 @@
+# Scripted events for the dry-run suite and for `aos simulate` (used from M2).
+events:
+  - {type: seat_ui.new_job, actor: faisal, text: "40 cleaning trolleys for Mall A by 20 Nov"}
+  - {type: event.intent_identified}
+  - {type: decision.brief_confirmed, actor: faisal}
+  - {type: claim, actor: noura, role: buyer}
+  - {type: decision.shortlist_confirmed, actor: noura, attributes: {shortlist_count: 3}}
+  - {type: approval, actor: noura, action: mailbox.send}
+  - {type: mail.message_received, supplier: najd}
+  - {type: mail.message_received, supplier: alnoor}
+  - {type: timer.quotes_closed, attributes: {quote_count: 2}}
+  - {type: decision.supplier_selected, actor: noura}
+  - {type: approval, actor: noura, action: erp_po.create, step: 1}
+  - {type: approval, actor: khalid, action: erp_po.create, step: 2}

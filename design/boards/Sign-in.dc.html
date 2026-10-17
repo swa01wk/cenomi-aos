@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Shared · Built in M0</span>
+    <span style="font-size: 16px; font-weight: 600;">Sign in as a seeded person</span>
+    <span style="font-size: 13px; color: #4A5160;">The POC has no single sign-on. Picking a person starts a session with their roles; Console access needs a Console role. Single sign-on replaces this page after the POC.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route / · GET /api/auth/personas · POST /api/auth/session → token · then /workspace or /console/packs</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="WS-MyJobs.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: My jobs</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; background: #F5F6F8; display: flex; justify-content: center; padding: 56px 24px; box-sizing: border-box;">
+  <main style="width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 24px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="width: 36px; height: 36px; border-radius: 8px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">AOS</div>
+      <div style="display: flex; flex-direction: column;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Sign in</h1>
+        <span style="color: #4A5160;">POC sandbox organization</span>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-radius: 8px; background: #EAF0FC; color: #1E4296;">POC sign-in: pick a seeded person. Each one sees only what their roles allow.</div>
+
+    <section aria-labelledby="ws-people" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; flex-direction: column;"><h2 id="ws-people" style="margin: 0; font-size: 16px; font-weight: 600;">Workspace</h2><span style="color: #6B7280;">Request, buy and approve work</span></div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+        <a href="WS-MyJobs.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #FDF1DE; color: #8A4B08; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">F</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Faisal</span><span style="font-size: 12px; color: #6B7280;">Facilities · end user</span></span></a>
+        <a href="WS-MyJobs.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #FDF1DE; color: #8A4B08; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">FM</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Facilities manager</span><span style="font-size: 12px; color: #6B7280;">Facilities · end user</span></span></a>
+        <a href="WS-Queue.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">N</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Noura</span><span style="font-size: 12px; color: #6B7280;">Procurement · sourcing user</span></span></a>
+        <a href="WS-PO-Approval.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">K</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Khalid</span><span style="font-size: 12px; color: #6B7280;">Procurement · procurement user</span></span></a>
+      </div>
+    </section>
+
+    <section aria-labelledby="co-people" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; flex-direction: column;"><h2 id="co-people" style="margin: 0; font-size: 16px; font-weight: 600;">Console</h2><span style="color: #6B7280;">Define, govern and operate digital workers</span></div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+        <a href="Console-Seats.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">HP</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Head of Procurement</span><span style="font-size: 12px; color: #6B7280;">Seat owner, process owner</span></span></a>
+        <a href="Console-Packs.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">PA</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Platform admin</span><span style="font-size: 12px; color: #6B7280;">Platform admin</span></span></a>
+        <a href="Console-Policy.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #E2E5EA; border-radius: 10px; background: #FFFFFF; color: #15171C; text-decoration: none;"><span style="width: 32px; height: 32px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: 0 0 32px;">RR</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Risk reviewer</span><span style="font-size: 12px; color: #6B7280;">Risk</span></span></a>
+      </div>
+    </section>
+    <span style="font-size: 12px; color: #4A5160;">Workspace people land on My jobs. Console people land on the page for their role and can open the Workspace from the menu.</span>
+  </main>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

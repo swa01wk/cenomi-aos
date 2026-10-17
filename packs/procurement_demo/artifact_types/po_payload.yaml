@@ -1,0 +1,18 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: po_payload, version: 1, owner: head_of_procurement}
+spec:
+  description: The exact purchase order to be written to the ERP.
+  fields:
+    supplier_id: {type: string, required: true}
+    ship_to: {type: string, required: true}
+    need_by: {type: date, required: true}
+    currency: {type: string, required: true}
+    reference: {type: string, required: true}
+    lines: {type: list, required: true}
+    po_amount: {type: money, required: true, classification: restricted}
+  view: {type: record_preview}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [supplier_id, need_by, reference]

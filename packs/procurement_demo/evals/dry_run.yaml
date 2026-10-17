@@ -1,0 +1,10 @@
+apiVersion: aos/v1
+kind: EvalSuite
+metadata: {name: dry_run, version: 1, owner: head_of_procurement}
+spec:
+  description: One synthetic Quick Quote with mock connectors and scripted people reaches closed, and every committed effect has an approval.
+  targets: [seat_sourcing_poc]
+  workflow: quick_quote
+  script: dry_run_script.yaml
+  expect: {final_state: closed, unapproved_effects: 0}
+  pass_condition: {min_pass_rate: 1.0}

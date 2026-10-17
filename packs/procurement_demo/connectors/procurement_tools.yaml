@@ -1,0 +1,9 @@
+apiVersion: aos/v1
+kind: ToolProvider
+metadata: {name: procurement_tools, version: 1, owner: platform_admin}
+spec:
+  description: Deterministic tools that run inside the gateway. No model arithmetic.
+  transport: builtin
+  tools:
+    price_calculator: {resource: job_artifacts, action: read, class: compute, implementation: aos.tools.price_calculator}
+    leak_check_diff: {resource: job_artifacts, action: read, class: compute, implementation: aos.tools.leak_check_diff}

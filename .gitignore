@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+backend/.vendor/
+backend/.vendor-src/
+*.egg-info/
+.ruff_cache/
+node_modules/
+web/dist/
+.env
+*.sqlite3
+.DS_Store

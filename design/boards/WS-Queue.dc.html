@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace: Team queue</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Workspace · Built in M2</span>
+    <span style="font-size: 16px; font-weight: 600;">Team queue</span>
+    <span style="font-size: 13px; color: #4A5160;">Jobs waiting in a team's queue; here the Sourcing team's, which the example pack routes Quick Quotes to. Claiming one binds the claimer as buyer; two people claiming at once get one winner and one clear refusal.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /workspace/queue · GET /api/queues/:team/instances (here procurement%2Fsourcing) · POST /api/instances/:id/claim (expected_version) → 409 if already claimed</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="WS-Inbox.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: Inbox</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Workspace" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E2E5EA; padding: 20px 16px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px;">Workspace</span>
+      <span style="font-size: 12px; color: #6B7280;">Sourcing</span>
+    </div>
+  </div>
+  <a href="WS-New.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+    New job
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <a href="WS-MyJobs.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; "><span>My jobs</span></a>
+    <a href="WS-Queue.dc.html" aria-current="page" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; background: #EEF1F5; font-weight: 500;"><span>Sourcing queue</span><span style="font-size: 12px; color: #4A5160;">2</span></a>
+    <a href="WS-Inbox.dc.html" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none; "><span>Inbox</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span></a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">Digital workers</span>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #E2E5EA; border-radius: 8px;">
+      <div style="width: 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Sourcing Agent</span>
+        <span style="font-size: 12px; color: #16693F;">Active · v1</span>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">N</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Noura</span>
+        <span style="font-size: 12px; color: #6B7280;">Sourcing · buyer</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 28px 36px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+  <header style="display: flex; flex-direction: column; gap: 4px;">
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Sourcing queue</h1>
+    <span style="color: #4A5160;">Jobs waiting for a buyer in Procurement · Sourcing. Claiming makes you the buyer on that job.</span>
+  </header>
+
+  <div role="status" style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 10px; background: #FDF1DE; border: 1px solid #F0D3A6;">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#8A4B08" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 20px; margin-top: 1px;"><circle cx="10" cy="10" r="7.5"></circle><path d="M10 6v5M10 13.6v.2"></path></svg>
+    <span><span style="font-weight: 600;">Another buyer claimed the job you just tried to claim.</span> It has left your queue and nothing changed on your side. Example of a refused claim (HTTP 409).</span>
+  </div>
+
+  <ul aria-label="Unclaimed jobs" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px;">
+    <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center;">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; color: #6B7280;">Quick Quote · <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0004</span> · waiting 8 d</span>
+        <span style="font-size: 17px; font-weight: 600;">Signage refresh, Mall B</span>
+        <span style="font-size: 13px; color: #4A5160;">Requester Facilities manager · brief v1 confirmed · 4 suppliers ranked with sources</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <a href="WS-Shortlist.dc.html" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Preview</a>
+        <a href="WS-Shortlist.dc.html" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; font-weight: 500;">Claim</a>
+      </div>
+    </li>
+    <li style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center;">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; color: #6B7280;">Quick Quote · <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0006</span> · still in intake</span>
+        <span style="font-size: 17px; font-weight: 600;">Floor scrubber rental, Mall C</span>
+        <span style="font-size: 13px; color: #4A5160;">Requester Faisal · brief not confirmed yet; you can claim now and follow the interview</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <a href="Main.dc.html" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Preview</a>
+        <a href="WS-Shortlist.dc.html" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; font-weight: 500;">Claim</a>
+      </div>
+    </li>
+  </ul>
+  <span style="font-size: 12px; color: #4A5160;">A claim sends the job's current version. If someone claimed first, the kernel refuses yours and the job leaves your list; you never both become buyer.</span>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+{
+  "schema_version": "aos.context_envelope/1",
+  "envelope_id": "ce_7a1",
+  "contract_id": "tc_qq0001rfqdraft",
+  "attempt_id": "att_qq0001_rfqdraft_2",
+  "assembled_at": "2026-10-15T11:58:02Z",
+  "refresh_reason": "start",
+  "scope": {
+    "org_id": "org_demo",
+    "seat": "seat_sourcing_poc",
+    "on_behalf_of": {
+      "role": "buyer",
+      "person_id": "noura"
+    },
+    "classification_ceiling": "shareable"
+  },
+  "ids": {
+    "instance_id": "QQ-0001",
+    "task_id": "task_qq0001_rfq_draft",
+    "attempt_id": "att_qq0001_rfqdraft_2",
+    "workflow": "quick_quote",
+    "workflow_state": "rfq_drafting",
+    "pack_version": "procurement_demo@1",
+    "correlation_id": "corr_qq0001"
+  },
+  "objective": "Draft one request for quotation per shortlisted supplier for brief v2, using shareable brief fields only.",
+  "skill_instructions": "# RFQ authoring and sending\n\nDraft one request for quotation per shortlisted supplier, then request to send them. ...",
+  "resolvers": {
+    "job_snapshot": {
+      "title": "40 cleaning trolleys for Mall A",
+      "state": "rfq_drafting",
+      "participants": [
+        {
+          "role": "requester",
+          "name": "Faisal"
+        },
+        {
+          "role": "buyer",
+          "name": "Noura"
+        }
+      ],
+      "attributes": {
+        "brief_version": 2,
+        "shortlist_count": 3,
+        "quote_count": 0,
+        "invited_count": 0,
+        "po_amount": null
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "artifact_type": "brief",
+      "artifact_id": "art_qq0001_brief",
+      "version": 2,
+      "content_hash": "4e6a9a509ff1075535cb7ddd7a099412efbe10851b92b4f27285a53b09b43177",
+      "status": "final",
+      "content": {
+        "title": "40 cleaning trolleys for Mall A",
+        "category": "janitorial_equipment",
+        "quantity": 40,
+        "specification": "Same as the Mall C fleet: three-bucket trolley, 120 L capacity, lockable caddy",
+        "delivery_date": "2026-11-20",
+        "delivery_site": "Mall A loading bay",
+        "quality_signoff": "Faisal, on delivery"
+      }
+    },
+    {
+      "artifact_type": "supplier_list",
+      "artifact_id": "art_qq0001_suppliers",
+      "version": 1,
+      "content_hash": "faf09b8c99c55f97355471f37b28890383a8869b67df21d4e6c156e835f4090b",
+      "status": "final",
+      "content": {
+        "rows": [
+          {
+            "rank": 1,
+            "supplier": "Najd Supplies",
+            "supplier_id": "SUP-10482",
+            "score": 88
+          }
+        ]
+      }
+    }
+  ],
+  "tool_observations": [],
+  "constraints": [
+    "Never include budget_guidance or any internal field in an email.",
+    "Run leak_check_diff on every draft before saving it."
+  ],
+  "remaining_budget": {
+    "tokens": 60000,
+    "cost_usd": 1.5,
+    "time_s": 600,
+    "steps": 12,
+    "actions": 10
+  },
+  "commands": [
+    {
+      "name": "save_draft",
+      "description": "Save an rfq_email draft",
+      "input_schema": {
+        "type": "object"
+      }
+    }
+  ],
+  "provenance": [
+    {
+      "source_ref": "artifact://art_qq0001_brief@2",
+      "sha256": "4e6a9a509ff1075535cb7ddd7a099412efbe10851b92b4f27285a53b09b43177"
+    }
+  ],
+  "redactions": [
+    {
+      "artifact_type": "brief",
+      "field": "budget_guidance",
+      "reason": "classification"
+    }
+  ]
+}

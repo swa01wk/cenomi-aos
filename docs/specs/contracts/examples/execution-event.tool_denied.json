@@ -1,0 +1,27 @@
+{
+  "event_id": "5b2c7a2e-1d9f-4b8e-9b0a-0d4f6e2a9c11",
+  "schema_version": "aos.execution_event/1",
+  "event_type": "ToolDenied",
+  "occurred_at": "2026-10-21T11:03:12Z",
+  "tenant_id": "org_demo",
+  "run_id": "QQ-0001",
+  "workflow_id": "quick_quote@1",
+  "task_id": "task_qq0001_assist",
+  "attempt_id": "att_qq0001_assist_14",
+  "actor": {
+    "kind": "seat",
+    "id": "seat_sourcing_poc"
+  },
+  "correlation_id": "corr_qq0001",
+  "causation_id": null,
+  "aggregate_seq": 212,
+  "contract_version": 1,
+  "graph_revision": "procurement_demo@1",
+  "artifact_refs": [],
+  "payload_ref": null,
+  "redacted_summary": "quotes.read for participant:requester → NEVER (requester_never_sees_quotes)",
+  "attributes": {
+    "tool": "read_artifact",
+    "decision_id": "pd_7f20"
+  }
+}

@@ -1,0 +1,14 @@
+apiVersion: aos/v1
+kind: Seat
+metadata: {name: seat_sourcing_poc, version: 1, owner: head_of_procurement}
+spec:
+  display_name: Sourcing Agent
+  placement: procurement/sourcing
+  role: sourcing_agent
+  skills: [request_intake, supplier_lookup, rfq_authoring, quote_triage, quote_comparison]
+  resources: [job_artifacts, erp_supplier, erp_po, mailbox, quotes]
+  authority_profile: sourcing_supervised@1
+  autonomy_mode: supervised
+  runtime: {adapter: langgraph_agent, model_alias: enterprise_reasoning}
+  limits: {run_minutes: 10, actions_per_run: 10, daily_cost_usd: 20}
+  evals: [refusals, dry_run]

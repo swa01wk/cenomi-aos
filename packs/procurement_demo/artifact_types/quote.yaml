@@ -1,0 +1,17 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: quote, version: 1, owner: head_of_procurement}
+spec:
+  description: A supplier's quote, captured from their reply.
+  fields:
+    supplier: {type: string, required: true}
+    unit_price: {type: money, required: true, classification: restricted}
+    total: {type: money, required: true, classification: restricted}
+    lead_time_days: {type: integer, required: true}
+    warranty_months: {type: integer}
+    received_at: {type: datetime, required: true}
+  view: {type: tracker, columns: [supplier, received_at, unit_price, lead_time_days]}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [supplier, received_at]

@@ -1,0 +1,75 @@
+apiVersion: aos/v1
+kind: WorkflowDefinition
+metadata: {name: quick_quote, version: 1, owner: head_of_procurement}
+spec:
+  title: Quick Quote
+  id_prefix: QQ
+  description: Find suppliers, collect quotes and raise a purchase order for a defined item.
+  start_on: seat_ui.new_job
+  start_roles: [requester]
+  seat_role: sourcing_agent
+  initial: intake
+  participants:
+    requester: {bind: at_creation}
+    buyer: {bind: by_claim, queue: procurement/sourcing}
+    procurement_approver: {bind: by_rule, rule: team_owner(procurement/procurement)}
+  attributes:
+    brief_version: int
+    shortlist_count: int
+    quote_count: int
+    invited_count: int
+    po_amount: decimal
+  events: [intent_identified, all_quotes_received]
+  states:
+    intake:
+      label: Intake
+      view: brief
+      tasks:
+        - {template: request_intake, skill: request_intake, work_type: analysis, verifier: brief_schema}
+    shortlisting:
+      label: Shortlisting
+      view: supplier_list
+    rfq_drafting:
+      label: RFQ drafting
+      view: rfq_email
+      tasks:
+        - {template: rfq_draft, skill: rfq_authoring, work_type: document_draft, verifier: leak_check}
+    rfq_sending:
+      label: RFQ sending
+      view: rfq_email
+      tasks:
+        - {template: rfq_send, skill: rfq_authoring, work_type: outbound_communication, verifier: recipient_check}
+    awaiting_quotes:
+      label: Awaiting quotes
+      view: quote
+      on_event:
+        mail.message_received: {template: quote_triage, skill: quote_triage, work_type: analysis}
+    comparison:
+      label: Comparison
+      view: comparison
+      tasks:
+        - {template: quote_comparison, skill: quote_comparison, work_type: analysis, verifier: score_recompute}
+    ordering:
+      label: Ordering
+      view: po_payload
+      tasks:
+        - {template: po_create, skill: quote_comparison, work_type: record_update, verifier: payload_match}
+    closed:
+      label: Closed
+      final: true
+  parallel:
+    - on: event.intent_identified
+      region: discovery
+      start: {template: supplier_lookup, skill: supplier_lookup, work_type: analysis, verifier: sources_cited}
+      join_at: shortlisting
+      join_guard: same(brief_version)
+  transitions:
+    - {from: intake, to: shortlisting, on: decision.brief_confirmed, by: requester}
+    - {from: shortlisting, to: rfq_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
+    - {from: rfq_drafting, to: rfq_sending, on: task.completed.rfq_draft}
+    - {from: rfq_sending, to: awaiting_quotes, on: task.completed.rfq_send, effects: [{start_timer: quote_deadline}]}
+    - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received], guard: "attr.quote_count >= 2"}
+    - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: comparison}]}
+    - {from: ordering, to: closed, on: task.completed.po_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
+  timers:
+    quote_deadline: {after: 5d, demo_after: 15m, emits: quotes_closed}

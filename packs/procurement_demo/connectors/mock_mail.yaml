@@ -1,0 +1,14 @@
+apiVersion: aos/v1
+kind: ToolProvider
+metadata: {name: mock_mail, version: 1, owner: platform_admin}
+spec:
+  description: Mock shared sourcing mailbox, served as an MCP server. Same tool contract as the Graph mail adapter.
+  transport: mcp
+  endpoint: ${MCP_MOCK_MAIL_URL}
+  inbound: {event: mail.message_received, auth: hmac}
+  tools:
+    read_thread: {resource: mailbox, action: read, class: read}
+    find_message: {resource: mailbox, action: read, class: read}
+    draft_message: {resource: mailbox, action: draft, class: staged_write}
+    send_message: {resource: mailbox, action: send, class: committed_effect, reconcile_with: find_message}
+  governance: {require_policy_evaluation: true, allow_direct_runtime_credentials: false}

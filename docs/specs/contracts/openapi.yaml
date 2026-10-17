@@ -1,0 +1,1336 @@
+openapi: 3.1.0
+info:
+  title: AOS kernel API
+  version: 0.1.0-poc
+  description: |
+    The one HTTP surface of the AOS kernel for the POC: the Workspace and Console web app, the agent worker and the
+    mock connectors' inbound notifications all call it.
+
+    Rules that hold for every operation:
+    - **The kernel decides.** No request from the browser or the worker changes state without a server-side check of
+      identity, participant role, policy and the expected version.
+    - **Errors are `application/problem+json`** (`schemas/problem.schema.json`); `code` tells the UI which state to show.
+    - **Writes that people trigger carry `expected_version`** and fail with 409 `stale_version` when stale.
+      Creating calls take an `Idempotency-Key` header; a repeat returns the first result.
+    - **Worker calls carry `X-AOS-Fencing-Token`**; a stale token gets 409 `fenced` and the worker must stop.
+    - **Responses are filtered for the caller.** Artifact fields above the caller's visibility are removed by the kernel,
+      never hidden by the browser.
+
+    `x-milestone` on each operation says which milestone builds it (M0 already exists in `backend/src/aos/api`).
+    `x-screens` names the design boards (canvas *AOS App Screens*) that call it.
+servers:
+  - url: http://localhost:8000/api
+security:
+  - session: []
+tags:
+  - {name: ops}
+  - {name: auth, description: Persona sign-in (SSO after the POC)}
+  - {name: org}
+  - {name: registry, description: Domain packs, versions, publish requests}
+  - {name: seats, description: Seat lifecycle}
+  - {name: workspace, description: What a person can start and what waits on them}
+  - {name: instances, description: Jobs (workflow instances), conversation and streams}
+  - {name: artifacts}
+  - {name: decisions, description: Pending decisions and claims}
+  - {name: approvals}
+  - {name: worker, description: Agent worker protocol (service token)}
+  - {name: operate, description: Console views of running work}
+  - {name: policy}
+  - {name: gateway, description: Connectors and action executions}
+  - {name: audit}
+  - {name: emergency}
+  - {name: inbound, description: Signed notifications from connectors}
+  - {name: demo, description: Sandbox-only controls (AOS_DEMO=1)}
+
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      operationId: healthz
+      security: []
+      x-milestone: M0
+      responses:
+        '200': {description: Kernel and database reachable, content: {application/json: {schema: {type: object, properties: {status: {const: ok}}}}}}
+
+  # ------------------------------------------------------------------ auth and org (M0)
+  /auth/personas:
+    get:
+      tags: [auth]
+      operationId: listPersonas
+      security: []
+      x-milestone: M0
+      x-screens: [Sign-in]
+      responses:
+        '200': {description: Seeded people, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/Person'}}}}}
+  /auth/session:
+    post:
+      tags: [auth]
+      operationId: startSession
+      security: []
+      x-milestone: M0
+      x-screens: [Sign-in]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [person_id], properties: {person_id: {type: string}}}}}}
+      responses:
+        '200': {description: Session token (8 h), content: {application/json: {schema: {type: object, required: [token, person], properties: {token: {type: string}, person: {$ref: '#/components/schemas/Person'}}}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      x-milestone: M0
+      responses:
+        '200': {description: The signed-in person, content: {application/json: {schema: {$ref: '#/components/schemas/Me'}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+  /org:
+    get:
+      tags: [org]
+      operationId: getOrg
+      x-milestone: M0
+      x-screens: [Console-Org]
+      responses:
+        '200': {description: Departments, teams and people with roles, content: {application/json: {schema: {$ref: '#/components/schemas/OrgTree'}}}}
+
+  # ------------------------------------------------------------------ registry
+  /console/packs:
+    get:
+      tags: [registry]
+      operationId: listPacks
+      x-milestone: M0
+      x-screens: [Console-Packs]
+      responses:
+        '200': {description: Pack folders available and versions stored, content: {application/json: {schema: {$ref: '#/components/schemas/PackListing'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /console/packs/{name}/validate:
+    post:
+      tags: [registry]
+      operationId: validatePack
+      x-milestone: M0
+      x-screens: [Console-Packs]
+      parameters: [{$ref: '#/components/parameters/PackName'}]
+      responses:
+        '200': {description: aos validate report; stores nothing, content: {application/json: {schema: {$ref: '#/components/schemas/ValidationReport'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+  /console/packs/{name}/sync:
+    post:
+      tags: [registry]
+      operationId: syncPack
+      x-milestone: M0
+      x-screens: [Console-Packs]
+      description: Validate the pack folder and store it as a pack version. Idempotent on (pack, version, digest). Needs platform_admin, process_owner or seat_owner.
+      parameters: [{$ref: '#/components/parameters/PackName'}]
+      requestBody: {content: {application/json: {schema: {type: object, properties: {source: {type: string, default: local}}}}}}
+      responses:
+        '200': {description: Stored or already stored, content: {application/json: {schema: {$ref: '#/components/schemas/SyncResult'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /console/pack-versions/{version_id}:
+    get:
+      tags: [registry]
+      operationId: getPackVersion
+      x-milestone: M0
+      x-screens: [Console-Packs]
+      parameters: [{$ref: '#/components/parameters/VersionId'}]
+      responses:
+        '200': {description: Version with validation and definition list, content: {application/json: {schema: {$ref: '#/components/schemas/PackVersion'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+  /console/pack-versions/{version_id}/definitions/{kind}/{name}:
+    get:
+      tags: [registry]
+      operationId: getDefinition
+      x-milestone: M0
+      parameters:
+        - {$ref: '#/components/parameters/VersionId'}
+        - {name: kind, in: path, required: true, schema: {type: string}}
+        - {name: name, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: The stored spec as the kernel pins it, content: {application/json: {schema: {type: object}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+  /console/pack-versions/{version_id}/simulate:
+    post:
+      tags: [registry]
+      operationId: simulatePackVersion
+      x-milestone: M2
+      x-screens: [Console-Packs]
+      description: Run `aos simulate` on a stored version with the fake model and scripted people. Never touches real instances.
+      parameters: [{$ref: '#/components/parameters/VersionId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [workflow], properties: {workflow: {type: string}, script: {type: string, default: dry_run_script}}}}}}
+      responses:
+        '200': {description: Simulation report, content: {application/json: {schema: {$ref: '#/components/schemas/SimulationReport'}}}}
+  /console/pack-versions/{version_id}/publish-requests:
+    post:
+      tags: [registry]
+      operationId: requestPublish
+      x-milestone: M1
+      x-screens: [Console-Packs]
+      description: Ask to publish a validated version. The kernel works out the required approvers (Risk for policies and authority profiles; the owner for Seats and workflows). Refused unless status is validated and the last simulation reached a final state.
+      parameters: [{$ref: '#/components/parameters/VersionId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      responses:
+        '201': {description: Publish request opened, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /console/publish-requests:
+    get:
+      tags: [registry]
+      operationId: listPublishRequests
+      x-milestone: M1
+      x-screens: [Console-Packs, Console-Approvals]
+      parameters: [{name: status, in: query, schema: {enum: [open, approved, rejected]}}]
+      responses:
+        '200': {description: Publish requests, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/PublishRequest'}}}}}}}
+  /console/publish-requests/{id}/approve:
+    post:
+      tags: [registry]
+      operationId: approvePublishPart
+      x-milestone: M1
+      x-screens: [Console-Packs]
+      description: Approve the part the caller is required for. When every part is approved the version becomes published and its definitions immutable. The requester can never approve.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [part], properties: {part: {enum: [policies, seats_and_workflows]}, note: {type: string}}}}}}
+      responses:
+        '200': {description: Updated request, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /console/publish-requests/{id}/reject:
+    post:
+      tags: [registry]
+      operationId: rejectPublish
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Reason'}}}}
+      responses:
+        '200': {description: Rejected, content: {application/json: {schema: {$ref: '#/components/schemas/PublishRequest'}}}}
+
+  # ------------------------------------------------------------------ seats
+  /console/seats:
+    get:
+      tags: [seats]
+      operationId: listSeats
+      x-milestone: M1
+      x-screens: [Console-Seats]
+      responses:
+        '200': {description: Seats with state, availability and today's spend, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/Seat'}}}}}}}
+  /console/seats/{seat}:
+    get:
+      tags: [seats]
+      operationId: getSeat
+      x-milestone: M1
+      x-screens: [Console-Activation, Console-Seat]
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      responses:
+        '200': {description: Seat with checks, eval runs and lifecycle history, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+  /console/seats/{seat}/configure:
+    post:
+      tags: [seats]
+      operationId: configureSeat
+      x-milestone: M1
+      x-screens: [Console-Activation]
+      description: Run the six configuration checks on the Seat version from a published pack. All pass → CONFIGURED. Records the caller as configurer.
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, expected_version], properties: {version: {type: integer}, expected_version: {type: integer}}}}}}
+      responses:
+        '200': {description: Seat after checks, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+  /console/seats/{seat}/evals:
+    post:
+      tags: [seats]
+      operationId: runSeatEvals
+      x-milestone: M1
+      x-screens: [Console-Activation]
+      description: Run the Seat's eval suites in the sandbox (fake model in M1, real model from M4). Both pass → TESTING complete.
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      requestBody: {content: {application/json: {schema: {type: object, properties: {model: {enum: [fake, real], default: fake}}}}}}
+      responses:
+        '202': {description: Runs started, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/EvalRun'}}}}}
+  /console/seats/{seat}/approve:
+    post:
+      tags: [seats]
+      operationId: approveSeat
+      x-milestone: M1
+      description: Risk approves a tested Seat → APPROVED.
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExpectedVersion'}}}}
+      responses:
+        '200': {description: Approved, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+  /console/seats/{seat}/activate:
+    post:
+      tags: [seats]
+      operationId: activateSeat
+      x-milestone: M1
+      x-screens: [Console-Activation, Console-Seat]
+      description: Owner only, and never the configurer (403 segregation_of_duties, audited). Writes a Decision Record; Seat → ACTIVE, availability AVAILABLE.
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExpectedVersion'}}}}
+      responses:
+        '200': {description: Active, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /console/seats/{seat}/pause:
+    post:
+      tags: [seats, emergency]
+      operationId: pauseSeat
+      x-milestone: M4
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Reason'}}}}
+      responses:
+        '200': {description: Paused, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+  /console/seats/{seat}/resume:
+    post:
+      tags: [seats, emergency]
+      operationId: resumeSeat
+      x-milestone: M4
+      parameters: [{$ref: '#/components/parameters/Seat'}]
+      responses:
+        '200': {description: Resumed, content: {application/json: {schema: {$ref: '#/components/schemas/SeatDetail'}}}}
+
+  # ------------------------------------------------------------------ workspace
+  /workspace/digital-workers:
+    get:
+      tags: [workspace]
+      operationId: listDigitalWorkers
+      x-milestone: M1
+      x-screens: [WS-New, WS-MyJobs]
+      description: Active Seats placed where the caller can use them, and the workflows the caller's roles may start on each.
+      responses:
+        '200': {description: Digital workers, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/DigitalWorker'}}}}}}}
+  /inbox:
+    get:
+      tags: [workspace]
+      operationId: getInbox
+      x-milestone: M3
+      x-screens: [WS-Inbox]
+      responses:
+        '200': {description: Open pending items for the caller and recent notices, content: {application/json: {schema: {$ref: '#/components/schemas/Inbox'}}}}
+  /inbox/{id}/read:
+    post:
+      tags: [workspace]
+      operationId: markNoticeRead
+      x-milestone: M3
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '204': {description: Marked}
+  /events:
+    get:
+      tags: [workspace]
+      operationId: streamUserEvents
+      x-milestone: M2
+      x-screens: [WS-MyJobs, WS-Queue, WS-Inbox]
+      description: Per-person SSE stream for lists (instance.created, instance.state_changed, pending.*, notification.created). Each message is a UiEvent; resume with Last-Event-ID.
+      parameters: [{$ref: '#/components/parameters/LastEventId'}]
+      responses:
+        '200': {description: text/event-stream of UiEvent, content: {text/event-stream: {schema: {$ref: './schemas/ui-event.schema.json'}}}}
+
+  # ------------------------------------------------------------------ instances (jobs)
+  /instances:
+    get:
+      tags: [instances]
+      operationId: listMyInstances
+      x-milestone: M1
+      x-screens: [WS-MyJobs]
+      parameters:
+        - {name: participant, in: query, schema: {const: me}, required: true}
+        - {name: status, in: query, schema: {enum: [active, waiting_on_me, closed]}}
+      responses:
+        '200': {description: Jobs the caller takes part in, newest activity first, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/InstanceSummary'}}}}}}}
+    post:
+      tags: [instances]
+      operationId: startInstance
+      x-milestone: M1
+      x-screens: [WS-New]
+      description: |
+        Start a job. Admits only if the Seat is ACTIVE and not killed, the caller holds a start role, and the workflow is
+        in the Seat's pinned pack version. Pins the instance to that version, binds the requester, opens the assist Task
+        and admits the first chat turn. In M1 the instance stays in its initial state; M2 runs the workflow.
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [seat, workflow, first_message], properties: {seat: {type: string}, workflow: {type: string}, first_message: {type: string, maxLength: 4000}}}}}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /instances/{id}:
+    get:
+      tags: [instances]
+      operationId: getInstance
+      x-milestone: M1
+      x-screens: [Main, WS-Shortlist, WS-RFQ-Approval, WS-Quotes, WS-Faisal-Refused, WS-Comparison, WS-PO-Approval, WS-Closed]
+      description: Authoritative snapshot of a job for the caller, plus the stream cursor to resume from. Fields and columns above the caller's visibility are removed.
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      responses:
+        '200': {description: Snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /instances/{id}/turns:
+    get:
+      tags: [instances]
+      operationId: listTurns
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/InstanceId'}, {name: before_seq, in: query, schema: {type: integer}}, {name: limit, in: query, schema: {type: integer, maximum: 100, default: 50}}]
+      responses:
+        '200': {description: Older turns, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/Turn'}}}}}}}
+    post:
+      tags: [instances]
+      operationId: postTurn
+      x-milestone: M1
+      x-screens: [Main, WS-Shortlist, WS-Faisal-Refused]
+      description: A participant writes in the job's conversation. Admits one assist attempt for that participant (admission gates, budget reservation); the reply streams as agent.message.delta then agent.message.completed. A request the policy forbids for this participant is answered with a refusal block, never with the data.
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [text, client_turn_id], properties: {text: {type: string, maxLength: 4000}, client_turn_id: {type: string, description: Client-generated; repeats are ignored}}}}}}
+      responses:
+        '202': {description: Turn stored and attempt admitted, content: {application/json: {schema: {type: object, required: [turn], properties: {turn: {$ref: './schemas/ui-event.schema.json#/$defs/Turn'}, attempt_id: {type: [string, 'null']}}}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /instances/{id}/events:
+    get:
+      tags: [instances]
+      operationId: streamInstanceEvents
+      x-milestone: M1
+      x-screens: [Main, WS-Shortlist, WS-RFQ-Approval, WS-Quotes, WS-Comparison, WS-PO-Approval]
+      description: SSE stream of UiEvent for one job, filtered for the caller. Resume with Last-Event-ID (or ?cursor). If the cursor is unknown the first message is snapshot.required.
+      parameters: [{$ref: '#/components/parameters/InstanceId'}, {$ref: '#/components/parameters/LastEventId'}, {name: cursor, in: query, schema: {type: string}}]
+      responses:
+        '200': {description: text/event-stream of UiEvent, content: {text/event-stream: {schema: {$ref: './schemas/ui-event.schema.json'}}}}
+  /instances/{id}/claim:
+    post:
+      tags: [decisions]
+      operationId: claimInstance
+      x-milestone: M2
+      x-screens: [WS-Queue]
+      description: Bind the caller as the participant role claimed from a queue (buyer). Exactly one claim wins; others get 409 already_claimed.
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [role, expected_version], properties: {role: {type: string, examples: [buyer]}, expected_version: {type: integer}}}}}}
+      responses:
+        '200': {description: Claimed, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /queues/{queue}/instances:
+    get:
+      tags: [decisions]
+      operationId: listQueue
+      x-milestone: M2
+      x-screens: [WS-Queue]
+      parameters: [{name: queue, in: path, required: true, schema: {type: string}, description: 'URL-encoded team path, e.g. procurement%2Fsourcing'}]
+      responses:
+        '200': {description: Unclaimed jobs the caller may claim, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/InstanceSummary'}}}}}}}
+  /pending/{id}/decide:
+    post:
+      tags: [decisions]
+      operationId: decidePending
+      x-milestone: M2
+      x-screens: [Main, WS-Shortlist, WS-Comparison]
+      description: Answer a decision card (confirm brief, confirm shortlist, select supplier). Only the participant the item is for. Writes a Decision Record and raises the item's decision event; guards then decide the transition.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [value, expected_version], properties: {value: {type: string}, artifact_version: {type: integer}, selection: {type: array, items: {type: string}, description: e.g. shortlisted supplier_ids}, expected_version: {type: integer}, note: {type: string}}}}}
+      responses:
+        '200': {description: Decision recorded, content: {application/json: {schema: {$ref: '#/components/schemas/DecisionRecord'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+
+  # ------------------------------------------------------------------ artifacts
+  /artifacts/{id}:
+    get:
+      tags: [artifacts]
+      operationId: getArtifact
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Artifact with its version list, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactSummary'}}}}
+  /artifacts/{id}/versions/{version}:
+    get:
+      tags: [artifacts]
+      operationId: getArtifactVersion
+      x-milestone: M1
+      x-screens: [Main, WS-Shortlist, WS-RFQ-Approval, WS-Comparison, WS-PO-Approval]
+      parameters: [{$ref: '#/components/parameters/Id'}, {name: version, in: path, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: Content filtered for the caller, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactVersion'}}}}
+  /artifacts/{id}/versions:
+    post:
+      tags: [artifacts]
+      operationId: createArtifactVersion
+      x-milestone: M2
+      x-screens: [WS-RFQ-Approval, Main]
+      description: A person edits an artifact (Faisal edits his brief in M2; Noura edits an RFQ email in M3). Creates version n+1 under their name; from M3 it voids any open approval bound to the old version. Locked or final artifacts refuse, except the requester's brief before confirmation.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [base_version, content], properties: {base_version: {type: integer}, content: {type: object}}}}}}
+      responses:
+        '201': {description: New version, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactVersion'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+
+  # ------------------------------------------------------------------ approvals
+  /approvals/{id}:
+    get:
+      tags: [approvals]
+      operationId: getApproval
+      x-milestone: M3
+      x-screens: [WS-RFQ-Approval, WS-PO-Approval]
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: The approval with exactly what will run, content: {application/json: {schema: {$ref: '#/components/schemas/Approval'}}}}
+  /approvals/{id}/steps/{step}/approve:
+    post:
+      tags: [approvals]
+      operationId: approveStep
+      x-milestone: M3
+      x-screens: [WS-RFQ-Approval, WS-PO-Approval]
+      description: Approve one step. Refused if the caller is not that step's approver, already approved another step, or requested the action (segregation_of_duties), or if payload_hash no longer matches (approval_stale) or it expired.
+      parameters: [{$ref: '#/components/parameters/Id'}, {name: step, in: path, required: true, schema: {type: integer, minimum: 1}}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [payload_hash], properties: {payload_hash: {type: string}, note: {type: string}}}}}}
+      responses:
+        '200': {description: Updated approval, content: {application/json: {schema: {$ref: '#/components/schemas/Approval'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /approvals/{id}/steps/{step}/reject:
+    post:
+      tags: [approvals]
+      operationId: rejectStep
+      x-milestone: M3
+      parameters: [{$ref: '#/components/parameters/Id'}, {name: step, in: path, required: true, schema: {type: integer}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Reason'}}}}
+      responses:
+        '200': {description: Rejected; the Task gets the reason on its next attempt, content: {application/json: {schema: {$ref: '#/components/schemas/Approval'}}}}
+
+  # ------------------------------------------------------------------ worker protocol
+  /worker/attempts/claim:
+    post:
+      tags: [worker]
+      operationId: claimAttempt
+      security: [{worker: []}]
+      x-milestone: M1
+      description: Give the worker the next admitted attempt for its lanes, with a lease and a new fencing token. 204 when nothing is ready.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [worker_id, lanes], properties: {worker_id: {type: string}, lanes: {type: array, items: {enum: [assist, task]}}}}}}}
+      responses:
+        '200': {description: Attempt, content: {application/json: {schema: {$ref: '#/components/schemas/WorkerAttempt'}}}}
+        '204': {description: Nothing to do}
+  /worker/attempts/{id}/heartbeat:
+    post:
+      tags: [worker]
+      operationId: heartbeatAttempt
+      security: [{worker: []}]
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      responses:
+        '200': {description: Lease extended, content: {application/json: {schema: {type: object, required: [lease_expires_at, cancel_requested], properties: {lease_expires_at: {type: string, format: date-time}, cancel_requested: {type: boolean}}}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/contract:
+    get:
+      tags: [worker]
+      operationId: getAttemptContract
+      security: [{worker: []}]
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      responses:
+        '200': {description: The frozen Task Contract and Skill instructions, content: {application/json: {schema: {type: object, required: [contract, skill_instructions], properties: {contract: {$ref: './schemas/task-contract.schema.json'}, skill_instructions: {type: string}}}}}}
+  /worker/attempts/{id}/context:
+    post:
+      tags: [worker]
+      operationId: assembleContext
+      security: [{worker: []}]
+      x-milestone: M1
+      description: Assemble a fresh context envelope for the next model step. The kernel reads current state; the worker never reads the database.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason], properties: {reason: {enum: [start, resume, tool_result, input_changed, explicit]}}}}}}
+      responses:
+        '200': {description: Envelope, content: {application/json: {schema: {$ref: './schemas/context-envelope.schema.json'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/events:
+    post:
+      tags: [worker]
+      operationId: postAttemptEvents
+      security: [{worker: []}]
+      x-milestone: M1
+      description: Report model and tool steps (stored as ExecutionEvents, stamped by the kernel) and stream text deltas of the reply (relayed to the instance stream, not stored).
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events: {type: array, items: {$ref: '#/components/schemas/ProposedEvent'}}
+                stream: {type: array, items: {type: object, required: [turn_id, seq, text], properties: {turn_id: {type: string}, seq: {type: integer}, text: {type: string}}}}
+      responses:
+        '202': {description: Accepted}
+        '409': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/tools/{tool}:
+    post:
+      tags: [worker]
+      operationId: callTool
+      security: [{worker: []}]
+      x-milestone: M1
+      description: |
+        Call a read, staged-write or compute tool through the gateway. The kernel checks the tool is in the contract,
+        evaluates policy against current state, reserves budget, mints a 60-second scoped credential and calls the
+        connector. Committed effects are refused here (use /actions). Tool output from outside AOS is returned marked
+        untrusted.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}, {name: tool, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [args], properties: {args: {type: object}}}}}}
+      responses:
+        '200': {description: Result, content: {application/json: {schema: {$ref: '#/components/schemas/ToolResult'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/drafts:
+    post:
+      tags: [worker]
+      operationId: saveDraft
+      security: [{worker: []}]
+      x-milestone: M1
+      description: Save a draft artifact version produced by this attempt (validated against the artifact type). Records producer, input hashes and sources.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DraftRequest'}}}}
+      responses:
+        '201': {description: Draft version, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactVersion'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/questions:
+    post:
+      tags: [worker]
+      operationId: askQuestions
+      security: [{worker: []}]
+      x-milestone: M1
+      description: ask_question. Posts the agent's reply turn with up to three questions for the on-behalf-of participant; the Task waits for input.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [blocks], properties: {blocks: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/Block'}}, questions: {type: array, maxItems: 3, items: {type: string}}}}}}}
+      responses:
+        '201': {description: Turn posted, content: {application/json: {schema: {$ref: './schemas/ui-event.schema.json#/$defs/Turn'}}}}
+  /worker/attempts/{id}/actions:
+    post:
+      tags: [worker]
+      operationId: requestAction
+      security: [{worker: []}]
+      x-milestone: M3
+      description: |
+        request_action for a committed effect (send_message, create_po). Policy decides: ALLOW executes through the
+        gateway and returns the receipt; REQUIRE_APPROVAL creates an approval bound to the payload hash and the worker
+        must checkpoint and end the attempt; DENY or NEVER refuses with the decision. Intent is persisted before any call.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ActionRequest'}}}}
+      responses:
+        '200': {description: Decision and, for ALLOW, the receipt, content: {application/json: {schema: {$ref: '#/components/schemas/ActionResult'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/checkpoint:
+    post:
+      tags: [worker]
+      operationId: checkpointAttempt
+      security: [{worker: []}]
+      x-milestone: M3
+      description: Record the LangGraph checkpoint taken at interrupt() and end the attempt as waiting. The Task resumes on a new attempt when the approval resolves.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [checkpoint_id, waiting_for], properties: {checkpoint_id: {type: string}, waiting_for: {type: object, required: [kind, id], properties: {kind: {enum: [approval, input]}, id: {type: string}}}}}}}}
+      responses:
+        '200': {description: Attempt ended waiting}
+  /worker/attempts/{id}/submit:
+    post:
+      tags: [worker]
+      operationId: submitResult
+      security: [{worker: []}]
+      x-milestone: M1
+      description: End the attempt with an AgentResult. The kernel runs schema, freshness/policy and verifier checks and answers with the verdict.
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: './schemas/agent-result.schema.json'}}}}
+      responses:
+        '200': {description: Verdict, content: {application/json: {schema: {$ref: '#/components/schemas/SubmitResponse'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /worker/attempts/{id}/fail:
+    post:
+      tags: [worker]
+      operationId: failAttempt
+      security: [{worker: []}]
+      x-milestone: M1
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/FencingToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [failure_class, message], properties: {failure_class: {enum: [model_error, tool_timeout, invalid_output, budget_exhausted, internal]}, message: {type: string}}}}}}
+      responses:
+        '200': {description: Recorded; the kernel decides retry or exception}
+
+  # ------------------------------------------------------------------ operate (Console)
+  /console/workflows:
+    get:
+      tags: [operate]
+      operationId: listWorkflows
+      x-milestone: M2
+      x-screens: [Console-Workflows]
+      responses:
+        '200': {description: Published workflows, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object, required: [name, version, title], properties: {name: {type: string}, version: {type: integer}, title: {type: string}, running: {type: integer}}}}}}}}}
+  /console/workflows/{name}:
+    get:
+      tags: [operate]
+      operationId: getWorkflowGraph
+      x-milestone: M2
+      x-screens: [Console-Workflows]
+      parameters: [{name: name, in: path, required: true, schema: {type: string}}, {name: version, in: query, schema: {type: integer}}]
+      responses:
+        '200': {description: Graph view of the definition, content: {application/json: {schema: {$ref: '#/components/schemas/WorkflowGraph'}}}}
+  /console/instances:
+    get:
+      tags: [operate]
+      operationId: listInstances
+      x-milestone: M2
+      x-screens: [Console-Instances]
+      parameters:
+        - {name: state, in: query, schema: {type: string}}
+        - {name: workflow, in: query, schema: {type: string}}
+        - {name: waiting_on, in: query, schema: {enum: [person, task, timer, nothing]}}
+        - {name: q, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Instances with time in state and what they wait on, content: {application/json: {schema: {type: object, required: [summary, items], properties: {summary: {type: object, properties: {running: {type: integer}, waiting_on_person: {type: integer}, over_target: {type: integer}, closed_this_week: {type: integer}}}, items: {type: array, items: {$ref: '#/components/schemas/InstanceSummary'}}}}}}}
+  /console/instances/{id}/timeline:
+    get:
+      tags: [operate]
+      operationId: getInstanceTimeline
+      x-milestone: M2
+      x-screens: [Console-Instance]
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      responses:
+        '200': {description: Stage durations and one merged timeline, content: {application/json: {schema: {$ref: '#/components/schemas/Timeline'}}}}
+  /console/tasks/{id}/trace:
+    get:
+      tags: [operate]
+      operationId: getTaskTrace
+      x-milestone: M4
+      x-screens: [Console-Instance]
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Spans of the Task's attempts, content: {application/json: {schema: {type: object, properties: {trace_id: {type: string}, spans: {type: array, items: {$ref: '#/components/schemas/Span'}}}}}}}
+  /console/approvals:
+    get:
+      tags: [approvals]
+      operationId: listApprovals
+      x-milestone: M3
+      x-screens: [Console-Approvals]
+      parameters: [{name: status, in: query, schema: {enum: [open, decided]}}]
+      responses:
+        '200': {description: Approvals across the organization, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/Approval'}}}}}}}
+  /console/approvals/{id}/remind:
+    post:
+      tags: [approvals]
+      operationId: remindApprover
+      x-milestone: M3
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '204': {description: Notification sent to the current step's approver}
+  /console/dashboards/{name}:
+    get:
+      tags: [operate]
+      operationId: getDashboard
+      x-milestone: M4
+      x-screens: [Console-Observability]
+      parameters: [{name: name, in: path, required: true, schema: {enum: [seat-health, stage-times, approvals]}}, {name: range, in: query, schema: {enum: [24h, 7d, 30d], default: 7d}}]
+      responses:
+        '200': {description: Dashboard data; every figure carries a link query to the records behind it, content: {application/json: {schema: {$ref: '#/components/schemas/Dashboard'}}}}
+
+  # ------------------------------------------------------------------ policy
+  /console/policy-decisions:
+    get:
+      tags: [policy]
+      operationId: listPolicyDecisions
+      x-milestone: M3
+      x-screens: [Console-Policy]
+      parameters: [{name: instance_id, in: query, schema: {type: string}}, {name: result, in: query, schema: {enum: [ALLOW, REQUIRE_APPROVAL, DENY, NEVER]}}]
+      responses:
+        '200': {description: Decisions, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/PolicyDecision'}}}}}}}
+  /console/policy-decisions/{id}:
+    get:
+      tags: [policy]
+      operationId: getPolicyDecision
+      x-milestone: M3
+      x-screens: [Console-Policy]
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Decision with evaluation trace and attribute snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/PolicyDecision'}}}}
+  /console/policy-decisions/{id}/replay:
+    post:
+      tags: [policy]
+      operationId: replayPolicyDecision
+      x-milestone: M3
+      x-screens: [Console-Policy]
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Same snapshot, same policy version, result compared, content: {application/json: {schema: {type: object, required: [result, matches], properties: {result: {type: string}, matches: {type: boolean}}}}}}
+
+  # ------------------------------------------------------------------ gateway
+  /console/connectors:
+    get:
+      tags: [gateway]
+      operationId: listConnectors
+      x-milestone: M3
+      x-screens: [Console-Connectors]
+      responses:
+        '200': {description: Connectors and their tools, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/Connector'}}}}}}}
+  /console/actions:
+    get:
+      tags: [gateway]
+      operationId: listActions
+      x-milestone: M3
+      x-screens: [Console-Connectors]
+      parameters: [{name: connector, in: query, schema: {type: string}}, {name: instance_id, in: query, schema: {type: string}}]
+      responses:
+        '200': {description: Committed action executions, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/ActionExecution'}}}}}}}
+  /console/actions/{id}:
+    get:
+      tags: [gateway]
+      operationId: getAction
+      x-milestone: M3
+      x-screens: [Console-Gateway]
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Action with its state history and reconciliation, content: {application/json: {schema: {$ref: '#/components/schemas/ActionExecution'}}}}
+
+  # ------------------------------------------------------------------ audit
+  /console/audit:
+    get:
+      tags: [audit]
+      operationId: listAudit
+      x-milestone: M0
+      x-screens: [Console-Audit]
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 50}}
+        - {name: before_seq, in: query, schema: {type: integer}}
+        - {name: correlation_id, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Newest first, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/AuditRecord'}}}}}}}
+  /console/audit/verify:
+    post:
+      tags: [audit]
+      operationId: verifyAudit
+      x-milestone: M0
+      x-screens: [Console-Audit]
+      responses:
+        '200': {description: Chain report (the check itself is audited), content: {application/json: {schema: {$ref: '#/components/schemas/ChainReport'}}}}
+  /console/audit/explain:
+    get:
+      tags: [audit]
+      operationId: explainOutcome
+      x-milestone: M4
+      x-screens: [Console-Audit]
+      description: Walk back from an Outcome Record through every approval, decision, verification and draft to the first message.
+      parameters: [{name: instance_id, in: query, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: The chain of records, content: {application/json: {schema: {type: object, required: [outcome, steps], properties: {outcome: {$ref: '#/components/schemas/OutcomeRecord'}, steps: {type: array, items: {$ref: '#/components/schemas/TimelineEntry'}}}}}}}
+
+  # ------------------------------------------------------------------ emergency
+  /console/kill-switches:
+    get:
+      tags: [emergency]
+      operationId: listKillSwitches
+      x-milestone: M4
+      x-screens: [Console-Emergency]
+      responses:
+        '200': {description: Active and lifted switches, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/KillSwitch'}}}}}}}
+    post:
+      tags: [emergency]
+      operationId: activateKillSwitch
+      x-milestone: M4
+      x-screens: [Console-Emergency]
+      description: Stop a Seat, workflow or instance now. Fails admission for new attempts and turns, fences running attempts, revokes broker credentials and makes the gateway refuse in-flight actions.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [scope, target, reason], properties: {scope: {enum: [seat, workflow, instance]}, target: {type: string}, reason: {type: string}}}}}}
+      responses:
+        '201': {description: Active, content: {application/json: {schema: {$ref: '#/components/schemas/KillSwitch'}}}}
+  /console/kill-switches/{id}/lift:
+    post:
+      tags: [emergency]
+      operationId: liftKillSwitch
+      x-milestone: M4
+      description: Needs a review note and a different person from the one who activated it.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [review_note], properties: {review_note: {type: string}}}}}}
+      responses:
+        '200': {description: Lifted, content: {application/json: {schema: {$ref: '#/components/schemas/KillSwitch'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+
+  /console/attempts/{id}/replay:
+    post:
+      tags: [operate]
+      operationId: replayAttempt
+      x-milestone: M5
+      x-screens: [Console-Instance]
+      description: |
+        Re-run one attempt from its stored contract (ADR 009). `exact` replays recorded model and tool responses and must
+        reproduce the submitted artifact hash; `re_evaluate` uses the live model with recorded tool responses. Replays
+        never commit effects: the gateway refuses committed tools in replay mode.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [mode], properties: {mode: {enum: [exact, re_evaluate]}}}}}}
+      responses:
+        '200': {description: Replay outcome, content: {application/json: {schema: {type: object, required: [mode, reproduced], properties: {mode: {type: string}, reproduced: {type: boolean}, original_hash: {type: string}, replay_hash: {type: string}, differences: {type: array, items: {type: string}}}}}}}
+
+  # ------------------------------------------------------------------ inbound and demo
+  /inbound/{source}:
+    post:
+      tags: [inbound]
+      operationId: receiveInbound
+      security: [{inboundSignature: []}]
+      x-milestone: M3
+      description: Signed notification from a connector (mock_mail mail.message_received). Verified with HMAC over the canonical body, deduplicated by message id, then raised as an event on the matching instance (one quote_triage Task per reply).
+      parameters: [{name: source, in: path, required: true, schema: {enum: [mock_mail]}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [event, message_id, conversation_id, received_at], properties: {event: {const: mail.message_received}, message_id: {type: string}, conversation_id: {type: string}, from: {type: string}, received_at: {type: string, format: date-time}}}}}}
+      responses:
+        '202': {description: Accepted or duplicate}
+        '401': {$ref: '#/components/responses/Problem'}
+  /demo/state:
+    get:
+      tags: [demo]
+      operationId: getDemoState
+      x-milestone: M2
+      x-screens: [Demo-Controls]
+      responses:
+        '200': {description: Clock, timers, open RFQ threads and fault switches, content: {application/json: {schema: {$ref: '#/components/schemas/DemoState'}}}}
+  /demo/clock/advance:
+    post:
+      tags: [demo]
+      operationId: advanceClock
+      x-milestone: M2
+      x-screens: [Demo-Controls]
+      requestBody: {required: true, content: {application/json: {schema: {oneOf: [{type: object, required: [minutes], properties: {minutes: {type: integer, minimum: 1}}}, {type: object, required: [to_next_timer], properties: {to_next_timer: {const: true}}}]}}}}
+      responses:
+        '200': {description: New demo time and timers fired, content: {application/json: {schema: {$ref: '#/components/schemas/DemoState'}}}}
+  /demo/vendor-replies:
+    post:
+      tags: [demo]
+      operationId: simulateVendorReply
+      x-milestone: M3
+      x-screens: [Demo-Controls]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [conversation_id, supplier_id, body], properties: {conversation_id: {type: string}, supplier_id: {type: string}, body: {type: string}, inject_instruction: {type: boolean, default: false}, decline: {type: boolean, default: false}}}}}}
+      responses:
+        '202': {description: Reply placed in the mock mailbox; the signed notification follows}
+  /demo/faults/{connector}:
+    put:
+      tags: [demo]
+      operationId: setFaults
+      x-milestone: M3
+      x-screens: [Demo-Controls]
+      parameters: [{name: connector, in: path, required: true, schema: {enum: [mock_erp, mock_mail, fake_model]}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {timeout_after_commit: {type: boolean}, fail_validation: {type: boolean}, seed_budget_leak: {type: boolean}}}}}}
+      responses:
+        '200': {description: Switch state, content: {application/json: {schema: {$ref: '#/components/schemas/DemoState'}}}}
+
+components:
+  securitySchemes:
+    session: {type: http, scheme: bearer, bearerFormat: JWT, description: 'Person session from POST /auth/session (aud aos-web).'}
+    worker: {type: http, scheme: bearer, bearerFormat: JWT, description: 'Worker service token (aud aos-worker), one per worker process.'}
+    inboundSignature: {type: apiKey, in: header, name: X-AOS-Signature, description: 'sha256=<hex HMAC of the canonical JSON body>.'}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: string}}
+    InstanceId: {name: id, in: path, required: true, schema: {type: string, examples: [QQ-0001]}}
+    PackName: {name: name, in: path, required: true, schema: {type: string}}
+    VersionId: {name: version_id, in: path, required: true, schema: {type: string, format: uuid}}
+    Seat: {name: seat, in: path, required: true, schema: {type: string, examples: [seat_sourcing_poc]}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: false, schema: {type: string, maxLength: 128}}
+    FencingToken: {name: X-AOS-Fencing-Token, in: header, required: true, schema: {type: integer}}
+    LastEventId: {name: Last-Event-ID, in: header, required: false, schema: {type: string}}
+  responses:
+    Problem:
+      description: Problem details
+      content: {application/problem+json: {schema: {$ref: './schemas/problem.schema.json'}}}
+  schemas:
+    Reason: {type: object, required: [reason], properties: {reason: {type: string, minLength: 3}}}
+    ExpectedVersion: {type: object, required: [expected_version], properties: {expected_version: {type: integer}}}
+    Person:
+      type: object
+      required: [id, name, team, roles, console]
+      properties: {id: {type: string}, name: {type: string}, team: {type: string}, roles: {type: array, items: {type: string}}, console: {type: boolean}}
+    Me:
+      allOf: [{$ref: '#/components/schemas/Person'}, {type: object, required: [org], properties: {org: {type: string}}}]
+    OrgTree:
+      type: object
+      required: [organization, departments, people]
+      properties:
+        organization: {type: object, properties: {id: {type: string}, name: {type: string}, data_residency: {type: string}}}
+        departments: {type: array, items: {type: object, properties: {id: {type: string}, name: {type: string}, head: {type: string}, teams: {type: array, items: {type: object, properties: {id: {type: string}, name: {type: string}, owner: {type: string}}}}}}}
+        people: {type: array, items: {type: object, properties: {id: {type: string}, name: {type: string}, department: {type: string}, team: {type: string}, console: {type: boolean}, roles: {type: array, items: {type: string}}}}}
+    Issue:
+      type: object
+      required: [code, file, path, message, severity]
+      properties: {code: {type: string}, file: {type: string}, path: {type: string}, message: {type: string}, severity: {enum: [error, warning]}}
+    ValidationReport:
+      type: object
+      required: [pack, version, digest, ok, counts, errors, warnings]
+      properties:
+        pack: {type: string}
+        version: {type: [integer, 'null']}
+        digest: {type: string}
+        ok: {type: boolean}
+        counts: {type: object, additionalProperties: {type: integer}}
+        errors: {type: array, items: {$ref: '#/components/schemas/Issue'}}
+        warnings: {type: array, items: {$ref: '#/components/schemas/Issue'}}
+    SyncResult:
+      type: object
+      required: [pack_version_id, pack, version, digest, status, created, report]
+      properties: {pack_version_id: {type: string}, pack: {type: string}, version: {type: integer}, digest: {type: string}, status: {$ref: '#/components/schemas/PackVersionStatus'}, created: {type: boolean}, report: {$ref: '#/components/schemas/ValidationReport'}}
+    PackVersionStatus: {enum: [draft, validated, invalid, publish_requested, published, retired]}
+    PackListing:
+      type: object
+      required: [available, packs]
+      properties:
+        available: {type: array, items: {type: string}}
+        packs:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              owner: {type: string}
+              versions: {type: array, items: {type: object, properties: {id: {type: string}, version: {type: integer}, digest: {type: string}, status: {$ref: '#/components/schemas/PackVersionStatus'}, source: {type: string}, created_by: {type: string}, created_at: {type: string, format: date-time}, ok: {type: boolean}, errors: {type: integer}, warnings: {type: integer}}}}
+    PackVersion:
+      type: object
+      required: [id, pack, version, digest, status, validation, definitions]
+      properties:
+        id: {type: string}
+        pack: {type: string}
+        version: {type: integer}
+        digest: {type: string}
+        status: {$ref: '#/components/schemas/PackVersionStatus'}
+        source: {type: string}
+        validation: {$ref: '#/components/schemas/ValidationReport'}
+        created_by: {type: string}
+        created_at: {type: string, format: date-time}
+        definitions: {type: array, items: {type: object, properties: {kind: {type: string}, name: {type: string}, version: {type: integer}, file: {type: string}, digest: {type: string}}}}
+    PublishRequest:
+      type: object
+      required: [id, pack_version_id, status, requested_by, parts]
+      properties:
+        id: {type: string, examples: [PR-12]}
+        pack_version_id: {type: string}
+        status: {enum: [open, approved, rejected]}
+        requested_by: {type: string}
+        requested_at: {type: string, format: date-time}
+        parts: {type: array, items: {type: object, required: [part, role, status], properties: {part: {enum: [policies, seats_and_workflows]}, role: {type: string}, status: {enum: [open, approved, rejected]}, by: {type: [string, 'null']}, at: {type: [string, 'null'], format: date-time}}}}
+    SeatState: {enum: [DRAFT, CONFIGURED, TESTING, APPROVED, ACTIVE, PAUSED, KILLED, RETIRED]}
+    Seat:
+      type: object
+      required: [name, display_name, version, state, availability, owner, placement]
+      properties:
+        name: {type: string}
+        display_name: {type: string}
+        version: {type: integer}
+        pack_version: {type: string}
+        placement: {type: string}
+        state: {$ref: '#/components/schemas/SeatState'}
+        availability: {enum: [AVAILABLE, BUSY, UNAVAILABLE]}
+        running_attempts: {type: integer}
+        spend_today_usd: {type: number}
+        daily_limit_usd: {type: number}
+        owner: {type: string}
+        record_version: {type: integer, description: For expected_version on lifecycle calls}
+    SeatDetail:
+      allOf:
+        - {$ref: '#/components/schemas/Seat'}
+        - type: object
+          properties:
+            limits: {type: object, properties: {run_minutes: {type: integer}, actions_per_run: {type: integer}, daily_cost_usd: {type: number}}}
+            configured_by: {type: [string, 'null']}
+            checks: {type: array, items: {type: object, required: [name, passed], properties: {name: {type: string}, passed: {type: boolean}, detail: {type: string}}}}
+            evals: {type: array, items: {$ref: '#/components/schemas/EvalRun'}}
+            history: {type: array, items: {type: object, properties: {from: {type: string}, to: {type: string}, by: {type: string}, at: {type: string, format: date-time}, decision_id: {type: [string, 'null']}}}}
+    EvalRun:
+      type: object
+      required: [id, suite, status]
+      properties: {id: {type: string}, suite: {type: string}, model: {enum: [fake, real]}, status: {enum: [running, passed, failed]}, passed: {type: integer}, total: {type: integer}, detail: {type: string}, finished_at: {type: [string, 'null'], format: date-time}}
+    DigitalWorker:
+      type: object
+      required: [seat, display_name, version, state, workflows]
+      properties:
+        seat: {type: string}
+        display_name: {type: string}
+        version: {type: integer}
+        state: {$ref: '#/components/schemas/SeatState'}
+        workflows: {type: array, items: {type: object, required: [name, title, description], properties: {name: {type: string}, title: {type: string}, description: {type: string}}}}
+    Stage: {type: object, required: [state, label, status], properties: {state: {type: string}, label: {type: string}, status: {enum: [done, current, next]}}}
+    Participant: {type: object, required: [role, person_id, name], properties: {role: {type: string}, person_id: {type: string}, name: {type: string}, bound_by: {enum: [creation, claim, rule]}}}
+    InstanceSummary:
+      type: object
+      required: [instance_id, title, workflow, state, state_label, version]
+      properties:
+        instance_id: {type: string}
+        title: {type: string}
+        workflow: {type: string}
+        state: {type: string}
+        state_label: {type: string}
+        version: {type: integer}
+        requester: {type: [string, 'null']}
+        buyer: {type: [string, 'null']}
+        waiting_on: {type: object, properties: {kind: {enum: [person, queue, task, timer, nothing]}, label: {type: string}, person_id: {type: [string, 'null']}}}
+        time_in_state_s: {type: integer}
+        stage_target_s: {type: [integer, 'null']}
+        started_at: {type: string, format: date-time}
+        closed_at: {type: [string, 'null'], format: date-time}
+        last_activity_at: {type: string, format: date-time}
+    InstanceSnapshot:
+      type: object
+      required: [instance_id, title, workflow, pack_version, state, version, stages, participants, my_roles, pending, artifacts, turns, cursor]
+      properties:
+        instance_id: {type: string}
+        title: {type: string}
+        workflow: {type: string}
+        pack_version: {type: string}
+        state: {type: string}
+        version: {type: integer}
+        stages: {type: array, items: {$ref: '#/components/schemas/Stage'}}
+        participants: {type: array, items: {$ref: '#/components/schemas/Participant'}}
+        my_roles: {type: array, items: {type: string}}
+        pending: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/PendingItem'}}
+        artifacts: {type: array, items: {$ref: '#/components/schemas/ArtifactSummary'}}
+        tasks: {type: array, items: {type: object, properties: {task_id: {type: string}, template: {type: string}, state: {$ref: './schemas/ui-event.schema.json#/$defs/TaskState'}, attempts: {type: integer}}}}
+        turns: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/Turn'}, description: Latest 50}
+        seat_notice: {type: [object, 'null'], properties: {kind: {enum: [paused, killed]}, text: {type: string}}}
+        cursor: {type: string, description: Resume the instance stream from here}
+    ArtifactSummary:
+      type: object
+      required: [artifact_id, artifact_type, name, latest_version, status, view]
+      properties:
+        artifact_id: {type: string}
+        artifact_type: {type: string}
+        name: {type: string}
+        latest_version: {type: integer}
+        status: {enum: [draft, final, locked]}
+        view: {$ref: '#/components/schemas/ArtifactView'}
+        versions: {type: array, items: {type: object, properties: {version: {type: integer}, status: {type: string}, by: {type: string}, at: {type: string, format: date-time}}}}
+    ArtifactView:
+      type: object
+      description: >-
+        How the Workspace shows an artifact, taken from the pack's ArtifactType. The UI picks the view component by
+        `type` and lays it out from `columns` and `fields`; nothing in the UI is written for one pack. `fields` lists
+        only fields the caller may see.
+      required: [type, fields]
+      properties:
+        type: {enum: [document, sheet, form, comparison, message_composer, rubric, tracker, approval_pack, record_preview, file_viewer, dashboard]}
+        columns: {type: array, items: {type: string}, description: Field order for row views (sheet, tracker, comparison)}
+        export: {enum: [excel, csv, null]}
+        fields:
+          type: array
+          items:
+            type: object
+            required: [name, label, type]
+            properties:
+              name: {type: string}
+              label: {type: string, description: "The pack's label, or the field name humanized"}
+              type: {enum: [string, text, integer, number, money, date, datetime, list, object, boolean]}
+    ArtifactVersion:
+      type: object
+      required: [artifact_id, artifact_type, version, status, content, content_hash, produced_by, created_at, hidden_fields]
+      properties:
+        artifact_id: {type: string}
+        artifact_type: {type: string}
+        version: {type: integer}
+        status: {enum: [draft, final, locked]}
+        content: {type: object, description: Only fields the caller may see}
+        hidden_fields: {type: array, items: {type: string}, description: Names of removed fields, so the UI can say "not shared with you"}
+        content_hash: {type: string}
+        produced_by: {type: object, properties: {kind: {enum: [attempt, person]}, id: {type: string}, name: {type: string}}}
+        inputs: {type: array, items: {type: object, properties: {artifact_id: {type: string}, version: {type: integer}, content_hash: {type: string}}}}
+        sources: {type: array, items: {type: object, properties: {source_ref: {type: string}, label: {type: string}}}}
+        verification: {type: [object, 'null'], properties: {verifier: {type: string}, verdict: {enum: [PASS, REWORK, FAIL]}, findings: {type: array, items: {type: string}}}}
+        created_at: {type: string, format: date-time}
+    DraftRequest:
+      type: object
+      required: [artifact_type, content, inputs]
+      properties:
+        artifact_type: {type: string}
+        artifact_id: {type: [string, 'null'], description: Null creates the artifact}
+        key: {type: string, description: 'Distinguishes per-item artifacts, e.g. supplier_id for rfq_email'}
+        base_version: {type: [integer, 'null']}
+        content: {type: object}
+        inputs: {type: array, items: {type: object, required: [artifact_id, version], properties: {artifact_id: {type: string}, version: {type: integer}}}}
+        sources: {type: array, items: {type: object, properties: {source_ref: {type: string}, label: {type: string}}}}
+    DecisionRecord:
+      type: object
+      required: [decision_id, instance_id, event, by, at]
+      properties: {decision_id: {type: string}, instance_id: {type: string}, event: {type: string}, value: {type: string}, by: {type: string}, role: {type: string}, at: {type: string, format: date-time}, artifact_ref: {type: [object, 'null']}, resulting_state: {type: [string, 'null']}}
+    ApprovalStep:
+      type: object
+      required: [n, approver_role, status]
+      properties: {n: {type: integer}, approver_role: {type: string}, approver_person_id: {type: [string, 'null']}, kind: {enum: [content, release]}, status: {enum: [waiting, approved, rejected, skipped]}, by: {type: [string, 'null']}, at: {type: [string, 'null'], format: date-time}}
+    Approval:
+      type: object
+      required: [approval_id, instance_id, action, status, steps, payload_hash, policy, expires_at]
+      properties:
+        approval_id: {type: string, examples: [AP-0017]}
+        instance_id: {type: string}
+        action: {type: string, examples: [erp_po.create]}
+        summary: {type: string}
+        requested_by: {type: object, properties: {kind: {enum: [seat, person]}, id: {type: string}, attempt_id: {type: [string, 'null']}}}
+        status: {enum: [open, approved, rejected, voided, expired]}
+        steps: {type: array, items: {$ref: '#/components/schemas/ApprovalStep'}}
+        payload: {type: object, description: Exactly what will run (filtered for the viewer)}
+        payload_hash: {type: string}
+        policy: {type: string, examples: ['quick_quote_gates@1#po_create']}
+        expires_at: {type: string, format: date-time}
+    Inbox:
+      type: object
+      required: [needs_you, notices]
+      properties:
+        needs_you: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/PendingItem'}}
+        notices: {type: array, items: {type: object, properties: {id: {type: string}, text: {type: string}, instance_id: {type: [string, 'null']}, at: {type: string, format: date-time}, read: {type: boolean}}}}
+    WorkerAttempt:
+      type: object
+      required: [attempt_id, task_id, instance_id, n, fencing_token, lease_seconds, kind, contract]
+      properties:
+        attempt_id: {type: string}
+        task_id: {type: string}
+        instance_id: {type: string}
+        n: {type: integer}
+        fencing_token: {type: integer}
+        lease_seconds: {type: integer}
+        kind: {enum: [assist, task]}
+        resume: {type: [object, 'null'], description: Present when resuming after an approval or input, properties: {checkpoint_id: {type: string}, signal: {type: object}}}
+        turn_id: {type: [string, 'null'], description: For assist attempts, the turn being answered}
+        contract: {$ref: './schemas/task-contract.schema.json'}
+    ProposedEvent:
+      type: object
+      required: [event_type, redacted_summary]
+      properties:
+        event_type: {enum: [AgentStarted, ModelInvoked, ToolRequested, CheckpointSaved]}
+        redacted_summary: {type: string, maxLength: 400}
+        attributes: {type: object}
+    ToolResult:
+      type: object
+      required: [tool, decision, untrusted, content]
+      properties:
+        tool: {type: string}
+        decision: {type: object, required: [decision_id, result], properties: {decision_id: {type: string}, result: {const: ALLOW}}}
+        untrusted: {type: boolean}
+        content: {}
+        receipt_ref: {type: [string, 'null']}
+        budget_remaining: {type: object}
+    ActionRequest:
+      type: object
+      required: [tool, args, artifact_refs]
+      properties:
+        tool: {type: string, examples: [send_message, create_po]}
+        args: {type: object}
+        artifact_refs: {type: array, items: {type: object, required: [artifact_id, version], properties: {artifact_id: {type: string}, version: {type: integer}}}, description: The artifact versions the payload came from; the approval binds to these}
+        reason: {type: string}
+    ActionResult:
+      type: object
+      required: [decision_id, result]
+      properties:
+        decision_id: {type: string}
+        result: {enum: [ALLOW, REQUIRE_APPROVAL, DENY, NEVER]}
+        action_id: {type: [string, 'null']}
+        approval_id: {type: [string, 'null']}
+        receipt: {type: [object, 'null'], properties: {state: {enum: [SUCCEEDED, RECONCILED]}, remote_id: {type: string}, receipt_ref: {type: string}}}
+        explanation: {type: string}
+    SubmitResponse:
+      type: object
+      required: [verdict, task_state]
+      properties:
+        verdict: {enum: [ACCEPTED, REWORK, FAILED, STALE]}
+        task_state: {$ref: './schemas/ui-event.schema.json#/$defs/TaskState'}
+        verifier: {type: [object, 'null'], properties: {name: {type: string}, verdict: {enum: [PASS, REWORK, FAIL]}, findings: {type: array, items: {type: string}}}}
+        next_attempt: {type: boolean}
+    WorkflowGraph:
+      type: object
+      required: [name, version, states, transitions]
+      properties:
+        name: {type: string}
+        version: {type: integer}
+        title: {type: string}
+        initial: {type: string}
+        states: {type: array, items: {type: object, properties: {name: {type: string}, label: {type: string}, final: {type: boolean}, tasks: {type: array, items: {type: object, properties: {template: {type: string}, skill: {type: string}, verifier: {type: [string, 'null']}, needs_approval: {type: boolean}}}}, on_event: {type: object}}}}
+        transitions: {type: array, items: {type: object, properties: {from: {type: string}, to: {type: string}, on: {type: array, items: {type: string}}, by: {type: [string, 'null']}, guard: {type: [string, 'null']}, effects: {type: array, items: {type: object}}}}}
+        parallel: {type: array, items: {type: object}}
+        timers: {type: object}
+        participants: {type: object}
+        stage_targets: {type: object}
+    TimelineEntry:
+      type: object
+      required: [at, kind, title]
+      properties:
+        at: {type: string, format: date-time}
+        kind: {enum: [event, transition, decision, policy, approval, action, timer, verification, attempt, artifact]}
+        title: {type: string}
+        detail: {type: string}
+        actor: {type: string}
+        refs: {type: object, additionalProperties: {type: string}}
+    Timeline:
+      type: object
+      required: [instance_id, stages, entries]
+      properties:
+        instance_id: {type: string}
+        stages: {type: array, items: {type: object, properties: {state: {type: string}, entered_at: {type: string, format: date-time}, left_at: {type: [string, 'null'], format: date-time}, duration_s: {type: integer}, target_s: {type: [integer, 'null']}}}}
+        entries: {type: array, items: {$ref: '#/components/schemas/TimelineEntry'}}
+    Span:
+      type: object
+      properties: {span_id: {type: string}, parent_id: {type: [string, 'null']}, name: {type: string}, start: {type: string, format: date-time}, end: {type: string, format: date-time}, attributes: {type: object}}
+    PolicyDecision:
+      type: object
+      required: [decision_id, action, subject, result, rule, at]
+      properties:
+        decision_id: {type: string, examples: [pd_7f20]}
+        instance_id: {type: [string, 'null']}
+        action: {type: string, examples: [quotes.read]}
+        subject: {type: object, properties: {kind: {enum: [seat, person]}, id: {type: string}, participant_role: {type: [string, 'null']}}}
+        result: {enum: [ALLOW, REQUIRE_APPROVAL, DENY, NEVER]}
+        rule: {type: string}
+        policy_version: {type: string}
+        evaluation: {type: array, items: {type: object, properties: {step: {type: string}, matched: {type: boolean}, detail: {type: string}}}, description: 'NEVER → specific → restrictive → conditions → default deny → tighten'}
+        attributes_snapshot_hash: {type: string}
+        at: {type: string, format: date-time}
+    Connector:
+      type: object
+      required: [name, transport, healthy, tools]
+      properties:
+        name: {type: string}
+        description: {type: string}
+        transport: {enum: [mcp, builtin]}
+        healthy: {type: boolean}
+        inbound: {type: [object, 'null']}
+        tools: {type: array, items: {type: object, properties: {name: {type: string}, class: {enum: [read, staged_write, compute, committed_effect]}, resource: {type: string}, action: {type: string}, reconcile_with: {type: [string, 'null']}}}}
+    ActionExecution:
+      type: object
+      required: [action_id, tool, instance_id, state, idempotency_key]
+      properties:
+        action_id: {type: string, examples: [ae_311]}
+        tool: {type: string}
+        connector: {type: string}
+        instance_id: {type: string}
+        approval_id: {type: [string, 'null']}
+        state: {enum: [INTENDED, EXECUTING, SUCCEEDED, FAILED, UNKNOWN, RECONCILED]}
+        idempotency_key: {type: string}
+        args_hash: {type: string}
+        remote_id: {type: [string, 'null']}
+        history: {type: array, items: {type: object, properties: {state: {type: string}, at: {type: string, format: date-time}, detail: {type: string}}}}
+        verification: {type: [object, 'null'], properties: {verifier: {type: string}, verdict: {type: string}}}
+    Dashboard:
+      type: object
+      required: [name, range, tiles]
+      properties:
+        name: {type: string}
+        range: {type: string}
+        tiles: {type: array, items: {type: object, required: [label, value], properties: {label: {type: string}, value: {type: [number, string]}, unit: {type: [string, 'null']}, threshold: {type: [number, 'null']}, link: {type: [string, 'null'], description: Console route with filters}}}}
+        series: {type: array, items: {type: object, properties: {name: {type: string}, points: {type: array, items: {type: object, properties: {x: {type: string}, y: {type: number}}}}}}}
+    KillSwitch:
+      type: object
+      required: [kill_switch_id, scope, target, active, activated_by, activated_at]
+      properties: {kill_switch_id: {type: string}, scope: {enum: [seat, workflow, instance]}, target: {type: string}, reason: {type: string}, active: {type: boolean}, activated_by: {type: string}, activated_at: {type: string, format: date-time}, lifted_by: {type: [string, 'null']}, review_note: {type: [string, 'null']}}
+    OutcomeRecord:
+      type: object
+      required: [instance_id, outcome, closed_at]
+      properties: {instance_id: {type: string}, outcome: {type: string}, supplier: {type: [string, 'null']}, po_reference: {type: [string, 'null']}, closed_at: {type: string, format: date-time}, pack_version: {type: string}, decisions: {type: array, items: {type: string}}}
+    AuditRecord:
+      type: object
+      required: [org_id, seq, occurred_at, actor, action, subject, data, prev_hash, record_hash]
+      properties: {org_id: {type: string}, seq: {type: integer}, occurred_at: {type: string}, actor: {type: string}, action: {type: string}, subject: {type: string}, correlation_id: {type: [string, 'null']}, data: {type: object}, prev_hash: {type: string}, record_hash: {type: string}}
+    ChainReport:
+      type: object
+      required: [intact, records, head_hash]
+      properties: {intact: {type: boolean}, records: {type: integer}, head_hash: {type: string}, first_broken_seq: {type: [integer, 'null']}, reason: {type: string}}
+    SimulationReport:
+      type: object
+      required: [workflow, reached, path, tasks_created, committed_effects, dead_ends]
+      properties: {workflow: {type: string}, reached: {type: string}, path: {type: array, items: {type: string}}, tasks_created: {type: integer}, committed_effects: {type: integer}, dead_ends: {type: array, items: {type: string}}, model: {const: fake}}
+    DemoState:
+      type: object
+      required: [now, timers, faults]
+      properties:
+        now: {type: string, format: date-time}
+        timers: {type: array, items: {type: object, properties: {instance_id: {type: string}, timer: {type: string}, fires_at: {type: string, format: date-time}}}}
+        open_rfqs: {type: array, items: {type: object, properties: {instance_id: {type: string}, conversation_id: {type: string}, supplier_id: {type: string}, supplier: {type: string}, sent_at: {type: string, format: date-time}, replied: {type: boolean}}}}
+        faults: {type: object, additionalProperties: {type: object, additionalProperties: {type: boolean}}}

@@ -1,0 +1,28 @@
+# Seeded organization for the POC. Identities come from here instead of an identity provider (SSO is deferred).
+organization: {id: org_demo, name: Procurement demo organization, data_residency: sandbox}
+owner_roles: [platform_admin, risk, head_of_procurement]
+departments:
+  facilities:
+    name: Facilities
+    head: faisal_manager
+    teams:
+      operations: {name: Facilities operations, owner: faisal_manager}
+  procurement:
+    name: Procurement
+    head: head_of_procurement
+    teams:
+      sourcing: {name: Sourcing, owner: head_of_procurement}
+      procurement: {name: Procurement, owner: khalid}
+  platform:
+    name: Platform
+    head: platform_admin
+    teams:
+      platform: {name: Platform team, owner: platform_admin}
+people:
+  faisal: {name: Faisal, team: facilities/operations, roles: [end_user], console: false}
+  faisal_manager: {name: Facilities manager, team: facilities/operations, roles: [end_user], console: false}
+  noura: {name: Noura, team: procurement/sourcing, roles: [sourcing_user], console: false}
+  khalid: {name: Khalid, team: procurement/procurement, roles: [procurement_user], console: false}
+  head_of_procurement: {name: Head of Procurement, team: procurement/procurement, roles: [seat_owner, process_owner], console: true}
+  platform_admin: {name: Platform admin, team: platform/platform, roles: [platform_admin], console: true}
+  risk: {name: Risk reviewer, team: platform/platform, roles: [risk], console: true}

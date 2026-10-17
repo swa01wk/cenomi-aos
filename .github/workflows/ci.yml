@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      AOS_TEST_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      AOS_TEST_REQUIRE_PG: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install
+        run: python -m pip install -e 'backend[dev]'
+      - name: Tests (contracts, reference DDL, pack-neutral, kernel, API, connectors, worker)
+        run: make test
+      - name: Validate the pack
+        run: make validate
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: web
+        run: npm install
+      - name: Type-check and build
+        working-directory: web
+        run: npm run build

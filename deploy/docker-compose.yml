@@ -1,0 +1,62 @@
+# AOS POC — M0 stack. `make up` from the repo root.
+# Later milestones add: worker and scheduler (M1–M2), gateway (M3), Jaeger (M4).
+# No Redis: the Postgres outbox plus LISTEN/NOTIFY carries events (ADR 013).
+name: aos-poc
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aos
+      POSTGRES_USER: aos_owner
+      POSTGRES_PASSWORD: aos_owner_dev
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Applied once, in name order, on first start of an empty volume.
+      - ../backend/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aos_owner -d aos"]
+      interval: 2s
+      retries: 30
+
+  api:
+    build: {context: .., dockerfile: backend/Dockerfile}
+    environment:
+      AOS_DATABASE_URL: postgresql://aos_kernel:aos_kernel_dev@postgres:5432/aos
+      AOS_SESSION_SECRET: ${AOS_SESSION_SECRET:-aos-dev-session-secret-change-me-0123456789abcdef}
+      AOS_CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/healthz')"]
+      interval: 3s
+      retries: 20
+
+  mock-erp:
+    build: {context: .., dockerfile: backend/Dockerfile}
+    command: ["python", "-m", "aos.connectors.mock_erp", "--host", "0.0.0.0", "--db", "/data/mock_erp.sqlite"]
+    environment:
+      MOCK_ERP_SECRET: ${MOCK_ERP_SECRET:-dev-erp-secret}
+    volumes: [mockdata:/data]
+    ports: ["8101:8101"]
+
+  mock-mail:
+    build: {context: .., dockerfile: backend/Dockerfile}
+    command: ["python", "-m", "aos.connectors.mock_mail", "--host", "0.0.0.0", "--db", "/data/mock_mail.sqlite"]
+    environment:
+      MOCK_MAIL_SECRET: ${MOCK_MAIL_SECRET:-dev-mail-secret}
+      AOS_INBOUND_SECRET: ${AOS_INBOUND_SECRET:-dev-inbound-secret}
+    volumes: [mockdata:/data]
+    ports: ["8102:8102"]
+
+  web:
+    build: {context: .., dockerfile: web/Dockerfile}
+    ports: ["8080:80"]
+    depends_on:
+      api: {condition: service_healthy}
+
+volumes:
+  pgdata:
+  mockdata:

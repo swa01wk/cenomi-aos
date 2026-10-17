@@ -1,0 +1,20 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: brief, version: 1, owner: head_of_procurement}
+spec:
+  description: What the requester needs, confirmed by them.
+  fields:
+    title: {type: string, required: true}
+    category: {type: string, required: true}
+    quantity: {type: integer, required: true}
+    specification: {type: string, required: true}
+    delivery_date: {type: date, required: true}
+    delivery_site: {type: string, required: true}
+    quality_signoff: {type: string}
+    budget_guidance: {type: money, classification: internal}
+    attachments: {type: list}
+  view: {type: document}
+  visibility:
+    requester: all
+    buyer: all
+    procurement_approver: all

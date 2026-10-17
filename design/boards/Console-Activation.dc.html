@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Seat: tests and activation checks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Seat: tests and activation checks · Example run QQ-0001 · Stop 2 of 17 · Console as Platform admin</span>
+    <span style="font-size: 16px; font-weight: 600;">Configure and test the Seat; activation is refused</span>
+    <span style="font-size: 13px; color: #4A5160;">All six configuration checks pass and both evaluation suites pass in the sandbox. The platform admin then tries to activate the Seat and is refused: whoever configures a Seat cannot activate it.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: DRAFT → CONFIGURED → TESTING → APPROVED · activate(actor=platform_admin) → DENY segregation_of_duties · audited</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Console-Packs.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="Console-Seat.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: owner activates</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Platform admin</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Platform team</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Seats / <span style="font-family: 'IBM Plex Mono', monospace;">seat_sourcing_poc</span></span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Sourcing Agent</h1>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">APPROVED</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-family: 'IBM Plex Mono', monospace;">v1</span>
+      </div>
+    </div>
+  </header>
+
+  <div role="alert" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: #FCE8E6; border: 1px solid #F0BDB7;">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#A6261C" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 20px; margin-top: 1px;"><circle cx="10" cy="10" r="7.5"></circle><path d="M10 6v5M10 13.6v.2"></path></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-weight: 600; color: #7E1D15;">You can't activate a Seat you configured</span>
+      <span style="color: #15171C;">Segregation of duties requires the Seat owner, Head of Procurement, to activate <span style="font-family: 'IBM Plex Mono', monospace;">seat_sourcing_poc</span> v1. An activation request has been sent to them.</span>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">decision DENY · rule seat.activate.not_configurer · audit ev_0412</span>
+    </div>
+  </div>
+
+  <ol aria-label="Seat lifecycle" style="margin: 0; padding: 16px; list-style: none; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;">
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">DRAFT</span><span style="font-size: 12px; color: #4A5160;">12 Oct · you</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">CONFIGURED</span><span style="font-size: 12px; color: #4A5160;">13 Oct · 6 of 6 checks</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">TESTING</span><span style="font-size: 12px; color: #4A5160;">13 Oct · 2 suites</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #2B59C3;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #2B59C3;">APPROVED</span><span style="font-size: 12px; color: #4A5160;">14 Oct · Risk</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px dashed #C9CED6;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #6B7280;">ACTIVE</span><span style="font-size: 12px; color: #6B7280;">Waiting for the owner</span></li>
+  </ol>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px;">
+    <section aria-labelledby="runs" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="runs" style="margin: 0; font-size: 15px; font-weight: 600;">Evaluation runs in the sandbox</h2>
+      <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+        <div style="padding: 12px; border: 1px solid #E2E5EA; border-radius: 8px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; flex-grow: 1;">refusals</span><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">24 / 24</span></div>
+          <span style="color: #4A5160;">The requester asks for quoted prices 24 ways. Every attempt returned NEVER, and no price appeared in any context envelope.</span>
+        </div>
+        <div style="padding: 12px; border: 1px solid #E2E5EA; border-radius: 8px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; flex-grow: 1;">dry_run</span><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Pass</span></div>
+          <span style="color: #4A5160;">Synthetic event QQ-SIM-07 ran with the scripted fake model and mock connectors, reached closed, and every one of its 4 effects had an approval.</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="act" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="act" style="margin: 0; font-size: 15px; font-weight: 600;">Activation</h2>
+      <dl style="margin: 0; display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px 12px; font-size: 13px;">
+        <dt style="color: #6B7280;">Configured by</dt><dd style="margin: 0;">Platform admin (you)</dd>
+        <dt style="color: #6B7280;">Can activate</dt><dd style="margin: 0;">Head of Procurement, Seat owner</dd>
+        <dt style="color: #6B7280;">Records</dt><dd style="margin: 0;">A Decision Record against Seat v1</dd>
+        <dt style="color: #6B7280;">Request</dt><dd style="margin: 0;">Sent 14 Oct 15:02 · due 15 Oct</dd>
+      </dl>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" disabled style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #E2E5EA; background: #F5F6F8; color: #6B7280; font: inherit;">Activate (owner only)</button>
+        <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Remind owner</button>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

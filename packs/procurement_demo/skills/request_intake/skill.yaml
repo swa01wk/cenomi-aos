@@ -1,0 +1,10 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: request_intake, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [analysis]
+  instructions: instructions.md
+  reads: [job_snapshot, recent_messages, brief]
+  produces: [brief]
+  may_request: [ask_question, browse_categories]
+  verifiers: [brief_schema]

@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Verifier
+metadata: {name: brief_schema, version: 1, owner: head_of_procurement}
+spec:
+  description: Every required brief field is present and typed correctly.
+  method: rule
+  applies_to: [brief]
+  implementation: aos.verifiers.brief_schema

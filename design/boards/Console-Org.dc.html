@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Organization</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Console · Built in M0</span>
+    <span style="font-size: 16px; font-weight: 600;">Organization</span>
+    <span style="font-size: 13px; color: #4A5160;">Who works here and which roles they hold. Seeded from the organization file in the POC; an identity provider replaces it later. Workflows bind their participants from these teams and roles.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /console/org · GET /api/org · any Console role · reads org.organizations, org.departments, org.teams, org.people, org.role_mappings</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Console-Seats.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: Seats</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Platform admin</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Platform team</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Define / Organization</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Procurement demo organization</h1>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">org_demo · data residency sandbox · 7 people · source seed/org.yaml</span>
+    </div>
+    <button type="button" disabled style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #E2E5EA; background: #F5F6F8; color: #6B7280; font: inherit;">Sync from identity provider (after the POC)</button>
+  </header>
+
+  <section aria-label="Departments" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; justify-content: space-between; gap: 8px;"><h2 style="margin: 0; font-size: 15px; font-weight: 600;">Facilities</h2><span style="font-size: 12px; color: #4A5160;">2 people</span></div>
+      <span style="font-size: 12px; color: #6B7280;">Head: Facilities manager</span>
+      <div style="display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 13px;"><span>Facilities operations</span><span style="color: #4A5160;">Facilities manager</span></div>
+    </div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; justify-content: space-between; gap: 8px;"><h2 style="margin: 0; font-size: 15px; font-weight: 600;">Procurement</h2><span style="font-size: 12px; color: #4A5160;">3 people</span></div>
+      <span style="font-size: 12px; color: #6B7280;">Head: Head of Procurement</span>
+      <div style="display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 13px;"><span>Sourcing</span><span style="color: #4A5160;">Head of Procurement</span></div>
+      <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px;"><span>Procurement</span><span style="color: #4A5160;">Khalid</span></div>
+    </div>
+    <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; justify-content: space-between; gap: 8px;"><h2 style="margin: 0; font-size: 15px; font-weight: 600;">Platform</h2><span style="font-size: 12px; color: #4A5160;">2 people</span></div>
+      <span style="font-size: 12px; color: #6B7280;">Head: Platform admin</span>
+      <div style="display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 13px;"><span>Platform team</span><span style="color: #4A5160;">Platform admin</span></div>
+    </div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-labelledby="ppl" style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; display: flex; flex-direction: column;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #E2E5EA;">
+        <h2 id="ppl" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">People</h2>
+        <label for="org-filter" style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Filter people</label>
+        <input id="org-filter" type="search" placeholder="Filter by name or role" style="height: 36px; box-sizing: border-box; padding: 0 12px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; min-width: 220px;">
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px;">
+          <thead>
+            <tr style="background: #F5F6F8; text-align: left;">
+              <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Person</th>
+              <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Department · team</th>
+              <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Roles</th>
+              <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Console</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Faisal</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">faisal</div></td><td style="padding: 10px 14px;">Facilities · operations</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">end user</span></td><td style="padding: 10px 14px; color: #6B7280;">No</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Facilities manager</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">faisal_manager</div></td><td style="padding: 10px 14px;">Facilities · operations</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">end user</span></td><td style="padding: 10px 14px; color: #6B7280;">No</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Noura</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">noura</div></td><td style="padding: 10px 14px;">Procurement · sourcing</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">sourcing user</span></td><td style="padding: 10px 14px; color: #6B7280;">No</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Khalid</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">khalid</div></td><td style="padding: 10px 14px;">Procurement · procurement</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">procurement user</span></td><td style="padding: 10px 14px; color: #6B7280;">No</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Head of Procurement</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">head_of_procurement</div></td><td style="padding: 10px 14px;">Procurement · procurement</td><td style="padding: 10px 14px;"><div style="display: flex; flex-wrap: wrap; gap: 4px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">process owner</span><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">seat owner</span></div></td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 500;">Yes</span></td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Platform admin</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">platform_admin</div></td><td style="padding: 10px 14px;">Platform · platform</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">platform admin</span></td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 500;">Yes</span></td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><div>Risk reviewer</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">risk</div></td><td style="padding: 10px 14px;">Platform · platform</td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #EEF1F5; font-size: 12px;">risk</span></td><td style="padding: 10px 14px;"><span style="padding: 2px 8px; border-radius: 6px; background: #EAF0FC; color: #2B59C3; font-size: 12px; font-weight: 500;">Yes</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="bind" style="flex: 1 1 320px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="bind" style="margin: 0; font-size: 15px; font-weight: 600;">How workflows bind people</h2>
+      <span style="font-size: 13px; color: #4A5160;">Participant rules in <span style="font-family: 'IBM Plex Mono', monospace;">quick_quote@1</span>. Roles in a token never decide this; the kernel resolves them on the event.</span>
+      <dl style="margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+        <div style="padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;"><dt style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">requester</dt><dd style="margin: 2px 0 0; color: #4A5160;">At creation: whoever starts the job</dd></div>
+        <div style="padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;"><dt style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">buyer</dt><dd style="margin: 2px 0 0; color: #4A5160;">By claim from the queue procurement/sourcing</dd></div>
+        <div style="padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;"><dt style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">procurement_approver</dt><dd style="margin: 2px 0 0; color: #4A5160;">By rule: owner of procurement/procurement, today Khalid</dd></div>
+      </dl>
+    </section>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

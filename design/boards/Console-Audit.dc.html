@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Audit chain</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Audit chain · Example run QQ-0001 · Stop 16 of 17 · Console as Risk</span>
+    <span style="font-size: 16px; font-weight: 600;">"Why Najd Supplies?" answered from records, not memory</span>
+    <span style="font-size: 13px; color: #4A5160;">Starting at the Outcome Record, the audit chain walks back through every approval, decision, verification and draft to Faisal's first message. Each record names the person or Seat, and the versions it ran under. The hash chain verifies, so nothing was altered afterwards.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: audit_events, append-only, per-organization hash chain · 48 records for corr_qq0001 · verify → intact, first broken record: none</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Console-Instance.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="Console-Emergency.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: the kill switch</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Risk reviewer</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Audit and policy owner</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: #6B7280;">Audit / <span style="font-family: 'IBM Plex Mono', monospace;">corr_qq0001</span></span>
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Why did Najd Supplies get the order?</h1>
+  </header>
+
+  <form style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+    <label for="q" style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Search the audit log</label>
+    <input id="q" type="text" value="corr_qq0001 · chain from Outcome Record" style="flex: 1 1 360px; min-width: 0; height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid #C9CED6; border-radius: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; background: #FFFFFF;">
+    <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Search</button>
+  </form>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-labelledby="chain" style="flex: 1 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="chain" style="margin: 0; font-size: 15px; font-weight: 600;">The chain, newest first</h2>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: 13px;">
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #16693F;"></span><span><span style="font-weight: 500;">Outcome Record</span> · closed in 7 days, 1 rework, 1 policy block, 0 unapproved actions</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">22 Oct · kernel</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Action Result</span> · PO-778201 created once, reconciled after timeout; payload_match PASS</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">22 Oct · gateway</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Approvals</span> · Noura (content) then Khalid (release), bound to sha256 9f3a…c21</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">21–22 Oct · people</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA; background: #F7F9FE; box-shadow: inset 3px 0 0 #2B59C3;"><span style="width: 10px; height: 10px; margin: 5px 0 0 6px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Decision Record</span> · Noura selected Najd Supplies on comparison v1 (score 92.4 against 86.1)</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding-right: 8px;">21 Oct · Noura</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #16693F;"></span><span><span style="font-weight: 500;">Verification</span> · score_recompute PASS; calculator inputs = 2 captured quotes</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">21 Oct · verifier v1</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #6B7280;"></span><span><span style="font-weight: 500;">Inbound events</span> · quotes from Najd and Al Noor, deduplicated by message id</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">17, 20 Oct · mail</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Approval</span> · Noura approved 3 RFQ sends; one email edited by her as v3</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">15 Oct · Noura</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #C2760C;"></span><span><span style="font-weight: 500;">Verification</span> · leak_check REWORK on drafts v1, PASS on v2</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">15 Oct · verifier v1</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Decision Record</span> · Noura shortlisted Najd, Al Noor and Desert Clean from ranking v1</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">15 Oct · Noura</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #2B59C3;"></span><span><span style="font-weight: 500;">Decision Record</span> · Faisal confirmed brief v2</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">15 Oct · Faisal</span></li>
+        <li style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid #E2E5EA;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #6B7280;"></span><span><span style="font-weight: 500;">Start</span> · Faisal's first message; QQ-0001 created on quick_quote@1, Seat v1</span><span style="color: #6B7280; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">15 Oct · Faisal</span></li>
+      </ol>
+    </section>
+
+    <aside aria-label="Integrity" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+      <section aria-labelledby="verify" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="verify" style="margin: 0; font-size: 15px; font-weight: 600;">Hash chain</h2>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; background: #E3F4EA; color: #0F4D2E;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8.5l3 3 7-7"></path></svg>
+          <span style="font-weight: 500;">Intact · 48 of 48 records</span>
+        </div>
+        <dl style="margin: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 10px; font-size: 13px;">
+          <dt style="color: #6B7280;">Verified</dt><dd style="margin: 0;">22 Oct 10:00</dd>
+          <dt style="color: #6B7280;">Head hash</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">c7e2…19ab</dd>
+          <dt style="color: #6B7280;">First broken</dt><dd style="margin: 0;">None</dd>
+        </dl>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button type="button" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Verify again</button>
+          <button type="button" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Export chain</button>
+        </div>
+      </section>
+      <section aria-labelledby="vers" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="vers" style="margin: 0; font-size: 15px; font-weight: 600;">Versions in force</h2>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-family: 'IBM Plex Mono', monospace;">
+          <li>quick_quote@1</li>
+          <li>seat_sourcing_poc@1</li>
+          <li>quick_quote_gates@1</li>
+          <li>sourcing_supervised@1</li>
+          <li>model alias enterprise_reasoning</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Resource
+metadata: {name: erp_po, version: 1, owner: head_of_procurement}
+spec:
+  description: Purchase orders in the ERP
+  actions: [read, create]
+  lives_in: connector
+  classification: internal

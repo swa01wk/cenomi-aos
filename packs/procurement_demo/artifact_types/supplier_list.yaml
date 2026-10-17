@@ -1,0 +1,19 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: supplier_list, version: 1, owner: head_of_procurement}
+spec:
+  description: Suppliers found in the ERP, ranked with cited sources.
+  fields:
+    rank: {type: integer, required: true}
+    supplier: {type: string, required: true}
+    supplier_id: {type: string, required: true}
+    past_pos: {type: integer}
+    on_time_pct: {type: number}
+    score: {type: number, required: true}
+    sources: {type: list, required: true}
+  row_based: true
+  view: {type: sheet, columns: [rank, supplier, past_pos, on_time_pct, score]}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [rank, supplier]

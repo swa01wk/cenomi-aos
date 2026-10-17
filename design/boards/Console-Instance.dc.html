@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Instance: timeline and trace</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Instance: timeline and trace · Example run QQ-0001 · Stop 15 of 17 · Console as Head of Procurement</span>
+    <span style="font-size: 16px; font-weight: 600;">Trace the event end to end</span>
+    <span style="font-size: 13px; color: #4A5160;">The process owner opens the closed event: time spent in each state, one merged timeline of every event, decision, policy result, action and timer, and a span-by-span trace of one Task. The approval wait shows as a gap with no compute, because the attempt had ended.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: one OpenTelemetry trace per Task · every span tagged aos.correlation_id=corr_qq0001, aos.task.id, aos.attempt.id, gen_ai.request.model</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="WS-Closed.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="Console-Audit.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: the audit chain</a>
+  </div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Head of Procurement</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Seat owner · process owner</span>
+    <a href="Main.dc.html" style="font-size: 13px; color: #9DB6F2;">Open Workspace</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Instances / quick_quote v1 / <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span></span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">40 cleaning trolleys for Mall A</h1>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">closed</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-weight: 500;">Closed 22 Oct 09:32 · 7 days</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">corr_qq0001 · version 27 · seat_sourcing_poc@1 · policy quick_quote_gates@1</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <a href="Console-Audit.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Open audit chain</a>
+    </div>
+  </header>
+
+  <ol aria-label="Time in each state" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px;">
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">intake</span><span style="font-weight: 500;">6 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">shortlisting</span><span style="font-weight: 500;">1 h 38 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">rfq drafting</span><span style="font-weight: 500;">4 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">rfq sending</span><span style="font-weight: 500;">2 h 1 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">awaiting quotes</span><span style="font-weight: 500;">6 d 4 h</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">comparison</span><span style="font-weight: 500;">20 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E2E5EA; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #4A5160;">ordering</span><span style="font-weight: 500;">16 h 12 min</span></li>
+    <li style="padding: 6px 10px; border-radius: 8px; background: #E3F4EA; border: 1px solid #16693F; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #16693F;">closed</span><span style="font-weight: 500;">22 Oct 09:32</span></li>
+  </ol>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-labelledby="tl" style="flex: 1 1 440px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <h2 id="tl" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">Timeline</h2>
+        <span style="font-size: 12px; color: #6B7280;">Newest first · 48 records</span>
+      </div>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: 13px;">
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">22 Oct 09:32</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EAF0FC; color: #2B59C3; justify-self: start;">TRANSITION</span><span>ordering → closed · handover to Faisal · Outcome Record written · timers cancelled</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">22 Oct 09:31</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FDF1DE; color: #8A4B08; justify-self: start;">ACTION</span><span><span style="font-family: 'IBM Plex Mono', monospace;">create_po</span> timed out, reconciled by reference: PO-778201, no retry · <a href="Console-Gateway.dc.html">details</a></span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">22 Oct 09:30</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F; justify-self: start;">APPROVAL</span><span>Step 2 of 2 approved by Khalid · chain complete</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:24</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F; justify-self: start;">APPROVAL</span><span>Step 1 of 2 approved by Noura on <span style="font-family: 'IBM Plex Mono', monospace;">erp_po.create</span></span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:22</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FDF1DE; color: #8A4B08; justify-self: start;">POLICY</span><span><span style="font-family: 'IBM Plex Mono', monospace;">erp_po.create</span> → REQUIRE_APPROVAL, 2-step chain (amount 38,400 &gt; 25,000) · <a href="Console-Policy.dc.html">explain</a></span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:21</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EEF1F5; color: #4A5160; justify-self: start;">TASK</span><span>po_create attempt 1 checkpointed · Task WAITING_APPROVAL</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:20</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EAF0FC; color: #2B59C3; justify-self: start;">TRANSITION</span><span>comparison → ordering on <span style="font-family: 'IBM Plex Mono', monospace;">decision.supplier_selected</span> by Noura · v22 → v23</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:01</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F; justify-self: start;">VERIFY</span><span>score_recompute PASS on comparison v1</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">21 Oct 17:00</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EEF1F5; color: #4A5160; justify-self: start;">TIMER</span><span>quote_deadline v1 fired once → quotes_closed (2 quotes, guard passed)</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">20 Oct 16:05</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EEF1F5; color: #4A5160; justify-self: start;">INBOUND</span><span>Reply from Al Noor Trading, deduplicated by message id → quote_triage</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">15 Oct 12:10</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #EAF0FC; color: #2B59C3; justify-self: start;">ACTION</span><span><span style="font-family: 'IBM Plex Mono', monospace;">mailbox.send</span> × 3 executed with idempotency keys · recipient_check PASS · <a href="Console-Instance.dc.html">trace</a></span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">15 Oct 12:08</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F; justify-self: start;">APPROVAL</span><span>Noura approved 3 sends, bound to 3 digests</span></li>
+        <li style="display: grid; grid-template-columns: 88px 92px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid #E2E5EA; align-items: baseline;"><span style="color: #6B7280;">15 Oct 10:31</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FCE8E6; color: #A6261C; justify-self: start;">VERIFY</span><span>leak_check REWORK on RFQ drafts v1: internal budget found · new attempt</span></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="trace" style="flex: 1 1 440px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <h2 id="trace" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">Trace · Task rfq_send</h2>
+        <a href="Console-Instance.dc.html" style="font-size: 13px;">Open in Jaeger</a>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">outbound_communication · 2 attempts · 2 h 1 min wall · 59 s compute</span>
+      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="font-weight: 600;">task rfq_send</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 0%; width: 100%; height: 100%; background: #C9CED6; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">2 h 1 m</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 12px; font-weight: 500;">attempt 1</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 0%; width: 6%; height: 100%; background: #2B59C3; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">41 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">assemble_context</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 0%; width: 1%; height: 100%; background: #7C98DB; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">0.4 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">reason · model call</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 1%; width: 2.5%; height: 100%; background: #7C98DB; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">6.2 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">request_action × 3</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 3.5%; width: 1%; height: 100%; background: #C2760C; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">0.3 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">await_approval</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 4.5%; width: 1.5%; height: 100%; background: #7C98DB; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">0.2 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 12px; color: #8A4B08; font-weight: 500;">approval wait · no compute</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 6%; width: 86%; height: 100%; box-sizing: border-box; border: 1.5px dashed #C2760C; background: #FDF1DE; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">1 h 58 m</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 12px; font-weight: 500;">attempt 2 · resume</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 92%; width: 8%; height: 100%; background: #2B59C3; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">18 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">policy re-check</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 92%; width: 1%; height: 100%; background: #C2760C; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">0.1 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">broker token × 3</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 93%; width: 1%; height: 100%; background: #7C98DB; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">0.1 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">gateway mailbox.send</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 94%; width: 4%; height: 100%; background: #7C98DB; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">14 s</span></div>
+        <div style="display: grid; grid-template-columns: 190px minmax(0, 1fr) 64px; gap: 10px; align-items: center;"><span style="padding-left: 24px; font-family: 'IBM Plex Mono', monospace;">recipient_check</span><div style="height: 12px; background: #EEF1F5; border-radius: 3px; position: relative;"><div style="position: absolute; left: 98%; width: 2%; height: 100%; background: #16693F; border-radius: 3px;"></div></div><span style="text-align: right; color: #4A5160;">2.8 s</span></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #4A5160; padding-top: 8px; border-top: 1px solid #E2E5EA;">
+        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 8px; border-radius: 2px; background: #2B59C3;"></span>Attempt</span>
+        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 8px; border-radius: 2px; background: #7C98DB;"></span>Graph node or kernel call</span>
+        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 8px; border-radius: 2px; background: #C2760C;"></span>Policy</span>
+        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 8px; border-radius: 2px; background: #16693F;"></span>Verifier</span>
+        <span>Wait not to scale</span>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

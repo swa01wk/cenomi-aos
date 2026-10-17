@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/agent-result.schema.json",
+  "title": "AgentResult",
+  "description": "What a worker submits at the end of an attempt (reference architecture v1.2 section 29). A proposal, never an outcome: the kernel runs schema, freshness/policy and verifier checks before the Task is accepted.",
+  "type": "object",
+  "required": ["schema_version", "contract_id", "attempt_id", "status", "output_artifact_refs", "evidence_refs", "input_versions", "consumed_budget", "summary"],
+  "properties": {
+    "schema_version": {"const": "aos.agent_result/1"},
+    "contract_id": {"type": "string"},
+    "attempt_id": {"type": "string"},
+    "status": {"enum": ["completed", "needs_input", "failed"], "description": "needs_input: the agent asked participant questions and the Task waits; failed must carry failure_category."},
+    "output_artifact_refs": {
+      "type": "array",
+      "description": "Draft versions saved during the attempt that this result proposes as the Task's output.",
+      "items": {"type": "object", "required": ["artifact_id", "version", "content_hash"], "properties": {"artifact_id": {"type": "string"}, "version": {"type": "integer"}, "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "object", "required": ["kind", "ref"], "properties": {"kind": {"enum": ["source", "tool_receipt", "model_call", "action_execution"]}, "ref": {"type": "string"}}, "additionalProperties": false}
+    },
+    "input_versions": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "The dependency_versions the agent actually used; compared with current state on submit."},
+    "proposed_actions": {"type": "array", "maxItems": 0, "description": "Always empty in the POC: effects are requested during the attempt through request_action."},
+    "proposed_graph_changes": {"type": "array", "maxItems": 0, "description": "Always empty in the POC (ADR 010)."},
+    "consumed_budget": {
+      "type": "object",
+      "required": ["tokens_in", "tokens_out", "cost_usd", "time_s", "steps", "actions"],
+      "properties": {"tokens_in": {"type": "integer"}, "tokens_out": {"type": "integer"}, "cost_usd": {"type": "number"}, "time_s": {"type": "number"}, "steps": {"type": "integer"}, "actions": {"type": "integer"}},
+      "additionalProperties": false
+    },
+    "failure_category": {"enum": ["model_error", "tool_timeout", "ambiguous_effect", "stale_input", "policy_denied", "budget_exhausted", "invalid_output", "cancelled"]},
+    "summary": {"type": "string", "maxLength": 500, "description": "One plain sentence for the timeline and the buyer, e.g. 'Ranked 5 suppliers from ERP history.'"}
+  },
+  "allOf": [{"if": {"properties": {"status": {"const": "failed"}}}, "then": {"required": ["failure_category"]}}],
+  "additionalProperties": false
+}

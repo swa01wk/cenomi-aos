@@ -1,0 +1,19 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: comparison, version: 1, owner: head_of_procurement}
+spec:
+  description: Quotes totalled and scored by the calculator.
+  fields:
+    rank: {type: integer, required: true}
+    supplier: {type: string, required: true}
+    unit_price: {type: money, required: true, classification: restricted}
+    total: {type: money, required: true, classification: restricted}
+    lead_time_days: {type: integer, required: true}
+    warranty_months: {type: integer}
+    score: {type: number, required: true}
+  row_based: true
+  view: {type: sheet, columns: [rank, supplier, unit_price, total, lead_time_days, warranty_months, score], export: excel}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [rank, supplier]

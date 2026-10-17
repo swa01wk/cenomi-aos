@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Approvals</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Console · Built in M3</span>
+    <span style="font-size: 16px; font-weight: 600;">Approvals</span>
+    <span style="font-size: 13px; color: #4A5160;">Every open approval in the organization, which step of its chain it is on, who holds it and when it falls due. Approvers act in the Workspace; this view is for oversight, reminders and publish requests.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /console/approvals · GET /api/console/approvals?status=open · GET /api/console/publish-requests · POST /api/console/approvals/:id/remind</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Console-Connectors.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: tools and connectors</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Head of Procurement</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Process owner · Procurement</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Operate / Approvals</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Approvals</h1>
+    </div>
+  </header>
+
+  <div role="tablist" aria-label="Approval kinds" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #E2E5EA;">
+    <button type="button" role="tab" aria-selected="true" style="padding: 10px 12px; border: none; border-bottom: 2px solid #2B59C3; background: none; font: inherit; font-weight: 500; color: #15171C; cursor: pointer;">Open <span style="padding: 0 6px; border-radius: 999px; background: #EAF0FC; color: #2B59C3; font-size: 12px;">1</span></button>
+    <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Recently decided <span style="font-size: 12px;">3</span></button>
+    <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Publish requests <span style="font-size: 12px;">0 open</span></button>
+    <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Seat activations <span style="font-size: 12px;">0 open</span></button>
+  </div>
+
+  <section aria-labelledby="open-ap" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+      <h2 id="open-ap" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;"><span style="font-family: 'IBM Plex Mono', monospace;">AP-0044</span> · Create the purchase order, SAR 18,600</h2>
+      <span style="padding: 2px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 500;">Due 24 Oct 10:15 · 23 h left</span>
+    </div>
+    <dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; font-size: 13px;">
+      <div><dt style="color: #6B7280;">Event</dt><dd style="margin: 0;"><a href="Console-Instance.dc.html" style="font-family: 'IBM Plex Mono', monospace;">QQ-0003</a> · Uniforms, security team</dd></div>
+      <div><dt style="color: #6B7280;">Action</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">erp_po.create</dd></div>
+      <div><dt style="color: #6B7280;">Requested by</dt><dd style="margin: 0;">Sourcing Agent · attempt 1 of Task po_create</dd></div>
+      <div><dt style="color: #6B7280;">Policy</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">quick_quote_gates · po_create</dd></div>
+    </dl>
+    <ol aria-label="Approval chain" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
+      <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid #2B59C3; border-radius: 8px; background: #F7F9FE;">
+        <span style="width: 26px; height: 26px; border-radius: 50%; background: #2B59C3; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex: 0 0 26px;">1</span>
+        <span style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 500;">Buyer · Noura</span><span style="font-size: 12px; color: #4A5160;">Waiting since 10:15 · notified in the Workspace</span></span>
+        <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Remind</button>
+      </li>
+    </ol>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Bound to sha256 3b9d…e10 (PO payload v1) · one step: below SAR 25,000 · policy revision quick_quote_gates@1 · expires 24 Oct 10:15 · any edit voids it</span>
+    <span style="font-size: 12px; color: #4A5160;">Approvers act from their Workspace inbox. Nobody can approve from this page, and the person who requested an action can never approve it.</span>
+  </section>
+
+  <section aria-labelledby="recent" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px;">
+    <h2 id="recent" style="margin: 0; padding: 14px 18px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #E2E5EA;">Recently decided</h2>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px;">
+        <thead>
+          <tr style="background: #F5F6F8; text-align: left;">
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Approval</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Event</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Action</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Chain</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0040</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0005</td><td style="padding: 10px 14px;">Send 4 RFQ emails</td><td style="padding: 10px 14px;">Noura</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Approved</span> · 22 Oct 16:28</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0017</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0001</td><td style="padding: 10px 14px;">Create PO, SAR 38,400</td><td style="padding: 10px 14px;">Noura (content), then Khalid</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Approved</span> · 21 Oct 17:24</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0009</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0001</td><td style="padding: 10px 14px;">Send 3 RFQ emails</td><td style="padding: 10px 14px;">Noura</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Approved</span> after her edit · 15 Oct 12:06</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Resource
+metadata: {name: job_artifacts, version: 1, owner: head_of_procurement}
+spec:
+  description: Drafts and versions of every artifact on a job
+  actions: [read, draft, version]
+  lives_in: aos_store
+  classification: internal

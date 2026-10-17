@@ -1,0 +1,10 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: quote_comparison, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [analysis, record_update]
+  instructions: instructions.md
+  reads: [job_snapshot, brief, quote, comparison]
+  produces: [comparison, po_payload]
+  may_request: [price_calculator, create_po, find_po]
+  verifiers: [score_recompute]

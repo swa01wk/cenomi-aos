@@ -1,0 +1,30 @@
+---
+description: Kernel and API rules (FastAPI, psycopg 3, PostgreSQL)
+globs: backend/src/aos/kernel/**,backend/src/aos/api/**,backend/src/aos/gateway/**,backend/migrations/**
+alwaysApply: false
+---
+
+# Kernel rules
+
+- **The kernel decides.** No state change without a server-side check of identity, participant role (resolved from
+  `work.participants`, never from the token), policy and `expected_version`.
+- **One transaction per command**: state change + Decision Record + execution event + outbox rows (+ audit record for
+  authority events) commit together. Never call a connector or a model inside a transaction.
+- **Optimistic versions**: `UPDATE … WHERE id = $1 AND version = $2`; zero rows → `KernelProblem("stale_version", 409,
+  current_version=…)`.
+- **Errors** are `KernelProblem(code, status, title, detail)` rendered as `application/problem+json`; codes come from
+  `contracts/schemas/problem.schema.json` only.
+- **Visibility** goes through `artifacts.project()` for API reads and context envelopes alike. Never return a field
+  the viewer's role may not see; drop it and list it in `hidden_fields` / `redactions`.
+- **Worker calls** check `X-AOS-Fencing-Token` against `work.tasks.fencing_token` first; mismatch → 409 `fenced`.
+- **Effects** go only through `gateway`: intent row with idempotency key committed before the call; timeouts become
+  UNKNOWN and are reconciled with the tool's `reconcile_with`, never retried blind.
+- **Approvals** bind to `sha256(canonical({tool, args, artifact_refs, policy_version}))`; any new version of a bound
+  artifact voids them.
+- **Pack-neutral.** Kernel, API, gateway, worker and registry code never names a pack, workflow, Skill, document
+  type or domain word; read it from the pack. Domain code lives in `aos/verifiers`, `aos/tools` or `aos/connectors`
+  and is referenced by `implementation:`.
+- **Time** comes from `kernel/clock.py` (demo offset aware), never `datetime.now()` directly.
+- SQL is plain SQL with psycopg 3 parameters (`%s`), never string formatting. Migrations are numbered SQL files;
+  start from `docs/specs/backend/ddl/`.
+- The worker DB role (`aos_worker`) must never get grants outside `lg_checkpoints`.

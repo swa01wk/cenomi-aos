@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Verifier
+metadata: {name: payload_match, version: 1, owner: head_of_procurement}
+spec:
+  description: The PO read back from the ERP equals the approved payload.
+  method: rule
+  applies_to: [po_payload]
+  implementation: aos.verifiers.payload_match

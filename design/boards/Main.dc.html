@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace: Job page: chat and work panel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Job page: chat and work panel · Example run QQ-0001 · Stop 5 of 17 · Workspace as Faisal</span>
+    <span style="font-size: 16px; font-weight: 600;">The worker interviews Faisal; supplier lookup runs in parallel</span>
+    <span style="font-size: 13px; color: #4A5160;">The agent asks only for what the brief is missing and saves each version as a draft. Once the intent is clear, a second branch starts and reads suppliers from the ERP. Faisal confirms brief v2, which makes it final.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: request_intake → brief v1, v2 (draft) · brief_schema PASS · region discovery: supplier_lookup → erp_supplier.read ALLOW · decision.brief_confirmed (expected_version 4)</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="WS-New.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-Shortlist.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: Noura shortlists</a>
+  </div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+
+<nav aria-label="Workspace" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E2E5EA; padding: 20px 16px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px;">Workspace</span>
+      <span style="font-size: 12px; color: #6B7280;">Procurement</span>
+    </div>
+  </div>
+  <a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+    New job
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">Digital workers</span>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #E2E5EA; border-radius: 8px;">
+      <div style="width: 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+      <div style="display: flex; flex-direction: column; flex-grow: 1;">
+        <span style="font-weight: 500;">Sourcing Agent</span>
+        <span style="font-size: 12px; color: #16693F;">Active · v1</span>
+      </div>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280; margin-bottom: 4px;">My jobs</span>
+    <a href="Main.dc.html" aria-current="page" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #EEF1F5; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Cleaning trolleys, Mall A</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span> · intake</span>
+    </a>
+    <a href="Main.dc.html" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Floor scrubber parts</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0002</span> · closed</span>
+    </a>
+  </div>
+  <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none;">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.5 12.5V8a4.5 4.5 0 0 1 9 0v4.5l1.2 1.5H3.3z"></path><path d="M7.5 15.5a1.6 1.6 0 0 0 3 0"></path></svg>
+    <span style="flex-grow: 1;">Notifications</span>
+    <span style="font-size: 12px; color: #6B7280;">0</span>
+  </a>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #FDF1DE; color: #8A4B08; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">F</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Faisal</span>
+        <span style="font-size: 12px; color: #6B7280;">Facilities · requester</span>
+      </div>
+    </div>
+    <a href="Console-Seat.dc.html" style="font-size: 13px;">Open AOS Console</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap;">
+  <section aria-label="Conversation" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #E2E5EA;">
+    <header style="padding: 18px 28px 14px; background: #FFFFFF; border-bottom: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;">
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 12px; color: #6B7280;">Sourcing Agent · Quick Quote · <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span></span>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600;">40 cleaning trolleys for Mall A</h1>
+        </div>
+        <span style="font-size: 12px; color: #4A5160;">Buyer: Sourcing queue (unclaimed)</span>
+      </div>
+      <ol aria-label="Workflow stages" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px;">
+        <li style="padding: 3px 10px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 500;">intake</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">shortlisting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">rfq drafting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">rfq sending</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">awaiting quotes</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">comparison</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">ordering</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">closed</li>
+      </ol>
+    </header>
+
+    <div style="flex-grow: 1; height: 600px; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="align-self: flex-end; max-width: 78%; background: #EEF1F5; border-radius: 12px 12px 4px 12px; padding: 12px 14px;">
+        We need 40 cleaning trolleys for Mall A before the Eid footfall. Same spec as the ones at Mall C, if possible.
+        <div style="font-size: 11px; color: #6B7280; margin-top: 6px;">Faisal · 10:02</div>
+      </div>
+
+      <div style="display: flex; gap: 12px; max-width: 88%;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span>I can set that up as a Quick Quote. The brief still needs three things:</span>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li>Delivery date and place</li>
+            <li>Budget guidance (kept internal, never sent to suppliers)</li>
+            <li>Who signs off on quality</li>
+          </ol>
+          <span style="font-size: 11px; color: #6B7280;">Sourcing Agent · 10:02</span>
+        </div>
+      </div>
+
+      <div style="align-self: flex-end; max-width: 78%; background: #EEF1F5; border-radius: 12px 12px 4px 12px; padding: 12px 14px;">
+        By 20 Nov to the Mall A loading bay. Budget around SAR 45,000. I'll check quality myself on delivery.
+        <div style="font-size: 11px; color: #6B7280; margin-top: 6px;">Faisal · 10:03</div>
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">What I did</span>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>
+              <span>Saved <a href="Main.dc.html">Brief v2</a> as a draft</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>
+              <span>Marked the budget internal; it stays out of anything sent to suppliers</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>
+              <span>Started supplier lookup in parallel: 5 suppliers found in the ERP, ranked with sources</span>
+            </div>
+            <span style="font-size: 12px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">brief_schema PASS · supplier_lookup PASS · erp_supplier.read ALLOW</span>
+          </div>
+
+          <div role="group" aria-label="Decision: confirm brief v2" style="background: #F7F9FE; border: 1px solid #2B59C3; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;">
+              <span style="font-weight: 600; font-size: 15px;">Confirm brief v2</span>
+              <span style="font-size: 12px; color: #4A5160;">Decision · you, as requester</span>
+            </div>
+            <span style="color: #4A5160;">Confirming makes this version final and hands the job to Sourcing. Later changes become a new version.</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <a href="WS-Shortlist.dc.html" style="height: 40px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; font-weight: 500; text-decoration: none; display: flex; align-items: center;">Confirm brief</a>
+              <button type="button" style="height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; font: inherit; cursor: pointer;">Edit in panel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form style="margin: 0; padding: 16px 28px 20px; background: #FFFFFF; border-top: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 8px;">
+      <label for="reply" style="font-size: 12px; color: #4A5160;">Reply to Sourcing Agent</label>
+      <div style="display: flex; gap: 8px;">
+        <input id="reply" type="text" placeholder="Ask about suppliers, change the brief…" style="flex-grow: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; color: #15171C;">
+        <button type="button" aria-label="Send" style="width: 44px; height: 44px; border-radius: 8px; border: none; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9h11M10 5l4 4-4 4"></path></svg>
+        </button>
+      </div>
+      <span style="font-size: 12px; color: #6B7280;">The agent can read and draft. Anything sent or written outside AOS needs an approval.</span>
+    </form>
+  </section>
+
+  <aside aria-label="Work in progress" style="flex: 1 1 400px; min-width: 0; background: #FFFFFF; display: flex; flex-direction: column;">
+    <div role="tablist" style="display: flex; gap: 4px; padding: 12px 16px 0; border-bottom: 1px solid #E2E5EA;">
+      <button type="button" role="tab" aria-selected="true" style="padding: 10px 12px; border: none; border-bottom: 2px solid #2B59C3; background: none; font: inherit; font-weight: 500; color: #15171C; cursor: pointer;">Brief v2</button>
+      <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Supplier ranking · 5</button>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid #E2E5EA;">
+      <span style="padding: 2px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 500;">Draft</span>
+      <span style="font-size: 12px; color: #4A5160;">v2 · by Sourcing Agent · 10:04</span>
+      <a href="Main.dc.html" style="margin-left: auto; font-size: 13px;">Compare with v1</a>
+    </div>
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto;">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Cleaning trolleys for Mall A</h2>
+      <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px;">
+        <div><dt style="font-size: 12px; color: #6B7280;">Category</dt><dd style="margin: 2px 0 0;">Janitorial equipment</dd></div>
+        <div><dt style="font-size: 12px; color: #6B7280;">Quantity</dt><dd style="margin: 2px 0 0;">40 units</dd></div>
+        <div style="grid-column: span 2;"><dt style="font-size: 12px; color: #6B7280;">Specification</dt><dd style="margin: 2px 0 0;">Same as the Mall C fleet: three-bucket trolley, 120 L capacity, lockable caddy</dd></div>
+        <div><dt style="font-size: 12px; color: #6B7280;">Delivery</dt><dd style="margin: 2px 0 0;">20 Nov 2026, Mall A loading bay</dd></div>
+        <div><dt style="font-size: 12px; color: #6B7280;">Quality sign-off</dt><dd style="margin: 2px 0 0;">Faisal, on delivery</dd></div>
+        <div style="grid-column: span 2; padding: 12px; border-radius: 8px; background: #F5F6F8; border: 1px dashed #C9CED6;">
+          <dt style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4A5160;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6" rx="1.2"></rect><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6"></path></svg>
+            Budget guidance · internal only
+          </dt>
+          <dd style="margin: 2px 0 0; font-weight: 500;">SAR 45,000</dd>
+        </div>
+        <div style="grid-column: span 2;"><dt style="font-size: 12px; color: #6B7280;">Attachments</dt><dd style="margin: 2px 0 0;"><a href="Main.dc.html">Mall C trolley spec.pdf</a></dd></div>
+      </dl>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+        <span style="font-size: 12px; font-weight: 600; color: #4A5160;">Versions</span>
+        <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>v2 · draft</span><span style="color: #6B7280;">Sourcing Agent · 10:04</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>v1 · draft</span><span style="color: #6B7280;">Sourcing Agent · 10:02</span></div>
+      </div>
+    </div>
+  </aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

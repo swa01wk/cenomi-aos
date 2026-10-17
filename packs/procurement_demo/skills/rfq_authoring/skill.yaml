@@ -1,0 +1,10 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: rfq_authoring, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [document_draft, outbound_communication]
+  instructions: instructions.md
+  reads: [job_snapshot, brief, supplier_list]
+  produces: [rfq_email]
+  may_request: [ask_question, draft_message, send_message, leak_check_diff]
+  verifiers: [leak_check]

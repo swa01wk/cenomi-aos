@@ -1,0 +1,71 @@
+# M3 · Governed actions (weeks 6–7)
+
+**Goal:** every external effect is approved, executed once and verified, and QQ-0001 reaches `closed` live.
+
+**Exit gate**
+- [ ] QQ-0001 runs from New job to `closed` on the real model with every send and the PO approved by the right people.
+- [ ] With the ERP `timeout_after_commit` switch on, exactly one PO exists and the action shows UNKNOWN → RECONCILED.
+- [ ] Faisal asking for prices gets a refusal; Risk replays the decision and gets NEVER again.
+- [ ] Guidebook C02, C04, C05 (approval bound to an old payload), C06 (injected supplier text), C08, C11 pass.
+- [ ] `AOS_EVAL_STRICT=1`: the `refusals` and `dry_run` suites pass in full before activation.
+
+**Walkthrough stops made real:** 7 (approval), 8, 9, 10, 11, 12, 13, 14.
+
+---
+
+## Backend
+
+### M3-BE-01 Policy engine
+- Apply `ddl/0005_m3_governed_actions.sql`. `kernel/policy.py` with the six-step evaluation order, attribute
+  providers (participant role, instance attributes, artifact verification), decision log, replay.
+- Replaces M1's allow-list check in `callTool`; assist turns that read restricted artifacts for a requester return a
+  `refusal` block from the NEVER decision.
+- Operations: `listPolicyDecisions`, `getPolicyDecision`, `replayPolicyDecision`.
+- **Tests:** each rule in `quick_quote_gates` and `sourcing_supervised`; replay equals the original; default deny.
+
+### M3-BE-02 Approvals
+- `kernel/approvals.py` per the backend spec: chains with `when`, payload hash binding, `not_requester`,
+  `distinct_approvers`, expiry, voiding on a new artifact version.
+- Operations: `getApproval`, `approveStep`, `rejectStep`, `listApprovals`, `remindApprover`, `getInbox`,
+  `markNoticeRead`.
+- **Tests:** C05 — edit after approval voids it and the effect never runs on the old payload; the requester can't approve;
+  one person can't approve two steps; an expired approval can't be approved.
+
+### M3-BE-03 Actions, gateway effects and reconciliation
+- `requestAction`, `checkpointAttempt`; action executions with idempotency keys; gateway committed calls; reconciler
+  loop; `listConnectors`, `listActions`, `getAction`.
+- **Tests:** C04 — worker dies after the ERP write: the reconciler finds the PO before any retry; a send timeout is
+  reconciled with `find_message`; the same key twice returns the first receipt. C14 (adapted from deploy digests to
+  payloads): the gateway executes only the payload whose hash passed the verifier and the approval; a payload with a
+  different hash is blocked until it is verified and approved again.
+
+### M3-BE-04 Inbound mail and quotes
+- `receiveInbound` (HMAC with `connectors/inbound.py`, dedupe by message id), mock_mail posting to it, one
+  `quote_triage` Task per reply, `quote_count`/`all_quotes_received` rules; demo `simulateVendorReply`, `setFaults`.
+
+### M3-BE-05 Verifiers and budgets
+- `recipient_check`, `score_recompute`, `payload_match`; full budget enforcement on actions (`budget.actions`) and
+  C11 — a budget exhausted mid-loop stops safely with work kept.
+
+## Agent
+
+### M3-AG-01 Interrupt and resume
+- `request_action` node, `interrupt()`, `/checkpoint`, resume with `Command(resume=…)` on a new attempt, the
+  no-model fast path after a voided approval.
+### M3-AG-02 rfq_send, quote_triage, quote_comparison, po_create
+- Per the Skill specs; `price_calculator` built-in tool; fake scripts `happy` and `injection`.
+- **Tests:** C06 — the injection script makes no out-of-contract call; C08 — a request for a tool not in the contract is
+  denied and doesn't raise any budget.
+
+## Frontend
+
+### M3-FE-01 Approvals in the Workspace
+- `ApprovalCard` with chain and hash, `MessageComposerView` with per-supplier tabs and edit, `RecordPreview`, Inbox
+  (WS-Inbox) and the bell, `RefusalNotice` in conversation (stop 9), `TrackerView`, handover (stop 14).
+### M3-FE-02 Console governance
+- Approvals (Console-Approvals), Policies with evaluation trace and replay (Console-Policy), Connectors
+  (Console-Connectors), action detail (Console-Gateway), Demo controls vendor replies and fault switches.
+- **Playwright:** `stop-07` to `stop-14` with the fake model.
+
+## Definition of done
+- Every M3 operation served and tested; the full QQ-0001 runs live; the fault and injection tests are in CI.

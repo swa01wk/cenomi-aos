@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/context-envelope.schema.json",
+  "title": "ContextEnvelope",
+  "description": "The authorized, decision-specific input for one model step (reference architecture v1.2 sections 17 and 31). Assembled by the kernel's ContextAssembler, never by the worker. Fields above the on-behalf-of participant's visibility or the contract's classification ceiling are removed before assembly and listed in `redactions`.",
+  "type": "object",
+  "required": ["schema_version", "envelope_id", "contract_id", "attempt_id", "assembled_at", "refresh_reason", "scope", "ids", "objective", "resolvers", "artifacts", "constraints", "remaining_budget", "commands", "redactions"],
+  "properties": {
+    "schema_version": {"const": "aos.context_envelope/1"},
+    "envelope_id": {"type": "string", "pattern": "^ce_[A-Za-z0-9]+$"},
+    "contract_id": {"type": "string"},
+    "attempt_id": {"type": "string"},
+    "assembled_at": {"type": "string", "format": "date-time"},
+    "refresh_reason": {"enum": ["start", "resume", "tool_result", "input_changed", "policy_changed", "explicit"]},
+    "scope": {
+      "type": "object",
+      "required": ["org_id", "seat", "on_behalf_of", "classification_ceiling"],
+      "properties": {
+        "org_id": {"type": "string"},
+        "seat": {"type": "string"},
+        "on_behalf_of": {"type": "object", "required": ["role"], "properties": {"role": {"type": "string"}, "person_id": {"type": ["string", "null"]}}, "additionalProperties": false},
+        "classification_ceiling": {"enum": ["shareable", "internal", "restricted"]}
+      },
+      "additionalProperties": false
+    },
+    "ids": {
+      "type": "object",
+      "required": ["instance_id", "task_id", "attempt_id", "workflow", "workflow_state", "pack_version", "correlation_id"],
+      "properties": {
+        "instance_id": {"type": "string"}, "task_id": {"type": "string"}, "attempt_id": {"type": "string"},
+        "workflow": {"type": "string"}, "workflow_state": {"type": "string"}, "pack_version": {"type": "string", "examples": ["procurement_demo@1"]},
+        "correlation_id": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "objective": {"type": "string"},
+    "skill_instructions": {"type": "string", "description": "The Skill's instructions.md text from the pinned pack (hash in the contract)."},
+    "resolvers": {
+      "type": "object",
+      "description": "Outputs of the pack's built-in resolvers. Only those the Skill `reads` are present.",
+      "properties": {
+        "job_snapshot": {
+          "type": "object",
+          "required": ["title", "state", "participants", "attributes"],
+          "properties": {
+            "title": {"type": "string"},
+            "state": {"type": "string"},
+            "participants": {"type": "array", "items": {"type": "object", "required": ["role", "name"], "properties": {"role": {"type": "string"}, "name": {"type": "string"}}, "additionalProperties": false}},
+            "attributes": {"type": "object", "additionalProperties": {"type": ["integer", "number", "string", "null"]}}
+          },
+          "additionalProperties": false
+        },
+        "running_summary": {
+          "type": "object",
+          "required": ["text", "as_of_turn"],
+          "properties": {"text": {"type": "string"}, "as_of_turn": {"type": "integer"}, "lossy": {"const": true}},
+          "additionalProperties": false
+        },
+        "recent_messages": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {"type": "object", "required": ["turn_seq", "author", "text", "at"], "properties": {"turn_seq": {"type": "integer"}, "author": {"type": "string"}, "text": {"type": "string"}, "at": {"type": "string", "format": "date-time"}}, "additionalProperties": false}
+        },
+        "pending_items": {
+          "type": "array",
+          "items": {"type": "object", "required": ["id", "kind", "summary"], "properties": {"id": {"type": "string"}, "kind": {"enum": ["decision", "approval", "question"]}, "summary": {"type": "string"}}, "additionalProperties": false}
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact_type", "artifact_id", "version", "content_hash", "status", "content"],
+        "properties": {
+          "artifact_type": {"type": "string"}, "artifact_id": {"type": "string"}, "version": {"type": "integer"},
+          "content_hash": {"type": "string"}, "status": {"enum": ["draft", "final", "locked"]},
+          "content": {"description": "Artifact content with redacted fields removed (not nulled)."}
+        },
+        "additionalProperties": false
+      }
+    },
+    "tool_observations": {
+      "type": "array",
+      "description": "Results of earlier tool calls in this attempt. Text from outside AOS (email bodies, supplier names) is wrapped and marked untrusted.",
+      "items": {
+        "type": "object",
+        "required": ["tool", "at", "untrusted", "content"],
+        "properties": {"tool": {"type": "string"}, "at": {"type": "string", "format": "date-time"}, "untrusted": {"type": "boolean"}, "content": {}, "receipt_ref": {"type": "string"}},
+        "additionalProperties": false
+      }
+    },
+    "constraints": {"type": "array", "items": {"type": "string"}, "description": "Hard rules restated for the model (no arithmetic, never include internal fields…). Enforcement is in the kernel, not here."},
+    "remaining_budget": {
+      "type": "object",
+      "required": ["tokens", "cost_usd", "time_s", "steps", "actions"],
+      "properties": {"tokens": {"type": "integer"}, "cost_usd": {"type": "number"}, "time_s": {"type": "integer"}, "steps": {"type": "integer"}, "actions": {"type": "integer"}},
+      "additionalProperties": false
+    },
+    "commands": {
+      "type": "array",
+      "description": "Tools the model may call this step, with argument schemas (subset of contract.allowed_tools).",
+      "items": {"type": "object", "required": ["name", "input_schema"], "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "input_schema": {"type": "object"}}, "additionalProperties": false}
+    },
+    "provenance": {
+      "type": "array",
+      "items": {"type": "object", "required": ["source_ref", "sha256"], "properties": {"source_ref": {"type": "string"}, "sha256": {"type": "string"}, "retrieved_at": {"type": "string", "format": "date-time"}}, "additionalProperties": false}
+    },
+    "redactions": {
+      "type": "array",
+      "description": "What was removed and why. The refusal eval asserts unit_price, total and po_amount appear here and nowhere in content.",
+      "items": {"type": "object", "required": ["artifact_type", "field", "reason"], "properties": {"artifact_type": {"type": "string"}, "field": {"type": "string"}, "reason": {"enum": ["visibility", "classification"]}}, "additionalProperties": false}
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,29 @@
+apiVersion: aos/v1
+kind: Policy
+metadata: {name: quick_quote_gates, version: 1, owner: risk}
+spec:
+  type: gate_rules
+  workflow: quick_quote
+  rules:
+    - id: rfq_send
+      action: mailbox.send
+      effect: REQUIRE_APPROVAL
+      approval: {chain: [{approver: participant:buyer}], due: 1d}
+      conditions:
+        - workflow.reached("rfq_drafting")
+        - artifact.verification.leak_check == "PASS"
+    - id: po_create
+      action: erp_po.create
+      effect: REQUIRE_APPROVAL
+      approval:
+        chain:
+          - {approver: participant:buyer, kind: content}
+          - {approver: participant:procurement_approver, when: "artifact.po_amount > 25000"}
+        segregation: [not_requester, distinct_approvers]
+        due: 1d
+      conditions:
+        - workflow.state == "ordering"
+    - id: requester_never_sees_quotes
+      action: quotes.read
+      effect: NEVER
+      subjects: [participant:requester]

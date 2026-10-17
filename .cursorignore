@@ -1,0 +1,8 @@
+# Keep Cursor's index on the code and the specs. design/ stays indexed: the boards are the screen source of truth.
+backend/.vendor/
+backend/.vendor-src/
+**/__pycache__/
+**/node_modules/
+web/dist/
+*.zip
+.env

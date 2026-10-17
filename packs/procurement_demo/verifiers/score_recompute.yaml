@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Verifier
+metadata: {name: score_recompute, version: 1, owner: head_of_procurement}
+spec:
+  description: Every total and score recomputes exactly from the captured quotes.
+  method: rule
+  applies_to: [comparison]
+  implementation: aos.verifiers.score_recompute

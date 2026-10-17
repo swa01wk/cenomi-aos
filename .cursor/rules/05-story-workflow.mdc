@@ -1,0 +1,17 @@
+---
+description: How to work on a story — plan, implement, verify, record
+alwaysApply: true
+---
+
+# Story workflow
+
+- Work on exactly one story ID (e.g. `M1-BE-03`) per chat. If the request names none, ask which story it is.
+- Before editing, reply with a short plan: files, operations (`openapi.yaml` operationIds), tables, events and the
+  tests you will write. Wait for approval when the user asked for a plan first.
+- Write the story's listed tests along with the code. Run `make check` and report the result. "Done" means green,
+  with Postgres running and nothing skipped (`AOS_TEST_REQUIRE_PG=1` in `.env`).
+- Don't start work from a later story or milestone. Note follow-ups in the reply instead.
+- When the story is done, tick it in `docs/specs/milestones/PROGRESS.md` and suggest the commit message
+  `<story id>: <title>`.
+- When a reference DDL file moves into `backend/migrations/`, delete it from `docs/specs/backend/ddl/` and remove its
+  entry from `TABLES` in `backend/tests/test_reference_ddl.py` in the same change.

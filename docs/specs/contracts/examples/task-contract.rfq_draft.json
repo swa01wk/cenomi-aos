@@ -1,0 +1,130 @@
+{
+  "schema_version": "aos.task_contract/1",
+  "contract_id": "tc_qq0001rfqdraft",
+  "contract_version": 1,
+  "contract_hash": "b5453319acbd569fb7fed1730a1bc9cfa3a950f23b0036ce26fc45ff1582264f",
+  "org_id": "org_demo",
+  "instance_id": "QQ-0001",
+  "task_id": "task_qq0001_rfq_draft",
+  "kind": "task",
+  "template": "rfq_draft",
+  "pack": {
+    "name": "procurement_demo",
+    "version": 1,
+    "digest": "6e62ffae7f59916faef654ee8323ea930b77eace7f0f526affbf88bcac3d6103"
+  },
+  "seat": {
+    "name": "seat_sourcing_poc",
+    "version": 1
+  },
+  "skill": {
+    "name": "rfq_authoring",
+    "version": 1,
+    "instructions_sha256": "8781e649ae28af98095a65c647b9b79ed88f972356d256f546f9606cb8da4bdb"
+  },
+  "work_type": "document_draft",
+  "objective": "Draft one request for quotation per shortlisted supplier for brief v2, using shareable brief fields only.",
+  "on_behalf_of": {
+    "role": "buyer",
+    "person_id": "noura"
+  },
+  "immutable_input_refs": [
+    {
+      "artifact_type": "brief",
+      "artifact_id": "art_qq0001_brief",
+      "version": 2,
+      "content_hash": "4e6a9a509ff1075535cb7ddd7a099412efbe10851b92b4f27285a53b09b43177"
+    },
+    {
+      "artifact_type": "supplier_list",
+      "artifact_id": "art_qq0001_suppliers",
+      "version": 1,
+      "content_hash": "faf09b8c99c55f97355471f37b28890383a8869b67df21d4e6c156e835f4090b"
+    }
+  ],
+  "dependency_versions": {
+    "brief_version": 2,
+    "shortlist_count": 3
+  },
+  "allowed_tools": [
+    {
+      "name": "read_artifact",
+      "kind": "kernel",
+      "class": "kernel"
+    },
+    {
+      "name": "save_draft",
+      "kind": "kernel",
+      "class": "kernel"
+    },
+    {
+      "name": "ask_question",
+      "kind": "kernel",
+      "class": "kernel"
+    },
+    {
+      "name": "leak_check_diff",
+      "kind": "compute",
+      "connector": "procurement_tools",
+      "resource": "job_artifacts",
+      "action": "read",
+      "class": "compute",
+      "timeout_s": 10
+    },
+    {
+      "name": "draft_message",
+      "kind": "connector",
+      "connector": "mock_mail",
+      "resource": "mailbox",
+      "action": "draft",
+      "class": "staged_write",
+      "timeout_s": 20
+    }
+  ],
+  "permission_scope": {
+    "resources": [
+      "job_artifacts",
+      "mailbox"
+    ],
+    "classification_ceiling": "shareable"
+  },
+  "budget": {
+    "tokens": 60000,
+    "cost_usd": 1.5,
+    "time_s": 600,
+    "steps": 12,
+    "actions": 10,
+    "retries": 2,
+    "children": 0
+  },
+  "expected_outputs": [
+    {
+      "artifact_type": "rfq_email",
+      "cardinality": "per_supplier",
+      "schema_ref": "ArtifactType/rfq_email"
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "verifier": "leak_check",
+      "method": "rule",
+      "applies_to": [
+        "rfq_email"
+      ]
+    }
+  ],
+  "approval_policy": {
+    "policy": "quick_quote_gates@1",
+    "rules": []
+  },
+  "idempotency_key": "QQ-0001:rfq_draft:1",
+  "provenance_requirements": {
+    "cite_sources": false,
+    "record_input_hashes": true
+  },
+  "model": {
+    "alias": "enterprise_reasoning",
+    "max_output_tokens": 4000
+  },
+  "created_at": "2026-10-15T11:42:00Z"
+}

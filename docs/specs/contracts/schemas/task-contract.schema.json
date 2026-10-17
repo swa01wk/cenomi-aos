@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/task-contract.schema.json",
+  "title": "TaskContract",
+  "description": "The versioned assignment a worker runs one attempt against (reference architecture v1.2 section 29, ADR 003). Built and frozen by the kernel when the Task is created; every attempt of the Task gets the same contract. The worker never edits it.",
+  "type": "object",
+  "required": [
+    "schema_version", "contract_id", "contract_version", "contract_hash", "org_id", "instance_id", "task_id", "kind",
+    "template", "pack", "seat", "skill", "work_type", "objective", "on_behalf_of", "immutable_input_refs",
+    "dependency_versions", "allowed_tools", "permission_scope", "budget", "expected_outputs", "acceptance_checks",
+    "approval_policy", "idempotency_key", "model", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "aos.task_contract/1"},
+    "contract_id": {"type": "string", "pattern": "^tc_[A-Za-z0-9]+$"},
+    "contract_version": {"type": "integer", "minimum": 1},
+    "contract_hash": {"$ref": "#/$defs/sha256", "description": "sha256 of the canonical JSON of this contract without contract_hash."},
+    "org_id": {"type": "string"},
+    "instance_id": {"type": "string", "description": "The workflow instance (run), e.g. QQ-0001.", "examples": ["QQ-0001"]},
+    "task_id": {"type": "string"},
+    "kind": {"enum": ["assist", "task"], "description": "assist = one chat turn for a participant; task = a workflow Task from a state's template."},
+    "template": {"type": "string", "description": "Task template name from the workflow (request_intake, rfq_draft, po_create, …) or 'assist'."},
+    "pack": {"type": "object", "required": ["name", "version", "digest"], "properties": {"name": {"type": "string"}, "version": {"type": "integer"}, "digest": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
+    "seat": {"$ref": "#/$defs/versioned_ref"},
+    "skill": {
+      "type": "object",
+      "required": ["name", "version", "instructions_sha256"],
+      "properties": {
+        "name": {"type": "string"}, "version": {"type": "integer"},
+        "instructions_sha256": {"$ref": "#/$defs/sha256", "description": "Hash of the Skill's instructions.md in the pinned pack version; the worker loads the text from the contract endpoint, never from disk."}
+      },
+      "additionalProperties": false
+    },
+    "work_type": {"enum": ["analysis", "document_draft", "outbound_communication", "record_update"]},
+    "objective": {"type": "string", "description": "What this attempt must achieve, in one or two sentences, from the template and Skill."},
+    "on_behalf_of": {
+      "type": "object",
+      "description": "The participant whose clearance bounds the context. For a Task this is the role that will review the output (usually buyer); for an assist turn it is the person who wrote it.",
+      "required": ["role"],
+      "properties": {"role": {"type": "string"}, "person_id": {"type": ["string", "null"]}},
+      "additionalProperties": false
+    },
+    "immutable_input_refs": {"type": "array", "items": {"$ref": "#/$defs/artifact_ref"}},
+    "dependency_versions": {
+      "type": "object",
+      "description": "Workflow attributes and artifact versions the result depends on. A submit whose inputs no longer match is rejected as stale (guidebook C09).",
+      "additionalProperties": {"type": "integer"},
+      "examples": [{"brief_version": 2}]
+    },
+    "allowed_tools": {"type": "array", "items": {"$ref": "#/$defs/tool_grant"}},
+    "permission_scope": {
+      "type": "object",
+      "required": ["resources", "classification_ceiling"],
+      "properties": {
+        "resources": {"type": "array", "items": {"type": "string"}},
+        "classification_ceiling": {"$ref": "#/$defs/classification"}
+      },
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "description": "Per-attempt limits, reserved at admission from the Seat's daily limit (ADR 007).",
+      "required": ["tokens", "cost_usd", "time_s", "steps", "actions", "retries"],
+      "properties": {
+        "tokens": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "time_s": {"type": "integer", "minimum": 1},
+        "steps": {"type": "integer", "minimum": 1, "description": "Model calls."},
+        "actions": {"type": "integer", "minimum": 0, "description": "Tool and action calls."},
+        "retries": {"type": "integer", "minimum": 0, "description": "Attempts the kernel may start for this Task after this one."},
+        "children": {"const": 0, "description": "No delegation in the POC."}
+      },
+      "additionalProperties": false
+    },
+    "expected_outputs": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["artifact_type", "cardinality"],
+        "properties": {
+          "artifact_type": {"type": "string"},
+          "cardinality": {"enum": ["one", "per_supplier", "per_reply", "none"]},
+          "schema_ref": {"type": "string", "description": "Definition path of the ArtifactType in the pinned pack."}
+        },
+        "additionalProperties": false
+      }
+    },
+    "acceptance_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["verifier", "method"],
+        "properties": {"verifier": {"type": "string"}, "method": {"const": "rule"}, "applies_to": {"type": "array", "items": {"type": "string"}}},
+        "additionalProperties": false
+      }
+    },
+    "approval_policy": {
+      "type": "object",
+      "required": ["policy", "rules"],
+      "properties": {"policy": {"type": "string", "examples": ["quick_quote_gates@1"]}, "rules": {"type": "array", "items": {"type": "string"}}},
+      "additionalProperties": false
+    },
+    "idempotency_key": {"type": "string", "description": "<instance>:<template>:<n>; every committed effect in this Task derives its key from it."},
+    "provenance_requirements": {
+      "type": "object",
+      "properties": {"cite_sources": {"type": "boolean"}, "record_input_hashes": {"const": true}},
+      "additionalProperties": false
+    },
+    "model": {
+      "type": "object",
+      "required": ["alias"],
+      "properties": {"alias": {"type": "string", "examples": ["enterprise_reasoning"]}, "max_output_tokens": {"type": "integer"}},
+      "additionalProperties": false
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "classification": {"enum": ["shareable", "internal", "restricted"]},
+    "versioned_ref": {"type": "object", "required": ["name", "version"], "properties": {"name": {"type": "string"}, "version": {"type": "integer"}}, "additionalProperties": false},
+    "artifact_ref": {
+      "type": "object",
+      "required": ["artifact_type", "artifact_id", "version", "content_hash"],
+      "properties": {
+        "artifact_type": {"type": "string"}, "artifact_id": {"type": "string"},
+        "version": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "tool_grant": {
+      "type": "object",
+      "required": ["name", "kind", "class"],
+      "properties": {
+        "name": {"type": "string", "examples": ["search_suppliers", "save_draft", "create_po"]},
+        "kind": {"enum": ["kernel", "connector", "compute"]},
+        "connector": {"type": "string"},
+        "resource": {"type": "string"},
+        "action": {"type": "string"},
+        "class": {"enum": ["read", "staged_write", "compute", "committed_effect", "kernel"]},
+        "timeout_s": {"type": "integer", "minimum": 1},
+        "reconcile_with": {"type": "string"},
+        "input_schema": {"type": "object", "description": "JSON Schema of the tool's arguments, as exposed to the model."}
+      },
+      "additionalProperties": false
+    }
+  }
+}

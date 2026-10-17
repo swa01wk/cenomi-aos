@@ -1,0 +1,9 @@
+{
+  "type": "https://aos.local/problems/stale_version",
+  "title": "This brief changed while you were editing",
+  "status": 409,
+  "code": "stale_version",
+  "detail": "Faisal saved v3 at 10:21. Reload to see it.",
+  "current_version": 3,
+  "trace_id": "4f2a9e1c"
+}

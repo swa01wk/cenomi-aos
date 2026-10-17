@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Resource
+metadata: {name: mailbox, version: 1, owner: head_of_procurement}
+spec:
+  description: The shared sourcing mailbox
+  actions: [read, draft, send]
+  lives_in: connector
+  classification: internal

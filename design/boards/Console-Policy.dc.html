@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Policy decision</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Policy decision · Example run QQ-0001 · Stop 10 of 17 · Console as Risk</span>
+    <span style="font-size: 16px; font-weight: 600;">Risk sees the refusal and exactly why it happened</span>
+    <span style="font-size: 13px; color: #4A5160;">Every action the worker or a person's chat requests is decided by the policy engine and logged with the attributes it used. Risk opens Faisal's refused request, sees that a NEVER rule matched at step 1, and replays it from the snapshot to get the same answer.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: policy_decision pd_7f20 · evaluation order NEVER → specific → restrictive → conditions → default deny → tighten · snapshot sha256:51c0…e7a · replay = NEVER</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="WS-Faisal-Refused.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-Comparison.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: deadline and selection</a>
+  </div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Risk reviewer</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Policy owner</span>
+    <a href="Main.dc.html" style="font-size: 13px; color: #9DB6F2;">Open Workspace</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Policies / Decision log</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Every action, decided outside the model</h1>
+      <span style="font-size: 13px; color: #4A5160;">Policy set <span style="font-family: 'IBM Plex Mono', monospace;">quick_quote_gates@1</span> with authority profile <span style="font-family: 'IBM Plex Mono', monospace;">sourcing_supervised@1</span></span>
+    </div>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+    <button type="button" aria-pressed="true" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid #15171C; background: #15171C; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">All · 128</button>
+    <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">ALLOW · 109</button>
+    <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">REQUIRE_APPROVAL · 14</button>
+    <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">DENY · 4</button>
+    <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">NEVER · 1</button>
+    <label for="inst" style="margin-left: auto; font-size: 13px; color: #4A5160;">Instance</label>
+    <select id="inst" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; font-size: 13px;"><option>QQ-0001</option><option>All instances</option></select>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+    <section aria-label="Decisions" style="flex: 1 1 520px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px;">
+        <thead>
+          <tr style="background: #F5F6F8; text-align: left; color: #4A5160;">
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Time</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Action</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Requested by</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600;">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">21 Oct 17:22</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">erp_po.create</td>
+            <td style="padding: 10px 14px;">Seat · po_create #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #FDF1DE; color: #8A4B08;">REQUIRE_APPROVAL</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">21 Oct 17:00</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">price_calculator</td>
+            <td style="padding: 10px 14px;">Seat · quote_comparison #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">ALLOW</span></td>
+          </tr>
+          <tr aria-selected="true" style="border-top: 1px solid #E2E5EA; background: #F7F9FE; box-shadow: inset 3px 0 0 #2B59C3;">
+            <td style="padding: 10px 14px; color: #6B7280;">21 Oct 11:03</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">quotes.read</td>
+            <td style="padding: 10px 14px;">Faisal · chat turn</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #FCE8E6; color: #A6261C;">NEVER</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">20 Oct 16:06</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">mailbox.read</td>
+            <td style="padding: 10px 14px;">Seat · quote_triage #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">ALLOW</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">15 Oct 12:06</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">mailbox.send × 3</td>
+            <td style="padding: 10px 14px;">Seat · rfq_send #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #FDF1DE; color: #8A4B08;">REQUIRE_APPROVAL</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">15 Oct 10:29</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">mailbox.send</td>
+            <td style="padding: 10px 14px;">Seat · rfq_draft #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #EEF1F5; color: #15171C;">DENY</span></td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 10px 14px; color: #6B7280;">15 Oct 10:05</td>
+            <td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">erp_supplier.read</td>
+            <td style="padding: 10px 14px;">Seat · supplier_lookup #1</td>
+            <td style="padding: 10px 14px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #E3F4EA; color: #16693F;">ALLOW</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="explain" style="flex: 1 1 400px; min-width: 0; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">pd_7f20 · QQ-0001 · 21 Oct 11:03</span>
+        <h2 id="explain" style="margin: 0; font-size: 16px; font-weight: 600;">Why Faisal's request returned NEVER</h2>
+      </div>
+      <dl style="margin: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 12px; font-size: 13px;">
+        <dt style="color: #6B7280;">Asked</dt><dd style="margin: 0;">"Have the suppliers quoted yet? What prices did they give?"</dd>
+        <dt style="color: #6B7280;">Action</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">quotes.read · QQ-0001</dd>
+        <dt style="color: #6B7280;">Subject</dt><dd style="margin: 0;">Faisal, participant role requester</dd>
+        <dt style="color: #6B7280;">Shown to him</dt><dd style="margin: 0;">"I can't share supplier prices with you as the requester; Noura will confirm the selected supplier and the delivery date."</dd>
+      </dl>
+      <ol aria-label="Evaluation order" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; background: #FCE8E6; color: #15171C;"><span style="font-weight: 600; color: #A6261C;">1</span><span>NEVER rules first: <span style="font-family: 'IBM Plex Mono', monospace;">quotes.read</span> for <span style="font-family: 'IBM Plex Mono', monospace;">participant:requester</span> matched. Stop.</span></li>
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #6B7280;"><span style="font-weight: 600;">2</span><span>Specific before general: not evaluated</span></li>
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #6B7280;"><span style="font-weight: 600;">3</span><span>Most restrictive wins: not evaluated</span></li>
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #6B7280;"><span style="font-weight: 600;">4</span><span>Conditions hold, missing fails closed: not evaluated</span></li>
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #6B7280;"><span style="font-weight: 600;">5</span><span>No grant means DENY: not evaluated</span></li>
+        <li style="display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #6B7280;"><span style="font-weight: 600;">6</span><span>Limits and segregation only tighten: not evaluated</span></li>
+      </ol>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; font-weight: 600; color: #4A5160;">Attribute snapshot</span>
+        <pre style="margin: 0; padding: 12px; border-radius: 8px; background: #F5F6F8; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; color: #15171C;">subject.participant_roles = [requester]
+workflow.state            = awaiting_quotes
+workflow.definition       = quick_quote@1
+resource                  = quotes (QQ-0001)
+snapshot_hash             = sha256:51c0…e7a</pre>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Replay from snapshot</button>
+        <span style="font-size: 12px; color: #16693F;">Last replay: NEVER, same as recorded</span>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

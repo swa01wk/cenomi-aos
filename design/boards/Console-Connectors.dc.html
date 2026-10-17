@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Tools and connectors</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Console · Built in M3</span>
+    <span style="font-size: 16px; font-weight: 600;">Tools and connectors</span>
+    <span style="font-size: 13px; color: #4A5160;">Each connector the gateway brokers, every tool it exposes with its risk class, and how a committed effect is reconciled. Recent actions open the action detail (stop 13).</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /console/connectors · GET /api/console/connectors · GET /api/console/actions?connector= · actions open /console/actions/:id</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Console-Gateway.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Open action ae_311</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Platform admin</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Platform team</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Define / Tools and connectors</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Tools and connectors</h1>
+      <span style="font-size: 13px; color: #4A5160;">Agents never hold credentials. The gateway checks policy on every call and mints a 60-second token scoped to one resource and action.</span>
+    </div>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; align-items: start;">
+    <section aria-labelledby="c-erp" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h2 id="c-erp" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1; font-family: 'IBM Plex Mono', monospace;">mock_erp</h2><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Healthy</span></div>
+      <span style="font-size: 12px; color: #4A5160;">MCP · categories, suppliers, purchase orders</span>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead><tr style="text-align: left; color: #4A5160;"><th scope="col" style="padding: 6px 0; font-weight: 600;">Tool</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Class</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Reconcile</th></tr></thead>
+        <tbody style="font-family: 'IBM Plex Mono', monospace;">
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">browse_categories</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">search_suppliers</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">get_supplier_history</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">find_po</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA; background: #FDF1DE;"><td style="padding: 6px 4px;">create_po</td><td>committed</td><td>find_po</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="c-mail" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h2 id="c-mail" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1; font-family: 'IBM Plex Mono', monospace;">mock_mail</h2><span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Healthy</span></div>
+      <span style="font-size: 12px; color: #4A5160;">MCP · shared sourcing mailbox · inbound <span style="font-family: 'IBM Plex Mono', monospace;">mail.message_received</span>, HMAC signed</span>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead><tr style="text-align: left; color: #4A5160;"><th scope="col" style="padding: 6px 0; font-weight: 600;">Tool</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Class</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Reconcile</th></tr></thead>
+        <tbody style="font-family: 'IBM Plex Mono', monospace;">
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">read_thread</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">find_message</td><td>read</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">draft_message</td><td>staged write</td><td style="color: #6B7280;">–</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA; background: #FDF1DE;"><td style="padding: 6px 4px;">send_message</td><td>committed</td><td>find_message</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="c-tools" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h2 id="c-tools" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1; font-family: 'IBM Plex Mono', monospace;">procurement_tools</h2><span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-weight: 500;">Built in</span></div>
+      <span style="font-size: 12px; color: #4A5160;">Deterministic code inside the gateway; no model arithmetic</span>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead><tr style="text-align: left; color: #4A5160;"><th scope="col" style="padding: 6px 0; font-weight: 600;">Tool</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Class</th></tr></thead>
+        <tbody style="font-family: 'IBM Plex Mono', monospace;">
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">price_calculator</td><td>compute</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 6px 0;">leak_check_diff</td><td>compute</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section aria-labelledby="acts" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #E2E5EA;">
+      <h2 id="acts" style="margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1;">Recent committed actions</h2>
+      <span style="font-size: 12px; color: #4A5160;">Intent is saved before the call; an unknown outcome is looked up, never retried blind</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px;">
+        <thead>
+          <tr style="background: #F5F6F8; text-align: left;">
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Action</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Tool</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Event</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Approval</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Path</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px;"><a href="Console-Gateway.dc.html" style="font-family: 'IBM Plex Mono', monospace;">ae_311</a></td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">create_po</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0001</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0017</td><td style="padding: 10px 14px;">Timeout → UNKNOWN → found by reference</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Succeeded</span> · PO-778201</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_318</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">send_message ×4</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0005</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0040</td><td style="padding: 10px 14px;">Direct</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Succeeded</span> · 4 receipts</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">ae_205–207</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">send_message ×3</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">QQ-0001</td><td style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;">AP-0009</td><td style="padding: 10px 14px;">Direct</td><td style="padding: 10px 14px;"><span style="color: #16693F; font-weight: 500;">Succeeded</span> · 3 receipts</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

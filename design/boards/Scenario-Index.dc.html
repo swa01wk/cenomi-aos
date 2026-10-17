@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AOS screens: start</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; background: #FBF6EA; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div style="max-width: 1280px; margin: 0 auto; padding: 48px 32px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px 32px;">
+    <div style="flex: 1 1 560px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #7A5A12;">AOS POC · platform screens</span>
+      <h1 style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 600;">The Console and the Workspace, shown through one example run</h1>
+      <p style="margin: 0; max-width: 720px; font-size: 16px; color: #4A5160;">These are AOS platform screens. They work the same for any digital worker and any domain pack. To show them in motion, the walkthrough follows one example run from the procurement_demo pack: Quick Quote QQ-0001, 40 cleaning trolleys. Seventeen stops cover building the digital worker, running one job across three people and governing it afterwards. Every screen carries a bar like this one naming the screen, what happens in the example and what the kernel did.</p>
+    </div>
+    <a href="Console-Packs.dc.html" style="height: 48px; padding: 0 24px; border-radius: 10px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 15px; display: flex; align-items: center; gap: 10px;">
+      Start the walkthrough
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9h11M10 5l4 4-4 4"></path></svg>
+    </a>
+  </header>
+
+  <section aria-labelledby="cast" style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 id="cast" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Who is involved in the example run</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Platform admin</span><span style="font-size: 13px; color: #4A5160;">Publishes the pack, configures the Seat</span></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Head of Procurement</span><span style="font-size: 13px; color: #4A5160;">Seat owner; activates, watches, can kill</span></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Faisal</span><span style="font-size: 13px; color: #4A5160;">Facilities, requester; never sees prices</span></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Noura</span><span style="font-size: 13px; color: #4A5160;">Sourcing, buyer; shortlists, approves sends, selects</span></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Khalid</span><span style="font-size: 13px; color: #4A5160;">Procurement; second PO approval above SAR 25,000</span></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px;"><span style="font-weight: 600;">Sourcing Agent</span><span style="font-size: 13px; color: #4A5160;">The Seat; reads, drafts and asks, never acts alone</span></div>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: start;">
+    <section aria-labelledby="ph1" style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="ph1" style="margin: 0; font-size: 18px; font-weight: 600;">1 · Build in the Console</h2>
+      <a href="Console-Packs.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">01</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Domain packs</span><span style="font-size: 12px; color: #4A5160;">Example: Publish the procurement_demo pack · Console · Platform admin</span></span></a>
+      <a href="Console-Activation.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">02</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Seat: tests and activation checks</span><span style="font-size: 12px; color: #4A5160;">Example: Tests run, activation refused · Console · Platform admin</span></span></a>
+      <a href="Console-Seat.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">03</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Seat: lifecycle</span><span style="font-size: 12px; color: #4A5160;">Example: The owner activates the Seat · Console · Head of Procurement</span></span></a>
+    </section>
+
+    <section aria-labelledby="ph2" style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="ph2" style="margin: 0; font-size: 18px; font-weight: 600;">2 · Run a job: intake to outbound requests</h2>
+      <a href="WS-New.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">04</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">New job</span><span style="font-size: 12px; color: #4A5160;">Example: Faisal starts a Quick Quote · Workspace · Faisal</span></span></a>
+      <a href="Main.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">05</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: chat and work panel</span><span style="font-size: 12px; color: #4A5160;">Example: Brief interview, parallel supplier lookup · Workspace · Faisal</span></span></a>
+      <a href="WS-Shortlist.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">06</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: claim and decide</span><span style="font-size: 12px; color: #4A5160;">Example: Noura claims the job and shortlists · Workspace · Noura</span></span></a>
+      <a href="WS-RFQ-Approval.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">07</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: rework and approval</span><span style="font-size: 12px; color: #4A5160;">Example: Leak caught, then the send approval · Workspace · Noura</span></span></a>
+      <a href="WS-Quotes.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">08</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: waiting on replies</span><span style="font-size: 12px; color: #4A5160;">Example: RFQs sent, supplier replies arrive · Workspace · Noura</span></span></a>
+    </section>
+
+    <section aria-labelledby="ph3" style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="ph3" style="margin: 0; font-size: 18px; font-weight: 600;">3 · Run a job: replies to closed</h2>
+      <a href="WS-Faisal-Refused.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">09</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: refused by policy</span><span style="font-size: 12px; color: #4A5160;">Example: Faisal asks for prices: NEVER · Workspace · Faisal</span></span></a>
+      <a href="Console-Policy.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">10</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Policy decision</span><span style="font-size: 12px; color: #4A5160;">Example: Risk sees why it was NEVER · Console · Risk</span></span></a>
+      <a href="WS-Comparison.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">11</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: compare and select</span><span style="font-size: 12px; color: #4A5160;">Example: Deadline fires, Noura selects a supplier · Workspace · Noura</span></span></a>
+      <a href="WS-PO-Approval.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">12</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Approval: multi-step chain</span><span style="font-size: 12px; color: #4A5160;">Example: Two-step PO approval · Workspace · Khalid</span></span></a>
+      <a href="Console-Gateway.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">13</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Action: reconcile an unknown result</span><span style="font-size: 12px; color: #4A5160;">Example: ERP timeout, reconciled · Console · Platform admin</span></span></a>
+      <a href="WS-Closed.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">14</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Job page: closed with handover</span><span style="font-size: 12px; color: #4A5160;">Example: Closed, with a handover to Faisal · Workspace · Faisal</span></span></a>
+    </section>
+
+    <section aria-labelledby="ph4" style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="ph4" style="margin: 0; font-size: 18px; font-weight: 600;">4 · Govern in the Console</h2>
+      <a href="Console-Instance.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">15</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Instance: timeline and trace</span><span style="font-size: 12px; color: #4A5160;">Example: One Task's trace · Console · Head of Procurement</span></span></a>
+      <a href="Console-Audit.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">16</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Audit chain</span><span style="font-size: 12px; color: #4A5160;">Example: "Why this supplier?" · Console · Risk</span></span></a>
+      <a href="Console-Emergency.dc.html" style="display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; color: #7A5A12; font-weight: 500;">17</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Kill switch</span><span style="font-size: 12px; color: #4A5160;">Example: Kill the Seat on another event · Console · Head of Procurement</span></span></a>
+    </section>
+  </div>
+
+  <section aria-labelledby="beyond" style="display: flex; flex-direction: column; gap: 12px; padding-top: 8px; border-top: 1px solid #E8DDC2;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h2 id="beyond" style="margin: 0; font-size: 18px; font-weight: 600;">5 · Every other platform screen</h2>
+      <span style="font-size: 14px; color: #4A5160;">Screens the example run passes by, plus the shared states and components. Their blue bars give the route, the API calls and the milestone that builds them.</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+      <a href="Console-Org.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Organization</span><span style="font-size: 12px; color: #4A5160;">Console · M0</span></a>
+      <a href="Console-Seats.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Seats</span><span style="font-size: 12px; color: #4A5160;">Console · M1</span></a>
+      <a href="Console-Workflows.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Workflow definition</span><span style="font-size: 12px; color: #4A5160;">Console · M2</span></a>
+      <a href="Console-Instances.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Instances</span><span style="font-size: 12px; color: #4A5160;">Console · M2</span></a>
+      <a href="Console-Approvals.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Approvals</span><span style="font-size: 12px; color: #4A5160;">Console · M3</span></a>
+      <a href="Console-Connectors.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Tools and connectors</span><span style="font-size: 12px; color: #4A5160;">Console · M3</span></a>
+      <a href="Console-Observability.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Observability</span><span style="font-size: 12px; color: #4A5160;">Console · M4</span></a>
+      <a href="Sign-in.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Sign in</span><span style="font-size: 12px; color: #4A5160;">Shared · M0</span></a>
+      <a href="WS-MyJobs.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">My jobs</span><span style="font-size: 12px; color: #4A5160;">Workspace · M2</span></a>
+      <a href="WS-Queue.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Team queue</span><span style="font-size: 12px; color: #4A5160;">Workspace · M2</span></a>
+      <a href="WS-Inbox.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Inbox</span><span style="font-size: 12px; color: #4A5160;">Workspace · M3</span></a>
+      <a href="Demo-Controls.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Demo controls</span><span style="font-size: 12px; color: #4A5160;">Demo only · M2 and M3</span></a>
+      <a href="States.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">UI states</span><span style="font-size: 12px; color: #4A5160;">Shared · M1 to M3</span></a>
+      <a href="Components.dc.html" style="display: flex; flex-direction: column; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Tokens and components</span><span style="font-size: 12px; color: #4A5160;">Shared · M1</span></a>
+    </div>
+  </section>
+
+  <section aria-labelledby="split" style="display: flex; flex-direction: column; gap: 12px; padding-top: 8px; border-top: 1px solid #E8DDC2;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h2 id="split" style="margin: 0; font-size: 18px; font-weight: 600;">6 · What the platform builds, what the pack supplies</h2>
+      <span style="font-size: 14px; color: #4A5160;">A different scenario is a different domain pack on the same kernel and the same screens. A second, smaller pack is a stretch goal in M5.</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 12px;">
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0;"><span style="font-weight: 600;">Built once, in the platform</span><ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4A5160;"><li>Every Console screen: organization, packs, Seats, workflows, policies, connectors, instances, approvals, observability, audit, kill switch</li><li>The Workspace shell, My jobs, New job, team queues and the inbox</li><li>The job page: conversation, work panel, pending items and the stage stepper</li><li>Decision and approval cards, multi-step approval chains</li><li>Document views by type: document, sheet, tracker, message composer, record preview</li><li>Refusal, conflict, error and loading states; tokens and components</li></ul></div>
+      <div style="background: #FFFFFF; border: 1px solid #E8DDC2; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0;"><span style="font-weight: 600;">Supplied by the domain pack (example values)</span><ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4A5160;"><li>Workflow names, stages and who may start them (Quick Quote)</li><li>The Seat, its Skills and their prompts (the Sourcing Agent)</li><li>Document types, their fields and which view shows each (brief, RFQ email, comparison)</li><li>Who may see which field (a requester never sees prices)</li><li>Policies and approval chains (two-step PO approval above SAR 25,000)</li><li>Connectors (mock mail, mock ERP) and team queues (Sourcing)</li></ul></div>
+    </div>
+  </section>
+
+  <p style="margin: 0; font-size: 13px; color: #4A5160;">Names, figures and dates in the example run are illustrative. Connectors are the POC's mock mail and mock ERP; the demo's fault switches seed the budget leak at stop 7 and the ERP timeout at stop 13.</p>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1880}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

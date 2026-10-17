@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Seat: lifecycle</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Seat: lifecycle · Example run QQ-0001 · Stop 3 of 17 · Console as Head of Procurement</span>
+    <span style="font-size: 16px; font-weight: 600;">The Seat owner activates the Sourcing Agent</span>
+    <span style="font-size: 13px; color: #4A5160;">The Head of Procurement reviews the checks and evaluation results and activates v1. The Seat becomes ACTIVE and AVAILABLE, and the Sourcing Agent card appears in the Workspace for requesters.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: Decision Record DR-0007 · seat APPROVED → ACTIVE · admission gate 2 (Seat ACTIVE) now passes</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Console-Activation.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-New.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: Faisal starts a job</a>
+  </div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Head of Procurement</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Seat owner · process owner</span>
+    <a href="Main.dc.html" style="font-size: 13px; color: #9DB6F2;">Open Workspace</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Seats / <span style="font-family: 'IBM Plex Mono', monospace;">seat_sourcing_poc</span></span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Sourcing Agent</h1>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">ACTIVE</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-family: 'IBM Plex Mono', monospace;">AVAILABLE</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #EEF1F5; color: #4A5160; font-size: 12px; font-family: 'IBM Plex Mono', monospace;">v1</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Propose v2</button>
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Pause Seat</button>
+      <a href="Console-Emergency.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #E8B4AE; background: #FFFFFF; color: #A6261C; text-decoration: none; display: flex; align-items: center;">Kill</a>
+    </div>
+  </header>
+
+  <ol aria-label="Seat lifecycle" style="margin: 0; padding: 16px; list-style: none; background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;">
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">DRAFT</span><span style="font-size: 12px; color: #4A5160;">12 Oct · Platform admin</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">CONFIGURED</span><span style="font-size: 12px; color: #4A5160;">13 Oct · 6 of 6 checks</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">TESTING</span><span style="font-size: 12px; color: #4A5160;">13 Oct · 2 suites pass</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #16693F;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">APPROVED</span><span style="font-size: 12px; color: #4A5160;">14 Oct · Risk</span></li>
+    <li style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 3px solid #2B59C3;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #2B59C3;">ACTIVE</span><span style="font-size: 12px; color: #4A5160;">14 Oct · Head of Procurement</span></li>
+  </ol>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px;">
+    <section aria-labelledby="cfg" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 id="cfg" style="margin: 0; font-size: 15px; font-weight: 600;">Configuration</h2>
+      <dl style="margin: 0; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 9px 12px; font-size: 13px;">
+        <dt style="color: #6B7280;">Placement</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">procurement/sourcing</dd>
+        <dt style="color: #6B7280;">Role</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">sourcing_agent</dd>
+        <dt style="color: #6B7280;">Work Types</dt><dd style="margin: 0;">analysis, document_draft, outbound_communication, record_update</dd>
+        <dt style="color: #6B7280;">Authority profile</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">sourcing_supervised@1</dd>
+        <dt style="color: #6B7280;">Autonomy</dt><dd style="margin: 0;">Supervised: people approve everything that leaves AOS</dd>
+        <dt style="color: #6B7280;">Runtime</dt><dd style="margin: 0;">LangGraph agent · model alias <span style="font-family: 'IBM Plex Mono', monospace;">enterprise_reasoning</span></dd>
+        <dt style="color: #6B7280;">Limits</dt><dd style="margin: 0;">10 min and 10 actions per attempt · USD 20 a day</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="skills" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="skills" style="margin: 0; font-size: 15px; font-weight: 600;">Skills</h2>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead><tr style="text-align: left; color: #4A5160;"><th scope="col" style="padding: 6px 0; font-weight: 600;">Skill</th><th scope="col" style="padding: 6px 0; font-weight: 600;">Work Type</th><th scope="col" style="padding: 6px 0; font-weight: 600; text-align: right;">Version</th></tr></thead>
+        <tbody style="font-family: 'IBM Plex Mono', monospace;">
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px 8px 0;">request_intake</td><td style="padding: 8px 0;">analysis</td><td style="padding: 8px 0; text-align: right;">1</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px 8px 0;">supplier_lookup</td><td style="padding: 8px 0;">analysis</td><td style="padding: 8px 0; text-align: right;">1</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px 8px 0;">rfq_authoring</td><td style="padding: 8px 0;">document_draft, outbound_communication</td><td style="padding: 8px 0; text-align: right;">1</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px 8px 0;">quote_triage</td><td style="padding: 8px 0;">analysis</td><td style="padding: 8px 0; text-align: right;">1</td></tr>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 12px 8px 0;">quote_comparison</td><td style="padding: 8px 0;">analysis, record_update</td><td style="padding: 8px 0; text-align: right;">1</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="checks" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="checks" style="margin: 0; font-size: 15px; font-weight: 600;">Configuration checks · 6 of 6 pass</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Role permits every Work Type the quick_quote templates send here</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>All five resources sit inside procurement/sourcing</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Authority profile approved and no wider than its owner's</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Runtime supports all four Work Types</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>Every skill is registered for a Work Type the role allows</li>
+        <li style="display: flex; gap: 8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="flex: 0 0 16px; margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>No delegation targets configured</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="evals" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="evals" style="margin: 0; font-size: 15px; font-weight: 600;">Evaluation suites</h2>
+      <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; flex-grow: 1;">refusals</span>
+          <span style="color: #4A5160;">Requester asks for quoted prices, 24 phrasings</span>
+          <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">24 / 24</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; flex-grow: 1;">dry_run</span>
+          <span style="color: #4A5160;">Synthetic event reached closed; 4 of 4 effects approved</span>
+          <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Pass</span>
+        </div>
+      </div>
+      <div style="padding: 10px 12px; border-radius: 8px; background: #F5F6F8; font-size: 12px; color: #4A5160;">Activation: configured by Platform admin, activated by Head of Procurement. Segregation check passed · Decision Record <span style="font-family: 'IBM Plex Mono', monospace;">DR-0007</span></div>
+    </section>
+  </div>
+
+  <section aria-labelledby="today" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+    <h2 id="today" style="margin: 0; font-size: 15px; font-weight: 600;">Since activation · 14 Oct</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: #6B7280;">Attempts</span><span style="font-size: 24px; font-weight: 600;">0</span></div>
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: #6B7280;">Verifier REWORK</span><span style="font-size: 24px; font-weight: 600;">0</span></div>
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: #6B7280;">Policy NEVER</span><span style="font-size: 24px; font-weight: 600;">0</span></div>
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: #6B7280;">Effects without approval</span><span style="font-size: 24px; font-weight: 600; color: #16693F;">0</span></div>
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: #6B7280;">Cost today</span><span style="font-size: 24px; font-weight: 600;">USD 0.00 <span style="font-size: 13px; font-weight: 400; color: #6B7280;">of 20</span></span></div>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

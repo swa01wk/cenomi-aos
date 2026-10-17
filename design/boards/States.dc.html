@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UI states catalogue</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1520px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Shared · Built across M1 to M3</span>
+    <span style="font-size: 16px; font-weight: 600;">States every screen must handle</span>
+    <span style="font-size: 13px; color: #4A5160;">Loading, empty, error, refused, reconnecting and streaming, drawn once so every screen uses the same pattern. Each card names the component and the API signal that drives it.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Signals: HTTP 401/403/409/422/503 with problem+json · SSE cursor gap → snapshot reload · ExecutionEvent agent.* for streaming</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Components.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: components</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; background: #F5F6F8;">
+<main style="max-width: 1320px; margin: 0 auto; padding: 28px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px;">
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Loading</h2>
+      <div aria-hidden="true" style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 150px; box-sizing: border-box;">
+        <span style="height: 14px; width: 40%; border-radius: 4px; background: #E2E5EA;"></span>
+        <span style="height: 44px; border-radius: 8px; background: #E2E5EA;"></span>
+        <span style="height: 44px; border-radius: 8px; background: #E2E5EA;"></span>
+        <span style="height: 44px; width: 70%; border-radius: 8px; background: #E2E5EA;"></span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Skeleton · first load, until the snapshot arrives · never a spinner over content</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Empty</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; min-height: 150px; box-sizing: border-box; justify-content: center;">
+        <span style="font-weight: 600;">No jobs yet</span>
+        <span style="font-size: 13px; color: #4A5160;">Start one with the Sourcing Agent; it will ask for what it needs.</span>
+        <a href="WS-New.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">New job</a>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">EmptyState · says what goes here and the one next step</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Request failed</h2>
+      <div role="alert" style="background: #FCE8E6; border: 1px solid #F0BDB7; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <span style="font-weight: 600; color: #7E1D15;">We couldn't load this job</span>
+        <span style="font-size: 13px;">The kernel didn't answer in time. Nothing was changed.</span>
+        <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">503 · trace 4f2a…91c</span>
+        <button type="button" style="align-self: flex-start; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Try again</button>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">ErrorBanner · 5xx or network · shows the problem title and trace ID</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Refused by policy</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <div role="note" style="display: flex; gap: 10px; padding: 12px; border-radius: 8px; background: #FFFFFF; border: 1px solid #C9CED6;">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#4A5160" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 18px; margin-top: 2px;"><rect x="3.5" y="8" width="11" height="7" rx="1.5"></rect><path d="M6 8V6a3 3 0 016 0v2"></path></svg>
+          <span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600;">Quoted prices aren't shared with requesters</span><span style="font-size: 13px; color: #4A5160;">Noura, the buyer, can tell you the outcome.</span></span>
+        </div>
+        <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">403 · rule requester_never_sees_quotes · decision pd_7f20</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">RefusalNotice · 403 or a NEVER decision · plain reason, no blame, who to ask</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Changed since you opened it</h2>
+      <div role="alert" style="background: #FDF1DE; border: 1px solid #F0D3A6; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <span style="font-weight: 600; color: #8A4B08;">This brief changed while you were editing</span>
+        <span style="font-size: 13px;">Faisal saved v3 at 10:21. Your edits weren't applied; reload to see v3 and redo them.</span>
+        <button type="button" style="align-self: flex-start; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Reload v3</button>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">ConflictNotice · 409 on expected_version · never a silent overwrite</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Invalid input</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; box-sizing: border-box;">
+        <label for="st-qty" style="font-size: 12px; color: #4A5160;">Quantity</label>
+        <input id="st-qty" type="text" value="forty" aria-invalid="true" aria-describedby="st-qty-err" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #A6261C; border-radius: 8px; font: inherit;">
+        <span id="st-qty-err" style="font-size: 12px; color: #A6261C;">Enter a whole number, for example 40.</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">FieldError · 422 problem+json errors[] mapped to fields by JSON pointer</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Reconnecting</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <div role="status" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: #FFFFFF; border: 1px solid #C9CED6; font-size: 13px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E5A13A;"></span>Reconnecting… showing the last known state</div>
+        <div role="status" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: #E3F4EA; font-size: 13px; color: #16693F;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #16693F;"></span>Back in sync · 3 updates applied</div>
+        <span style="font-size: 12px; color: #4A5160;">Actions stay enabled; commands carry expected versions, so nothing stale can commit.</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">ConnectionBanner · event stream dropped · resume from cursor, else reload the snapshot</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Agent working</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <div style="display: flex; gap: 10px;">
+          <span style="flex: 0 0 26px; height: 26px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</span>
+          <span style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-size: 12px; display: flex; align-items: center; gap: 6px; color: #4A5160;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#2B59C3" stroke-width="1.6" aria-hidden="true"><circle cx="6" cy="6" r="4"></circle><path d="M9 9l3 3"></path></svg>Searching suppliers in the ERP · allowed</span>
+            <span style="font-size: 13px;">Five suppliers match the janitorial category. Ranking them by<span aria-hidden="true" style="display: inline-block; width: 7px; height: 14px; margin-left: 2px; background: #15171C; vertical-align: -2px;"></span></span>
+          </span>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">ToolActivity + StreamingText · agent.tool.* and agent.message.delta events · text only, never HTML</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Paused for approval</h2>
+      <div style="background: #F5F6F8; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <span style="align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 500;">Waiting for Noura's approval</span>
+        <span style="font-size: 13px;">The agent has drafted 4 RFQ emails and stopped. Nothing is sent until the buyer approves; the agent uses no time or budget while it waits.</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">TaskStatus · Task WAITING_APPROVAL · attempt ended at interrupt()</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Agent stopped by its owner</h2>
+      <div role="status" style="background: #FCE8E6; border: 1px solid #F0BDB7; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; box-sizing: border-box;">
+        <span style="font-weight: 600; color: #7E1D15;">The Sourcing Agent is stopped</span>
+        <span style="font-size: 13px;">Its owner paused it. Your job and everything in it are kept. Nothing new runs until it is restarted.</span>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">SeatNotice · kill_switch.changed · admission gate 1 refuses new turns</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Agent couldn't finish</h2>
+      <div style="background: #FFFFFF; border: 1px solid #F0D3A6; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box;">
+        <span style="font-weight: 600;">Comparison needs a person</span>
+        <span style="font-size: 13px; color: #4A5160;">The agent reached its 10-minute limit for this run. Its work so far is saved as draft v1.</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; border: none; font: inherit; cursor: pointer;">Retry once</button>
+          <button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Finish it myself</button>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">ExceptionCard · Task EXCEPTION · failure class budget_exhausted, verifier FAIL, model_error</span>
+    </article>
+
+    <article style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4A5160;">Session expired</h2>
+      <div role="dialog" aria-labelledby="st-exp" style="background: #FFFFFF; border: 1px solid #C9CED6; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; box-sizing: border-box; box-shadow: 0 6px 24px rgba(17,20,24,0.12);">
+        <span id="st-exp" style="font-weight: 600;">Your session has ended</span>
+        <span style="font-size: 13px; color: #4A5160;">Sign in again to carry on. Anything you were typing is kept.</span>
+        <a href="Sign-in.dc.html" style="align-self: flex-start; height: 36px; padding: 0 14px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Sign in</a>
+      </div>
+      <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">SessionDialog · 401 on any call · drafts kept in memory</span>
+    </article>
+  </div>
+</main>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1520}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

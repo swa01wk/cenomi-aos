@@ -1,0 +1,396 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-14T19:35:00Z"
+ },
+ "title": "AOS App Screens",
+ "launch": {
+  "view": "focused",
+  "file": "Scenario-Index.dc.html"
+ },
+ "pages": [],
+ "boards": {
+  "Scenario-Index.dc.html": {
+   "x": -1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1880,
+   "title": "Start · Screens and an example run",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Packs.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1010,
+   "title": "1 · Domain packs",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Activation.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1010,
+   "title": "2 · Seat: tests and activation checks",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Seat.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1010,
+   "title": "3 · Seat: lifecycle",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-New.dc.html": {
+   "x": 0,
+   "y": 1450,
+   "w": 1440,
+   "h": 1010,
+   "title": "4 · New job",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Main.dc.html": {
+   "x": 1520,
+   "y": 1450,
+   "w": 1440,
+   "h": 1010,
+   "title": "5 · Job page: chat and work panel",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Shortlist.dc.html": {
+   "x": 3040,
+   "y": 1450,
+   "w": 1440,
+   "h": 1010,
+   "title": "6 · Job page: claim and decide",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-RFQ-Approval.dc.html": {
+   "x": 4560,
+   "y": 1450,
+   "w": 1440,
+   "h": 1010,
+   "title": "7 · Job page: rework and approval",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Quotes.dc.html": {
+   "x": 6080,
+   "y": 1450,
+   "w": 1440,
+   "h": 1010,
+   "title": "8 · Job page: waiting on replies",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Faisal-Refused.dc.html": {
+   "x": 0,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "9 · Job page: refused by policy",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Policy.dc.html": {
+   "x": 1520,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "10 · Policy decision",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Comparison.dc.html": {
+   "x": 3040,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "11 · Job page: compare and select",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-PO-Approval.dc.html": {
+   "x": 4560,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "12 · Approval: multi-step chain",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Gateway.dc.html": {
+   "x": 6080,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "13 · Action: reconcile an unknown result",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Closed.dc.html": {
+   "x": 7600,
+   "y": 2900,
+   "w": 1440,
+   "h": 1010,
+   "title": "14 · Job page: closed with handover",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Instance.dc.html": {
+   "x": 0,
+   "y": 4350,
+   "w": 1440,
+   "h": 1010,
+   "title": "15 · Instance: timeline and trace",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Audit.dc.html": {
+   "x": 1520,
+   "y": 4350,
+   "w": 1440,
+   "h": 1010,
+   "title": "16 · Audit chain",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Emergency.dc.html": {
+   "x": 3040,
+   "y": 4350,
+   "w": 1440,
+   "h": 1010,
+   "title": "17 · Kill switch",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Org.dc.html": {
+   "x": 0,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Organization · M0",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Seats.dc.html": {
+   "x": 1520,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Seats · M1",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Workflows.dc.html": {
+   "x": 3040,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Workflow definition · M2",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Instances.dc.html": {
+   "x": 4560,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Instances · M2",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Approvals.dc.html": {
+   "x": 6080,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Approvals · M3",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Connectors.dc.html": {
+   "x": 7600,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Tools and connectors · M3",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Console-Observability.dc.html": {
+   "x": 9120,
+   "y": 5800,
+   "w": 1440,
+   "h": 1010,
+   "title": "Observability · M4",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Sign-in.dc.html": {
+   "x": 0,
+   "y": 7250,
+   "w": 1440,
+   "h": 1010,
+   "title": "Sign in · M0",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-MyJobs.dc.html": {
+   "x": 1520,
+   "y": 7250,
+   "w": 1440,
+   "h": 1010,
+   "title": "My jobs · M2",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Queue.dc.html": {
+   "x": 3040,
+   "y": 7250,
+   "w": 1440,
+   "h": 1010,
+   "title": "Team queue · M2",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WS-Inbox.dc.html": {
+   "x": 4560,
+   "y": 7250,
+   "w": 1440,
+   "h": 1010,
+   "title": "Inbox · M3",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Demo-Controls.dc.html": {
+   "x": 6080,
+   "y": 7250,
+   "w": 1440,
+   "h": 1010,
+   "title": "Demo controls · M2–M3",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "States.dc.html": {
+   "x": 0,
+   "y": 8700,
+   "w": 1440,
+   "h": 1520,
+   "title": "UI states · M1–M3",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Components.dc.html": {
+   "x": 1520,
+   "y": 8700,
+   "w": 1440,
+   "h": 1700,
+   "title": "Tokens and components · M1",
+   "expand": "fill",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Scenario-Index.dc.html",
+  "Console-Packs.dc.html",
+  "Console-Activation.dc.html",
+  "Console-Seat.dc.html",
+  "WS-New.dc.html",
+  "Main.dc.html",
+  "WS-Shortlist.dc.html",
+  "WS-RFQ-Approval.dc.html",
+  "WS-Quotes.dc.html",
+  "WS-Faisal-Refused.dc.html",
+  "Console-Policy.dc.html",
+  "WS-Comparison.dc.html",
+  "WS-PO-Approval.dc.html",
+  "Console-Gateway.dc.html",
+  "WS-Closed.dc.html",
+  "Console-Instance.dc.html",
+  "Console-Audit.dc.html",
+  "Console-Emergency.dc.html",
+  "Console-Org.dc.html",
+  "Console-Seats.dc.html",
+  "Console-Workflows.dc.html",
+  "Console-Instances.dc.html",
+  "Console-Approvals.dc.html",
+  "Console-Connectors.dc.html",
+  "Console-Observability.dc.html",
+  "Sign-in.dc.html",
+  "WS-MyJobs.dc.html",
+  "WS-Queue.dc.html",
+  "WS-Inbox.dc.html",
+  "Demo-Controls.dc.html",
+  "States.dc.html",
+  "Components.dc.html"
+ ],
+ "notes": {
+  "build": {
+   "x": 0,
+   "y": -300,
+   "text": "1 · Build and activate a digital worker (Console)",
+   "kind": "title1",
+   "maxW": 5960
+  },
+  "run1": {
+   "x": 0,
+   "y": 1150,
+   "text": "2 · Run a job: intake to outbound requests (example run: Quick Quote QQ-0001)",
+   "kind": "title1",
+   "maxW": 7520
+  },
+  "run2": {
+   "x": 0,
+   "y": 2600,
+   "text": "3 · Run a job: replies to closed (example run continues)",
+   "kind": "title1",
+   "maxW": 9040
+  },
+  "govern": {
+   "x": 0,
+   "y": 4050,
+   "text": "4 · Govern: trace, audit, stop",
+   "kind": "title1",
+   "maxW": 4440
+  },
+  "console5": {
+   "x": 0,
+   "y": 5500,
+   "text": "5 · Console screens beyond the story",
+   "kind": "title1",
+   "maxW": 10560
+  },
+  "ws6": {
+   "x": 0,
+   "y": 6950,
+   "text": "6 · Sign-in, Workspace lists and demo controls",
+   "kind": "title1",
+   "maxW": 7520
+  },
+  "shared7": {
+   "x": 0,
+   "y": 8400,
+   "text": "7 · Shared states and components",
+   "kind": "title1",
+   "maxW": 2960
+  },
+  "start": {
+   "x": -1520,
+   "y": -300,
+   "text": "0 · Start here",
+   "kind": "title1",
+   "maxW": 1440
+  }
+ },
+ "designSystems": []
+}

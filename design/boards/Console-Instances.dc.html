@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Console: Instances</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Console · Built in M2</span>
+    <span style="font-size: 16px; font-weight: 600;">Instances</span>
+    <span style="font-size: 13px; color: #4A5160;">Every running and finished event, where it is, what it waits on and for how long against the stage target. Opening one shows its timeline and traces (stop 15).</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /console/instances · GET /api/console/instances?state=&amp;workflow=&amp;waiting_on= · row opens /console/instances/:id · reads work.instances, work.pending_items</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="Console-Instance.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Open QQ-0001</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Console" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; background: #111418; color: #C9CED6; padding: 20px 12px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #FFFFFF; color: #111418; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px; color: #FFFFFF;">Console</span>
+      <span style="font-size: 12px; color: #9AA1AD;">Sandbox environment</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Define</span>
+    <a href="Console-Org.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Organization</a>
+    <a href="Console-Packs.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Domain packs</a>
+    <a href="Console-Seats.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Seats</a>
+    <a href="Console-Workflows.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Workflows</a>
+    <a href="Console-Policy.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Policies</a>
+    <a href="Console-Connectors.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Tools and connectors</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9AA1AD; padding: 0 8px 6px;">Operate</span>
+    <a href="Console-Instances.dc.html" aria-current="page" style="padding: 8px; border-radius: 6px; background: #1F2530; color: #FFFFFF; text-decoration: none; font-weight: 500;">Instances</a>
+    <a href="Console-Approvals.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Approvals</a>
+    <a href="Console-Observability.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Observability</a>
+    <a href="Console-Audit.dc.html" style="padding: 8px; border-radius: 6px; color: #C9CED6; text-decoration: none;">Audit</a>
+    <a href="Console-Emergency.dc.html" style="padding: 8px; border-radius: 6px; color: #FFB4AB; text-decoration: none;">Emergency control</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 8px 0; border-top: 1px solid #262C36;">
+    <span style="color: #FFFFFF; font-weight: 500;">Head of Procurement</span>
+    <span style="font-size: 12px; color: #9AA1AD;">Process owner · Procurement</span>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+      <span style="font-size: 12px; color: #6B7280;">Operate / Instances</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Instances</h1>
+    </div>
+    <form role="search" style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
+      <label for="inst-q" style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Search instances</label>
+      <input id="inst-q" type="search" placeholder="Event ID, title or person" style="height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; min-width: 240px;">
+      <label for="inst-wf" style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Workflow</label>
+      <select id="inst-wf" style="height: 40px; padding: 0 12px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>All workflows</option><option>Quick Quote</option></select>
+    </form>
+  </header>
+
+  <section aria-label="Summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    <a href="Console-Instances.dc.html" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; color: #15171C; text-decoration: none;"><span style="font-size: 22px; font-weight: 600;">4</span><span style="font-size: 12px; color: #4A5160;">Running</span></a>
+    <a href="Console-Instances.dc.html" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; color: #15171C; text-decoration: none;"><span style="font-size: 22px; font-weight: 600;">3</span><span style="font-size: 12px; color: #4A5160;">Waiting on a person</span></a>
+    <a href="Console-Instances.dc.html" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; color: #15171C; text-decoration: none;"><span style="font-size: 22px; font-weight: 600;">0</span><span style="font-size: 12px; color: #4A5160;">Over stage target</span></a>
+    <a href="Console-Instances.dc.html" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; color: #15171C; text-decoration: none;"><span style="font-size: 22px; font-weight: 600;">1</span><span style="font-size: 12px; color: #4A5160;">Closed this week</span></a>
+  </section>
+
+  <section aria-labelledby="inst-list" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px;">
+    <h2 id="inst-list" style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Instance list</h2>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px;">
+        <thead>
+          <tr style="background: #F5F6F8; text-align: left;">
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Event</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">State</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Time in state</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Waiting on</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Requester</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Buyer</th>
+            <th scope="col" style="padding: 10px 14px; font-weight: 600; color: #4A5160;">Started</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0006</span><span style="color: #15171C;">Floor scrubber rental, Mall C</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px;">intake</span></td>
+            <td style="padding: 12px 14px;"><span style="font-variant-numeric: tabular-nums;">18 min</span></td>
+            <td style="padding: 12px 14px;">Faisal · answering brief questions</td>
+            <td style="padding: 12px 14px;">Faisal</td>
+            <td style="padding: 12px 14px; color: #6B7280;">Not claimed</td>
+            <td style="padding: 12px 14px; color: #4A5160;">23 Oct 10:12</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0003</span><span style="color: #15171C;">Uniforms, security team</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px;">ordering</span></td>
+            <td style="padding: 12px 14px;"><span style="font-variant-numeric: tabular-nums;">15 min</span></td>
+            <td style="padding: 12px 14px;">Noura · approve PO, SAR 18,600 <a href="Console-Approvals.dc.html" style="font-family: 'IBM Plex Mono', monospace;">AP-0044</a></td>
+            <td style="padding: 12px 14px;">Facilities manager</td>
+            <td style="padding: 12px 14px;">Noura</td>
+            <td style="padding: 12px 14px; color: #4A5160;">14 Oct 11:15</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0005</span><span style="color: #15171C;">Hand sanitiser refills, Mall A</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px;">awaiting quotes</span></td>
+            <td style="padding: 12px 14px;"><div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;"><span style="font-variant-numeric: tabular-nums;">18 h of 5 d</span><span role="img" aria-label="15 percent of the stage target" style="height: 6px; border-radius: 3px; background: #EEF1F5; display: flex;"><span style="width: 15%; border-radius: 3px; background: #2B59C3;"></span></span></div></td>
+            <td style="padding: 12px 14px;">Suppliers · 1 of 4 replied</td>
+            <td style="padding: 12px 14px;">Faisal</td>
+            <td style="padding: 12px 14px;">Noura</td>
+            <td style="padding: 12px 14px; color: #4A5160;">22 Oct 11:05</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0004</span><span style="color: #15171C;">Signage refresh, Mall B</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px;">shortlisting</span></td>
+            <td style="padding: 12px 14px;"><span style="font-variant-numeric: tabular-nums;">8 d</span></td>
+            <td style="padding: 12px 14px;">Sourcing queue · a buyer to claim</td>
+            <td style="padding: 12px 14px;">Facilities manager</td>
+            <td style="padding: 12px 14px; color: #6B7280;">Not claimed</td>
+            <td style="padding: 12px 14px; color: #4A5160;">15 Oct 08:40</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0001</span><span style="color: #15171C;">Cleaning trolleys, Mall A</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">closed</span></td>
+            <td style="padding: 12px 14px;"><span style="color: #6B7280;">Closed 22 Oct 09:32</span></td>
+            <td style="padding: 12px 14px;"><span style="color: #6B7280;">Nothing</span></td>
+            <td style="padding: 12px 14px;">Faisal</td>
+            <td style="padding: 12px 14px;">Noura</td>
+            <td style="padding: 12px 14px; color: #4A5160;">15 Oct 10:02</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E5EA;">
+            <td style="padding: 12px 14px;"><a href="Console-Instance.dc.html" style="display: flex; flex-direction: column; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">QQ-0002</span><span style="color: #15171C;">Floor scrubber parts</span></a></td>
+            <td style="padding: 12px 14px;"><span style="padding: 2px 8px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">closed</span></td>
+            <td style="padding: 12px 14px;"><span style="color: #6B7280;">Closed</span></td>
+            <td style="padding: 12px 14px;"><span style="color: #6B7280;">Nothing</span></td>
+            <td style="padding: 12px 14px;">Faisal</td>
+            <td style="padding: 12px 14px;">Noura</td>
+            <td style="padding: 12px 14px; color: #4A5160;">14 Oct 09:20</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <span style="font-size: 12px; color: #4A5160;">Times count against the stage targets in the pack. "Waiting on" comes from the instance's open pending items, Tasks and timers, so it always names a person, a Task or a clock.</span>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+apiVersion: aos/v1
+kind: Verifier
+metadata: {name: recipient_check, version: 1, owner: head_of_procurement}
+spec:
+  description: Each sent email reached the right recipient, thread and attachment version.
+  method: rule
+  applies_to: [rfq_email]
+  implementation: aos.verifiers.recipient_check

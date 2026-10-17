@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Demo controls</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Screen spec" style="background: #EEF3FB; border-bottom: 1px dashed #B9C8E6; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1E4296;">Platform screen · Demo only · Built in M2 and M3</span>
+    <span style="font-size: 16px; font-weight: 600;">Demo controls</span>
+    <span style="font-size: 13px; color: #4A5160;">Stands in for the outside world during the demo: supplier replies, the clock and the fault switches. Only in the sandbox; every action here is audited as actor demo.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Route /demo · POST /api/demo/clock/advance · POST /api/demo/vendor-replies · PUT /api/demo/faults/:connector · hidden unless AOS_DEMO=1</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Scenario-Index.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C8E6; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">All screens</a>
+    <a href="States.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: UI states</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; background: #F5F6F8;">
+<main style="max-width: 1280px; margin: 0 auto; padding: 28px 32px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #7A5A12; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">DEMO</div>
+    <div style="display: flex; flex-direction: column; flex-grow: 1;">
+      <h1 style="margin: 0; font-size: 22px; font-weight: 600;">Demo controls</h1>
+      <span style="font-size: 13px; color: #4A5160;">Sandbox only · every action here is audited as actor <span style="font-family: 'IBM Plex Mono', monospace;">demo</span></span>
+    </div>
+    <span style="padding: 4px 10px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 600;">Not shown in production builds</span>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px; align-items: start;">
+    <section aria-labelledby="clock" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="clock" style="margin: 0; font-size: 15px; font-weight: 600;">Demo clock</h2>
+      <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;">23 Oct 10:30</span><span style="font-size: 12px; color: #4A5160;">kernel time, Asia/Riyadh</span></div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <caption style="text-align: left; font-size: 12px; color: #6B7280; padding-bottom: 6px;">Timers waiting</caption>
+        <tbody>
+          <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 8px 0; font-family: 'IBM Plex Mono', monospace;">QQ-0005 · quote_deadline</td><td style="padding: 8px 0; text-align: right;">fires 27 Oct 16:30</td></tr>
+        </tbody>
+      </table>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Advance 15 min</button>
+        <button type="button" style="height: 40px; padding: 0 14px; border-radius: 8px; background: #15171C; color: #FFFFFF; border: none; font: inherit; cursor: pointer;">Jump to next timer</button>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Timers fire through the scheduler exactly as they would on the real clock, once each.</span>
+    </section>
+
+    <section aria-labelledby="faults" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <h2 id="faults" style="margin: 0; font-size: 15px; font-weight: 600;">Fault switches</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+        <li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <input id="f1" type="checkbox" style="width: 20px; height: 20px; accent-color: #A6261C;">
+          <label for="f1" style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 500;">ERP times out after commit</span><span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">mock_erp · timeout_after_commit · stop 13</span></label>
+        </li>
+        <li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <input id="f2" type="checkbox" style="width: 20px; height: 20px; accent-color: #A6261C;">
+          <label for="f2" style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 500;">First RFQ draft leaks the budget</span><span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">fake model script · seed_budget_leak · stop 7</span></label>
+        </li>
+        <li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <input id="f3" type="checkbox" style="width: 20px; height: 20px; accent-color: #A6261C;">
+          <label for="f3" style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 500;">ERP rejects the PO payload</span><span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">mock_erp · fail_validation</span></label>
+        </li>
+        <li style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #E2E5EA; border-radius: 8px;">
+          <input id="f4" type="checkbox" style="width: 20px; height: 20px; accent-color: #A6261C;">
+          <label for="f4" style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 500;">Mail send times out after commit</span><span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">mock_mail · timeout_after_commit</span></label>
+        </li>
+      </ul>
+      <span style="font-size: 12px; color: #4A5160;">Each switch fires once, on the next matching call, then turns itself off.</span>
+    </section>
+  </div>
+
+  <section aria-labelledby="vendor" style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; display: flex; flex-wrap: wrap;">
+    <div style="flex: 1 1 340px; min-width: 0; border-right: 1px solid #E2E5EA; display: flex; flex-direction: column;">
+      <h2 id="vendor" style="margin: 0; padding: 16px 18px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #E2E5EA;">Vendor simulator · RFQs awaiting a reply</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; font-size: 13px;">
+        <li><a href="Demo-Controls.dc.html" aria-current="true" style="display: flex; flex-direction: column; padding: 12px 18px; background: #EEF1F5; color: #15171C; text-decoration: none;"><span style="font-weight: 500;">Najd Supplies</span><span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0005</span> · RFQ sent 22 Oct 16:30</span></a></li>
+        <li><a href="Demo-Controls.dc.html" style="display: flex; flex-direction: column; padding: 12px 18px; color: #15171C; text-decoration: none; border-top: 1px solid #E2E5EA;"><span style="font-weight: 500;">Al Noor Trading</span><span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0005</span> · RFQ sent 22 Oct 16:30</span></a></li>
+        <li><a href="Demo-Controls.dc.html" style="display: flex; flex-direction: column; padding: 12px 18px; color: #15171C; text-decoration: none; border-top: 1px solid #E2E5EA;"><span style="font-weight: 500;">Desert Clean</span><span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0005</span> · RFQ sent 22 Oct 16:30</span></a></li>
+        <li style="display: flex; flex-direction: column; padding: 12px 18px; border-top: 1px solid #E2E5EA; color: #6B7280;"><span>Gulf Hygiene Co.</span><span style="font-size: 12px;">Replied 23 Oct 08:50</span></li>
+      </ul>
+    </div>
+    <form style="flex: 2 1 480px; min-width: 0; margin: 0; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-size: 13px; color: #4A5160;">Reply as <span style="font-weight: 600; color: #15171C;">Najd Supplies</span> on the RFQ thread. The mailbox signs the notification and AOS creates one triage Task for it.</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;"><label for="v-price" style="font-size: 12px; color: #4A5160;">Unit price (SAR)</label><input id="v-price" type="text" value="14.50" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit;"></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><label for="v-lead" style="font-size: 12px; color: #4A5160;">Lead time (days)</label><input id="v-lead" type="text" value="7" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit;"></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><label for="v-war" style="font-size: 12px; color: #4A5160;">Warranty (months)</label><input id="v-war" type="text" value="0" style="height: 40px; box-sizing: border-box; padding: 0 10px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit;"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;"><label for="v-body" style="font-size: 12px; color: #4A5160;">Email text</label><textarea id="v-body" rows="4" style="box-sizing: border-box; padding: 10px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; resize: vertical;">Dear Sourcing team, our offer for 120 five-litre sanitiser refills is SAR 14.50 each, delivered to Mall A in 7 days.</textarea></div>
+      <div style="display: flex; align-items: center; gap: 10px;"><input id="v-inject" type="checkbox" style="width: 20px; height: 20px; accent-color: #A6261C;"><label for="v-inject" style="font-size: 13px;">Append an instruction aimed at the agent (prompt-injection test)</label></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; border: none; font: inherit; font-weight: 500; cursor: pointer;">Send reply</button>
+        <button type="button" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; font: inherit; cursor: pointer;">Decline to quote</button>
+      </div>
+    </form>
+  </section>
+</main>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+---
+description: Workspace and Console frontend rules (React, Vite, TypeScript)
+globs: web/**
+alwaysApply: false
+---
+
+# Frontend rules
+
+- Match the design: `design/png/<Board>.png` for the look, `design/boards/<Board>.dc.html` for exact copy, spacing and
+  colours. The blue and yellow bars at the top of boards are design annotations, not product UI.
+- Use the shared components in `web/src/components` (Components and States boards). Don't restyle shared patterns
+  per page. Colours and type only from `web/src/styles/tokens.css`. Both are created in M1 (story M1-FE-01,
+  layout in `docs/specs/frontend/README.md`); until then M0 uses `web/src/styles.css`.
+- API types come from `npm run gen:api` (openapi-typescript over `docs/specs/contracts/openapi.yaml`); never
+  hand-write request or response types.
+- The screens are platform screens; procurement content on the boards is example data. Nothing in `web/src` is
+  named after or written for one pack: stage names come from `snapshot.stages`, document tabs from
+  `ArtifactSummary.view` (type, columns, field labels), workflows from `listDigitalWorkers`. Use the board's layout,
+  not its example strings.
+- Render kernel state; never compute permissions, hide columns or infer state in the browser. Disabled controls show
+  the reason the payload gives.
+- Pages: load the snapshot, then follow the event stream from its cursor; on `snapshot.required` reload. Apply events
+  in `id` order and ignore duplicates.
+- Agent content renders from typed blocks only. Never `dangerouslySetInnerHTML`, never render Markdown from the model.
+- Writes send `expected_version` / `payload_hash` / `base_version`; a 409 shows `ConflictNotice` and reloads.
+- Problem → component mapping is in `docs/specs/frontend/README.md`; use it, don't invent error UI.
+- Accessible: real buttons and links, labels, focus states, 44 px targets in the Workspace; works at phone width.

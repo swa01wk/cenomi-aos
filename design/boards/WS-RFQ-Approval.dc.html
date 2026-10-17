@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace: Job page: rework and approval</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Job page: rework and approval · Example run QQ-0001 · Stop 7 of 17 · Workspace as Noura</span>
+    <span style="font-size: 16px; font-weight: 600;">The leak check catches the budget; Noura approves the sends</span>
+    <span style="font-size: 13px; color: #4A5160;">With the demo's leak fault on, the first drafts carry the internal budget. The verifier returns REWORK and a new attempt redrafts them cleanly. Sending leaves AOS, so the attempt asks for approval, checkpoints and stops. Noura edits one email, which becomes v3 under her name, then approves.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: leak_check REWORK → attempt 2 PASS · mailbox.send ×3 → REQUIRE_APPROVAL · LangGraph interrupt() + checkpoint · Task WAITING_APPROVAL · approval bound to 3 digests</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="WS-Shortlist.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-Quotes.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: sent, quotes arrive</a>
+  </div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+
+<nav aria-label="Workspace" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E2E5EA; padding: 20px 16px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px;">Workspace</span>
+      <span style="font-size: 12px; color: #6B7280;">Procurement</span>
+    </div>
+  </div>
+  <a href="Main.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+    New job
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280; margin-bottom: 4px;">My jobs</span>
+    <a href="WS-RFQ-Approval.dc.html" aria-current="page" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #EEF1F5; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Cleaning trolleys, Mall A</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span> · rfq sending</span>
+    </a>
+    <a href="WS-RFQ-Approval.dc.html" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Uniforms, security team</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0003</span> · awaiting quotes</span>
+    </a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280; margin-bottom: 4px;">Sourcing queue</span>
+    <a href="WS-RFQ-Approval.dc.html" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Signage refresh, Mall B</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0004</span> · unclaimed</span>
+    </a>
+  </div>
+  <a href="WS-RFQ-Approval.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: #F7F9FE; color: #15171C; text-decoration: none;">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.5 12.5V8a4.5 4.5 0 0 1 9 0v4.5l1.2 1.5H3.3z"></path><path d="M7.5 15.5a1.6 1.6 0 0 0 3 0"></path></svg>
+    <span style="flex-grow: 1; font-weight: 500;">Notifications</span>
+    <span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; display: flex; align-items: center; justify-content: center;">1</span>
+  </a>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">N</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Noura</span>
+        <span style="font-size: 12px; color: #6B7280;">Sourcing · buyer</span>
+      </div>
+    </div>
+    <a href="Console-Seat.dc.html" style="font-size: 13px;">Open AOS Console</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap;">
+  <section aria-label="Conversation" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #E2E5EA;">
+    <header style="padding: 18px 28px 14px; background: #FFFFFF; border-bottom: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;">
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 12px; color: #6B7280;">Sourcing Agent · Quick Quote · <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span></span>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600;">40 cleaning trolleys for Mall A</h1>
+        </div>
+        <span style="font-size: 12px; color: #4A5160;">Requester Faisal · Buyer Noura</span>
+      </div>
+      <ol aria-label="Workflow stages" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px;">
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">intake</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">shortlisting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">rfq drafting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 500;">rfq sending</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">awaiting quotes</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">comparison</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">ordering</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">closed</li>
+      </ol>
+    </header>
+
+    <div style="flex-grow: 1; height: 600px; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: center; gap: 12px; color: #6B7280; font-size: 12px;">
+        <span style="flex-grow: 1; height: 1px; background: #E2E5EA;"></span>
+        <span>Noura claimed the job · 11:20 · Shortlist confirmed: Najd Supplies, Al Noor Trading, Desert Clean · 11:42</span>
+        <span style="flex-grow: 1; height: 1px; background: #E2E5EA;"></span>
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: #FFFFFF; border: 1px solid #E2E5EA; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280;">What I did</span>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8A4B08" stroke-width="1.6" aria-hidden="true" style="margin-top: 2px;"><path d="M8 2.5l6 11H2z"></path><path d="M8 7v3M8 11.8v.2"></path></svg>
+              <span>The first drafts mentioned the internal budget. The leak check sent them back, and I redrafted without it.</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#16693F" stroke-width="1.8" aria-hidden="true" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"></path></svg>
+              <span>Drafted three RFQ emails, one per shortlisted supplier, and saved them in the sourcing mailbox as drafts</span>
+            </div>
+            <span style="font-size: 12px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">leak_check REWORK → PASS · attempt 2 · mailbox.draft ALLOW</span>
+          </div>
+
+          <span>The emails are ready to go. Sending leaves AOS, so it needs your approval.</span>
+
+          <div role="group" aria-label="Approval: send 3 RFQ emails" style="background: #FFFFFF; border: 1px solid #B9C9EE; border-radius: 10px; overflow: hidden;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; background: #F7F9FE; border-bottom: 1px solid #DCE4F6;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2B59C3" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="6.5" width="11" height="7" rx="1.5"></rect><path d="M5 6.5V5a3 3 0 0 1 6 0v1.5"></path></svg>
+              <span style="font-weight: 600; flex-grow: 1;">Approve sending 3 RFQ emails</span>
+              <span style="padding: 2px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 500;">Due 16 Oct, 11:51</span>
+            </div>
+            <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+                <div style="padding: 10px; border: 1px solid #E2E5EA; border-radius: 8px; display: flex; flex-direction: column;"><span style="font-weight: 500;">Najd Supplies</span><span style="font-size: 12px; color: #4A5160;">sales@najd.example</span></div>
+                <div style="padding: 10px; border: 1px solid #E2E5EA; border-radius: 8px; display: flex; flex-direction: column;"><span style="font-weight: 500;">Al Noor Trading</span><span style="font-size: 12px; color: #4A5160;">rfq@alnoor.example</span></div>
+                <div style="padding: 10px; border: 1px solid #2B59C3; border-radius: 8px; display: flex; flex-direction: column;"><span style="font-weight: 500;">Desert Clean</span><span style="font-size: 12px; color: #4A5160;">Edited by you · v3</span></div>
+              </div>
+              <dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+                <div><dt style="color: #6B7280;">Policy</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">REQUIRE_APPROVAL</dd></div>
+                <div><dt style="color: #6B7280;">Checks</dt><dd style="margin: 0;">leak_check PASS on all 3</dd></div>
+                <div><dt style="color: #6B7280;">Bound to</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace;">sha 4e1c…a09, 77b2…31d, c90f…5e8</dd></div>
+              </dl>
+              <span style="font-size: 12px; color: #4A5160;">Your approval covers these exact versions. If anything changes, the agent will ask again.</span>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <a href="WS-Quotes.dc.html" style="height: 40px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; font-weight: 500; text-decoration: none; display: flex; align-items: center;">Approve all 3</a>
+                <button type="button" style="height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; font: inherit; cursor: pointer;">Review in panel</button>
+                <button type="button" style="height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #A6261C; font: inherit; cursor: pointer;">Reject</button>
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 12px; color: #6B7280;">The agent has paused and is using no compute while it waits. A fresh run resumes once you decide.</span>
+        </div>
+      </div>
+    </div>
+
+    <form style="margin: 0; padding: 16px 28px 20px; background: #FFFFFF; border-top: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 8px;">
+      <label for="reply2" style="font-size: 12px; color: #4A5160;">Reply to Sourcing Agent</label>
+      <div style="display: flex; gap: 8px;">
+        <input id="reply2" type="text" placeholder="Ask why a supplier was shortlisted, change a draft…" style="flex-grow: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; color: #15171C;">
+        <button type="button" aria-label="Send" style="width: 44px; height: 44px; border-radius: 8px; border: none; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9h11M10 5l4 4-4 4"></path></svg>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <aside aria-label="Work in progress" style="flex: 1 1 400px; min-width: 0; background: #FFFFFF; display: flex; flex-direction: column;">
+    <div role="tablist" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 16px 0; border-bottom: 1px solid #E2E5EA;">
+      <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Najd</button>
+      <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Al Noor</button>
+      <button type="button" role="tab" aria-selected="true" style="padding: 10px 12px; border: none; border-bottom: 2px solid #2B59C3; background: none; font: inherit; font-weight: 500; color: #15171C; cursor: pointer;">Desert Clean</button>
+      <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Brief v2</button>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid #E2E5EA;">
+      <span style="padding: 2px 8px; border-radius: 6px; background: #FDF1DE; color: #8A4B08; font-size: 12px; font-weight: 500;">Awaiting approval</span>
+      <span style="font-size: 12px; color: #4A5160;">RFQ email · v3 · edited by Noura · 12:06</span>
+      <a href="WS-RFQ-Approval.dc.html" style="margin-left: auto; font-size: 13px;">Diff v2 → v3</a>
+    </div>
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px 12px; font-size: 13px; align-items: baseline;">
+        <span style="color: #6B7280;">From</span><span>sourcing@procurement.example</span>
+        <span style="color: #6B7280;">To</span><span>tenders@desertclean.example</span>
+        <span style="color: #6B7280;">Subject</span><span style="font-weight: 500;">Request for quotation: 40 cleaning trolleys (QQ-0001)</span>
+        <span style="color: #6B7280;">Attached</span><span><a href="WS-RFQ-Approval.dc.html">Trolley specification.pdf</a> · shareable</span>
+      </div>
+      <div style="padding: 16px; border: 1px solid #E2E5EA; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6;">
+        <span>Dear Desert Clean team,</span>
+        <span>We invite you to quote for 40 three-bucket cleaning trolleys (120 L, lockable caddy), delivered to the Mall A loading bay by 20 November 2026.</span>
+        <span>Please include unit price, delivery lead time and warranty terms, and reply to this thread <span style="background: #E3F4EA; padding: 0 3px; border-radius: 3px;">by 21 October, 17:00 Riyadh time</span>.</span>
+        <span>Kind regards,<br>Noura, Sourcing</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #4A5160;">
+        <span><span style="background: #E3F4EA; padding: 0 3px; border-radius: 3px;">Highlighted</span> text is Noura's change in v3.</span>
+        <span style="font-family: 'IBM Plex Mono', monospace;">leak_check PASS · recipient_check runs after send</span>
+      </div>
+    </div>
+  </aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

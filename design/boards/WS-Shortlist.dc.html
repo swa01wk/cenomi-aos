@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace: Job page: claim and decide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59C3}a:hover{color:#1E4296}
+</style>
+</helmet>
+<div style="min-height: 1010px; display: flex; flex-direction: column; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171C; font-size: 14px; line-height: 1.45;">
+
+<div role="region" aria-label="Scenario guide" style="background: #FBF6EA; border-bottom: 1px dashed #D9C9A3; padding: 14px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+  <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7A5A12;">Screen: Job page: claim and decide · Example run QQ-0001 · Stop 6 of 17 · Workspace as Noura</span>
+    <span style="font-size: 16px; font-weight: 600;">Noura claims the job, asks why, and shortlists three</span>
+    <span style="font-size: 13px; color: #4A5160;">Claiming the job from the Sourcing queue makes Noura the buyer. She asks why a supplier ranks second and gets an answer built from the saved sources, then confirms three suppliers; the workflow will not move with fewer.</span>
+    <span style="font-size: 12px; color: #4A5160; font-family: 'IBM Plex Mono', monospace;">Under the hood: participant buyer bound by claim · join guard same(brief_version) ✓ · decision.shortlist_confirmed · guard shortlist_count &gt;= 3 ✓ · intake → shortlisting → rfq_drafting</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <a href="Main.dc.html" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #C9B98F; background: #FFFFFF; color: #15171C; text-decoration: none; display: flex; align-items: center;">Back</a>
+    <a href="WS-RFQ-Approval.dc.html" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; display: flex; align-items: center;">Next: drafts and approval</a>
+  </div>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-wrap: wrap; background: #F5F6F8;">
+<nav aria-label="Workspace" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E2E5EA; padding: 20px 16px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 30px; height: 30px; border-radius: 7px; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;">AOS</div>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-weight: 600; font-size: 14px;">Workspace</span>
+      <span style="font-size: 12px; color: #6B7280;">Procurement</span>
+    </div>
+  </div>
+  <a href="WS-New.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; background: #15171C; color: #FFFFFF; text-decoration: none; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+    New job
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280; margin-bottom: 4px;">My jobs</span>
+    <a href="WS-Shortlist.dc.html" aria-current="page" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #EEF1F5; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Cleaning trolleys, Mall A</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span> · shortlisting · claimed</span>
+    </a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B7280; margin-bottom: 4px;">Sourcing queue</span>
+    <a href="WS-Shortlist.dc.html" style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; color: #15171C; text-decoration: none;">
+      <span style="font-weight: 500;">Signage refresh, Mall B</span>
+      <span style="font-size: 12px; color: #4A5160;"><span style="font-family: 'IBM Plex Mono', monospace;">QQ-0004</span> · unclaimed</span>
+    </a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid #E2E5EA;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E3F4EA; color: #16693F; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">N</div>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-weight: 500;">Noura</span>
+        <span style="font-size: 12px; color: #6B7280;">Sourcing · buyer</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap;">
+  <section aria-label="Conversation" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #E2E5EA;">
+    <header style="padding: 18px 28px 14px; background: #FFFFFF; border-bottom: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;">
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 12px; color: #6B7280;">Sourcing Agent · Quick Quote · <span style="font-family: 'IBM Plex Mono', monospace;">QQ-0001</span></span>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600;">40 cleaning trolleys for Mall A</h1>
+        </div>
+        <span style="font-size: 12px; color: #4A5160;">Requester Faisal · Buyer Noura</span>
+      </div>
+      <ol aria-label="Workflow stages" style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px;">
+        <li style="padding: 3px 10px; border-radius: 999px; background: #E3F4EA; color: #16693F; font-size: 12px;">intake</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #2B59C3; color: #FFFFFF; font-size: 12px; font-weight: 500;">shortlisting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">rfq drafting</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">rfq sending</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">awaiting quotes</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">comparison</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">ordering</li>
+        <li style="padding: 3px 10px; border-radius: 999px; background: #EEF1F5; color: #4A5160; font-size: 12px;">closed</li>
+      </ol>
+    </header>
+
+    <div style="flex-grow: 1; height: 600px; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: center; gap: 12px; color: #6B7280; font-size: 12px;">
+        <span style="flex-grow: 1; height: 1px; background: #E2E5EA;"></span>
+        <span>Faisal confirmed brief v2 · 10:06 · You claimed the job · 11:20</span>
+        <span style="flex-grow: 1; height: 1px; background: #E2E5EA;"></span>
+      </div>
+
+      <div style="display: flex; gap: 12px; max-width: 88%;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <span>Hi Noura. Faisal's brief is confirmed and five suppliers came back from the ERP, ranked on category match, past orders and on-time delivery. The ranking is in the panel.</span>
+      </div>
+
+      <div style="align-self: flex-end; max-width: 78%; background: #EEF1F5; border-radius: 12px 12px 4px 12px; padding: 12px 14px;">
+        Why is Al Noor Trading second and not first?
+        <div style="font-size: 11px; color: #6B7280; margin-top: 6px;">Noura · 11:24</div>
+      </div>
+
+      <div style="display: flex; gap: 12px; max-width: 92%;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span>Al Noor scores 81 against Najd's 88. Both have supplied this trolley model before, but Najd delivered on time in 96% of orders over the past year against Al Noor's 89%, and Najd has three past janitorial orders with Procurement against Al Noor's one.</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <a href="WS-Shortlist.dc.html" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #C9CED6; background: #FFFFFF; font-size: 12px; text-decoration: none; color: #15171C;">ERP supplier performance · 2025–26</a>
+            <a href="WS-Shortlist.dc.html" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #C9CED6; background: #FFFFFF; font-size: 12px; text-decoration: none; color: #15171C;">PO history: janitorial category</a>
+          </div>
+          <span style="font-size: 12px; color: #6B7280; font-family: 'IBM Plex Mono', monospace;">Explained from saved sources · no new tool calls</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 0 0 28px; height: 28px; border-radius: 50%; background: #EAF0FC; color: #2B59C3; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">SA</div>
+        <div role="group" aria-label="Decision: confirm shortlist" style="flex-grow: 1; background: #F7F9FE; border: 1px solid #2B59C3; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;">
+            <span style="font-weight: 600; font-size: 15px;">Confirm the shortlist</span>
+            <span style="font-size: 12px; color: #4A5160;">Decision · you, as buyer · at least 3</span>
+          </div>
+          <span style="color: #4A5160;">3 selected in the panel: Najd Supplies, Al Noor Trading, Desert Clean. The agent will draft one RFQ email for each.</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <a href="WS-RFQ-Approval.dc.html" style="height: 40px; padding: 0 18px; border-radius: 8px; background: #2B59C3; color: #FFFFFF; font-weight: 500; text-decoration: none; display: flex; align-items: center;">Confirm 3 suppliers</a>
+            <button type="button" style="height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid #C9CED6; background: #FFFFFF; color: #15171C; font: inherit; cursor: pointer;">Add a supplier</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form style="margin: 0; padding: 16px 28px 20px; background: #FFFFFF; border-top: 1px solid #E2E5EA; display: flex; flex-direction: column; gap: 8px;">
+      <label for="reply6" style="font-size: 12px; color: #4A5160;">Reply to Sourcing Agent</label>
+      <div style="display: flex; gap: 8px;">
+        <input id="reply6" type="text" placeholder="Ask about a supplier…" style="flex-grow: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border: 1px solid #C9CED6; border-radius: 8px; font: inherit; color: #15171C;">
+        <button type="button" aria-label="Send" style="width: 44px; height: 44px; border-radius: 8px; border: none; background: #15171C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 9h11M10 5l4 4-4 4"></path></svg>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <aside aria-label="Work in progress" style="flex: 1 1 400px; min-width: 0; background: #FFFFFF; display: flex; flex-direction: column;">
+    <div role="tablist" style="display: flex; gap: 4px; padding: 12px 16px 0; border-bottom: 1px solid #E2E5EA;">
+      <button type="button" role="tab" aria-selected="true" style="padding: 10px 12px; border: none; border-bottom: 2px solid #2B59C3; background: none; font: inherit; font-weight: 500; color: #15171C; cursor: pointer;">Supplier ranking</button>
+      <button type="button" role="tab" aria-selected="false" style="padding: 10px 12px; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; color: #4A5160; cursor: pointer;">Brief v2</button>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid #E2E5EA;">
+      <span style="padding: 2px 8px; border-radius: 6px; background: #E3F4EA; color: #16693F; font-size: 12px; font-weight: 500;">Sources cited</span>
+      <span style="font-size: 12px; color: #4A5160;">Ranking v1 · tied to brief v2 · 10:05</span>
+    </div>
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="overflow-x: auto; border: 1px solid #E2E5EA; border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 440px;">
+          <thead>
+            <tr style="background: #F5F6F8; text-align: left;">
+              <th scope="col" style="padding: 10px 12px; font-weight: 600; color: #4A5160;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Shortlist</span></th>
+              <th scope="col" style="padding: 10px 12px; font-weight: 600; color: #4A5160;">Supplier</th>
+              <th scope="col" style="padding: 10px 12px; font-weight: 600; color: #4A5160; text-align: right;">Past POs</th>
+              <th scope="col" style="padding: 10px 12px; font-weight: 600; color: #4A5160; text-align: right;">On time</th>
+              <th scope="col" style="padding: 10px 12px; font-weight: 600; color: #4A5160; text-align: right;">Score</th>
+            </tr>
+          </thead>
+          <tbody style="font-variant-numeric: tabular-nums;">
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 12px;"><input type="checkbox" checked aria-label="Shortlist Najd Supplies" style="width: 18px; height: 18px; accent-color: #2B59C3;"></td><td style="padding: 10px 12px; font-weight: 500;">Najd Supplies</td><td style="padding: 10px 12px; text-align: right;">3</td><td style="padding: 10px 12px; text-align: right;">96%</td><td style="padding: 10px 12px; text-align: right; font-weight: 600;">88</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 12px;"><input type="checkbox" checked aria-label="Shortlist Al Noor Trading" style="width: 18px; height: 18px; accent-color: #2B59C3;"></td><td style="padding: 10px 12px; font-weight: 500;">Al Noor Trading</td><td style="padding: 10px 12px; text-align: right;">1</td><td style="padding: 10px 12px; text-align: right;">89%</td><td style="padding: 10px 12px; text-align: right; font-weight: 600;">81</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 12px;"><input type="checkbox" checked aria-label="Shortlist Desert Clean" style="width: 18px; height: 18px; accent-color: #2B59C3;"></td><td style="padding: 10px 12px; font-weight: 500;">Desert Clean</td><td style="padding: 10px 12px; text-align: right;">2</td><td style="padding: 10px 12px; text-align: right;">84%</td><td style="padding: 10px 12px; text-align: right; font-weight: 600;">77</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 12px;"><input type="checkbox" aria-label="Shortlist Gulf Janitorial" style="width: 18px; height: 18px; accent-color: #2B59C3;"></td><td style="padding: 10px 12px;">Gulf Janitorial</td><td style="padding: 10px 12px; text-align: right;">0</td><td style="padding: 10px 12px; text-align: right;">–</td><td style="padding: 10px 12px; text-align: right;">64</td></tr>
+            <tr style="border-top: 1px solid #E2E5EA;"><td style="padding: 10px 12px;"><input type="checkbox" aria-label="Shortlist Riyadh Facility Mart" style="width: 18px; height: 18px; accent-color: #2B59C3;"></td><td style="padding: 10px 12px;">Riyadh Facility Mart</td><td style="padding: 10px 12px; text-align: right;">1</td><td style="padding: 10px 12px; text-align: right;">71%</td><td style="padding: 10px 12px; text-align: right;">58</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <span style="font-size: 12px; color: #4A5160;">Every score cites its ERP source. Prices are not part of the ranking; they come only with quotes.</span>
+    </div>
+  </aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1010}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
