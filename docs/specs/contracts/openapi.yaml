@@ -257,9 +257,22 @@ paths:
       x-screens: [Console-Activation]
       description: Run the Seat's eval suites in the sandbox (fake model in M1, real model from M4). Both pass → TESTING complete.
       parameters: [{$ref: '#/components/parameters/Seat'}]
-      requestBody: {content: {application/json: {schema: {type: object, properties: {model: {enum: [fake, real], default: fake}}}}}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: {type: integer, description: Seat definition version from the pack}
+                model: {enum: [fake, real], default: fake}
       responses:
         '202': {description: Runs started, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/EvalRun'}}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /console/seats/{seat}/approve:
     post:
       tags: [seats]
@@ -1064,7 +1077,25 @@ components:
     EvalRun:
       type: object
       required: [id, suite, status]
-      properties: {id: {type: string}, suite: {type: string}, model: {enum: [fake, real]}, status: {enum: [running, passed, failed]}, passed: {type: integer}, total: {type: integer}, detail: {type: string}, finished_at: {type: [string, 'null'], format: date-time}}
+      properties:
+        id: {type: string}
+        suite: {type: string}
+        model: {enum: [fake, real]}
+        status: {enum: [running, passed, failed]}
+        passed: {type: integer, description: Runnable structural checks that passed}
+        total: {type: integer, description: Runnable structural checks executed}
+        detail:
+          type: object
+          description: >-
+            M1 shape — checks (runnable structural results), expectations (deferred behavioural items until M2/M3/M1-BE-06),
+            deferred_count (number of deferred expectations). When a run is interrupted, reason is set to interrupted.
+          properties:
+            checks: {type: array, items: {type: object, properties: {name: {type: string}, passed: {type: boolean}, detail: {type: string}}}}
+            expectations: {type: array, items: {type: object, properties: {key: {type: string}, status: {type: string}, reason: {type: string}}}}
+            deferred_count: {type: integer}
+            reason: {type: string}
+          additionalProperties: true
+        finished_at: {type: [string, 'null'], format: date-time}
     DigitalWorker:
       type: object
       required: [seat, display_name, version, state, workflows]

@@ -1,12 +1,14 @@
-"""Seat lifecycle FSM, configuration checks and projections (M1-BE-03a)."""
+"""Seat lifecycle FSM, configuration checks and projections (M1-BE-03)."""
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from psycopg import AsyncConnection
+from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
 from ..model_registry import model_alias_registered
@@ -26,6 +28,12 @@ CHECK_NAMES = (
 
 RULE_NOT_CONFIGURER = "seat.activate.not_configurer"
 RULE_NOT_OWNER = "seat.activate.not_owner"
+
+
+@dataclass(frozen=True)
+class EvalRunJob:
+    run_id: str
+    suite: str
 
 
 class SeatError(Exception):
@@ -414,6 +422,18 @@ def _primary_role(roles: list[str]) -> str | None:
     return roles[0] if roles else None
 
 
+async def _find_other_live_seat(
+    conn: AsyncConnection, org_id: str, name: str, seat_version: int
+) -> tuple | None:
+    cur = await conn.execute(
+        "select version, state from registry.seats"
+        " where org_id = %s and name = %s and version <> %s and state in ('ACTIVE', 'PAUSED')"
+        " limit 1",
+        (org_id, name, seat_version),
+    )
+    return await cur.fetchone()
+
+
 async def _running_attempts(conn: AsyncConnection, org_id: str, seat: str) -> int:
     cur = await conn.execute(
         "select count(*) from work.attempts a"
@@ -457,6 +477,13 @@ async def _fetch_evals(conn: AsyncConnection, org_id: str, seat: str, seat_versi
     )
     out = []
     for rid, suite, model, status, passed, total, detail, finished_at in await cur.fetchall():
+        if isinstance(detail, str):
+            try:
+                detail = json.loads(detail) if detail else {}
+            except json.JSONDecodeError:
+                detail = {"legacy": detail}
+        elif detail is None:
+            detail = {}
         out.append(
             {
                 "id": rid,
@@ -465,7 +492,7 @@ async def _fetch_evals(conn: AsyncConnection, org_id: str, seat: str, seat_versi
                 "status": status,
                 "passed": passed,
                 "total": total,
-                "detail": json.dumps(detail) if isinstance(detail, dict) else (detail or ""),
+                "detail": detail,
                 "finished_at": finished_at.isoformat() if finished_at else None,
             }
         )
@@ -669,6 +696,242 @@ async def configure_seat(
     return await project_seat_detail(conn, org_id, row)
 
 
+async def definitions_for_pack_version(conn: AsyncConnection, pack_version_id: str) -> dict[str, dict[str, dict]]:
+    return await _load_definitions(conn, pack_version_id)
+
+
+async def eval_suite_file(conn: AsyncConnection, pack_version_id: str, suite_name: str) -> str | None:
+    return await _suite_file(conn, pack_version_id, suite_name)
+
+
+async def pack_version_digest(conn: AsyncConnection, pack_version_id: str) -> str:
+    cur = await conn.execute(
+        "select digest from registry.pack_versions where id = %s",
+        (pack_version_id,),
+    )
+    row = await cur.fetchone()
+    return row[0] if row else ""
+
+
+async def _suite_file(conn: AsyncConnection, pack_version_id: str, suite_name: str) -> str | None:
+    cur = await conn.execute(
+        "select file from registry.definitions"
+        " where pack_version_id = %s and kind = 'EvalSuite' and name = %s",
+        (pack_version_id, suite_name),
+    )
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
+async def _mark_interrupted_eval_runs(
+    conn: AsyncConnection, *, org_id: str, seat: str, seat_version: int
+) -> None:
+    await conn.execute(
+        "update registry.eval_runs"
+        " set status = 'failed', finished_at = now(),"
+        " detail = coalesce(detail, '{}'::jsonb) || jsonb_build_object('reason', 'interrupted')"
+        " where org_id = %s and seat = %s and seat_version = %s and status = 'running'"
+        " and started_at < now() - interval '10 minutes'",
+        (org_id, seat, seat_version),
+    )
+
+
+async def _has_recent_running_eval(
+    conn: AsyncConnection, *, org_id: str, seat: str, seat_version: int
+) -> bool:
+    cur = await conn.execute(
+        "select exists("
+        " select 1 from registry.eval_runs"
+        " where org_id = %s and seat = %s and seat_version = %s and status = 'running'"
+        " and started_at >= now() - interval '10 minutes'"
+        ")",
+        (org_id, seat, seat_version),
+    )
+    row = await cur.fetchone()
+    return bool(row[0]) if row else False
+
+
+async def begin_seat_eval_runs(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    name: str,
+    seat_version: int,
+    model: str,
+) -> tuple[str, list[EvalRunJob], list[dict[str, Any]]]:
+    """Insert running eval rows; return pack_version_id, jobs and 202 projection rows."""
+    row = await _lock_seat_row(conn, org_id, name, seat_version)
+    if row is None:
+        raise SeatError("not_found", 404, "Seat not found", f"No seat {name!r} version {seat_version}.")
+    state = row[6]
+    if state not in ("CONFIGURED", "TESTING"):
+        raise SeatError(
+            "conflict",
+            409,
+            "Seat is not ready for evals",
+            f"Eval runs require CONFIGURED or TESTING; this seat is {state!r}.",
+        )
+    pack_version_id = str(row[2])
+    await _mark_interrupted_eval_runs(conn, org_id=org_id, seat=name, seat_version=seat_version)
+    if await _has_recent_running_eval(conn, org_id=org_id, seat=name, seat_version=seat_version):
+        raise SeatError(
+            "conflict",
+            409,
+            "Eval runs already in progress",
+            "Wait for the current sandbox runs to finish or try again after ten minutes.",
+        )
+
+    defs = await _load_definitions(conn, pack_version_id)
+    seat_doc = defs.get("Seat", {}).get(name)
+    if seat_doc is None:
+        raise SeatError("not_found", 404, "Seat definition not found", f"No Seat {name!r} on this pack version.")
+    suites = (seat_doc.get("spec") or {}).get("evals") or []
+    jobs: list[EvalRunJob] = []
+    started: list[dict[str, Any]] = []
+    for suite in suites:
+        if suite not in defs.get("EvalSuite", {}):
+            raise SeatError(
+                "conflict",
+                409,
+                "Eval suite missing from pack",
+                f"Suite {suite!r} is listed on the Seat but not on the pinned pack version.",
+            )
+        run_id = ids.new_eval_run_id()
+        await conn.execute(
+            "insert into registry.eval_runs ("
+            " id, org_id, seat, seat_version, suite, model, status, passed, total, detail"
+            ") values (%s, %s, %s, %s, %s, %s, 'running', 0, 0, '{}'::jsonb)",
+            (run_id, org_id, name, seat_version, suite, model),
+        )
+        jobs.append(EvalRunJob(run_id=run_id, suite=suite))
+        started.append(
+            {
+                "id": run_id,
+                "suite": suite,
+                "model": model,
+                "status": "running",
+                "passed": 0,
+                "total": 0,
+                "detail": {},
+                "finished_at": None,
+            }
+        )
+    return pack_version_id, jobs, started
+
+
+async def record_eval_run_result(
+    conn: AsyncConnection,
+    *,
+    run_id: str,
+    passed: int,
+    total: int,
+    status: str,
+    detail: dict[str, Any],
+) -> None:
+    await conn.execute(
+        "update registry.eval_runs"
+        " set status = %s, passed = %s, total = %s, detail = %s, finished_at = now()"
+        " where id = %s and status = 'running'",
+        (status, passed, total, Jsonb(detail), run_id),
+    )
+
+
+async def maybe_promote_seat_to_testing(
+    conn: AsyncConnection,
+    *,
+    org: OrgModel,
+    org_id: str,
+    name: str,
+    seat_version: int,
+) -> None:
+    row = await _lock_seat_row(conn, org_id, name, seat_version)
+    if row is None or row[6] != "CONFIGURED":
+        return
+    pack_version_id = str(row[2])
+    if not await _eval_suites_passed(
+        conn,
+        org_id=org_id,
+        seat_name=name,
+        seat_version=seat_version,
+        pack_version_id=pack_version_id,
+        eval_strict=False,
+    ):
+        return
+    from_state = row[6]
+    new_record_version = row[9] + 1
+    cur = await conn.execute(
+        "update registry.seats set state = 'TESTING', record_version = %s, updated_at = now()"
+        " where org_id = %s and name = %s and version = %s and record_version = %s and state = 'CONFIGURED'"
+        " returning name, version, pack_version_id, display_name, placement, owner_person_id, state,"
+        " configured_by, activated_by, record_version, updated_at",
+        (new_record_version, org_id, name, seat_version, row[9]),
+    )
+    updated = await cur.fetchone()
+    if updated is None:
+        return
+    await _seat_event(
+        conn,
+        org_id=org_id,
+        seat=name,
+        seat_version=seat_version,
+        from_state=from_state,
+        to_state="TESTING",
+        actor="system",
+    )
+    await audit_store.record(
+        conn,
+        org_id=org_id,
+        actor="system",
+        action="seat.tested",
+        subject=f"{name}@{seat_version}",
+        data={"seat": name, "seat_version": seat_version, "pack_version_id": pack_version_id},
+    )
+    await _emit_state_changed(
+        conn,
+        org,
+        seat=name,
+        from_state=from_state,
+        to_state="TESTING",
+        owner_person_id=row[5],
+        placement=row[4],
+        pack_version_id=pack_version_id,
+    )
+
+
+async def _latest_eval_runs(
+    conn: AsyncConnection, *, org_id: str, seat_name: str, seat_version: int
+) -> list[tuple[str, str, dict]]:
+    cur = await conn.execute(
+        "select distinct on (suite) suite, status, detail"
+        " from registry.eval_runs"
+        " where org_id = %s and seat = %s and seat_version = %s"
+        " order by suite, started_at desc",
+        (org_id, seat_name, seat_version),
+    )
+    rows = []
+    for suite, status, detail in await cur.fetchall():
+        if isinstance(detail, dict):
+            doc = detail
+        elif isinstance(detail, str):
+            try:
+                doc = json.loads(detail) if detail else {}
+            except json.JSONDecodeError:
+                doc = {}
+        else:
+            doc = {}
+        rows.append((suite, status, doc))
+    return rows
+
+
+def _detail_has_deferred(detail: dict[str, Any]) -> bool:
+    if detail.get("deferred_count", 0) > 0:
+        return True
+    for item in detail.get("expectations") or []:
+        if item.get("status") == "deferred":
+            return True
+    return False
+
+
 async def _eval_suites_passed(
     conn: AsyncConnection,
     *,
@@ -676,6 +939,7 @@ async def _eval_suites_passed(
     seat_name: str,
     seat_version: int,
     pack_version_id: str,
+    eval_strict: bool,
 ) -> bool:
     defs = await _load_definitions(conn, pack_version_id)
     seat_doc = defs.get("Seat", {}).get(seat_name)
@@ -684,14 +948,80 @@ async def _eval_suites_passed(
     suites = (seat_doc.get("spec") or {}).get("evals") or []
     if not suites:
         return True
-    cur = await conn.execute(
-        "select distinct on (suite) suite, status from registry.eval_runs"
-        " where org_id = %s and seat = %s and seat_version = %s"
-        " order by suite, started_at desc",
-        (org_id, seat_name, seat_version),
+    latest = await _latest_eval_runs(conn, org_id=org_id, seat_name=seat_name, seat_version=seat_version)
+    by_suite = {suite: (status, detail) for suite, status, detail in latest}
+    for s in suites:
+        entry = by_suite.get(s)
+        if entry is None or entry[0] != "passed":
+            return False
+        if eval_strict and _detail_has_deferred(entry[1]):
+            return False
+    return True
+
+
+def _raise_eval_gate_failed(*, eval_strict: bool, deferred: bool) -> None:
+    if deferred and eval_strict:
+        raise SeatError(
+            "conflict",
+            409,
+            "Eval suites have deferred expectations",
+            "AOS_EVAL_STRICT is on; every expectation must be satisfied before approval or activation.",
+        )
+    raise SeatError(
+        "conflict",
+        409,
+        "Eval suites have not passed",
+        "Every eval suite for this seat must have a latest run with status passed.",
     )
-    by_suite = {suite: status for suite, status in await cur.fetchall()}
-    return all(by_suite.get(s) == "passed" for s in suites)
+
+
+async def _require_eval_passed(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    seat_name: str,
+    seat_version: int,
+    pack_version_id: str,
+) -> None:
+    latest = await _latest_eval_runs(
+        conn, org_id=org_id, seat_name=seat_name, seat_version=seat_version
+    )
+    defs = await _load_definitions(conn, pack_version_id)
+    seat_doc = defs.get("Seat", {}).get(seat_name)
+    suites = (seat_doc.get("spec") or {}).get("evals") or [] if seat_doc else []
+    by_suite = {suite: (status, detail) for suite, status, detail in latest}
+    for s in suites:
+        entry = by_suite.get(s)
+        if entry is None or entry[0] != "passed":
+            _raise_eval_gate_failed(eval_strict=False, deferred=False)
+
+
+async def _require_eval_no_deferred(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    seat_name: str,
+    seat_version: int,
+    pack_version_id: str,
+) -> None:
+    await _require_eval_passed(
+        conn,
+        org_id=org_id,
+        seat_name=seat_name,
+        seat_version=seat_version,
+        pack_version_id=pack_version_id,
+    )
+    latest = await _latest_eval_runs(
+        conn, org_id=org_id, seat_name=seat_name, seat_version=seat_version
+    )
+    defs = await _load_definitions(conn, pack_version_id)
+    seat_doc = defs.get("Seat", {}).get(seat_name)
+    suites = (seat_doc.get("spec") or {}).get("evals") or [] if seat_doc else []
+    by_suite = {suite: (status, detail) for suite, status, detail in latest}
+    for s in suites:
+        entry = by_suite.get(s)
+        if entry and _detail_has_deferred(entry[1]):
+            _raise_eval_gate_failed(eval_strict=True, deferred=True)
 
 
 async def approve_seat(
@@ -704,6 +1034,7 @@ async def approve_seat(
     expected_version: int,
     actor: str,
     roles: list[str],
+    eval_strict: bool = False,
 ) -> dict[str, Any]:
     if "risk" not in roles:
         raise SeatError("not_permitted", 403, "Risk role required", "Only risk may approve a tested seat.")
@@ -725,6 +1056,22 @@ async def approve_seat(
             409,
             "Seat is not ready for approval",
             f"Risk approval requires TESTING; this seat is {row[6]!r}.",
+        )
+    if eval_strict:
+        await _require_eval_no_deferred(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
+        )
+    else:
+        await _require_eval_passed(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
         )
 
     from_state = row[6]
@@ -831,6 +1178,7 @@ async def activate_seat(
     expected_version: int,
     actor: str,
     roles: list[str],
+    eval_strict: bool = False,
 ) -> dict[str, Any] | CommittedRefusal:
     row = await _lock_seat_row(conn, org_id, name, seat_version)
     if row is None:
@@ -850,18 +1198,21 @@ async def activate_seat(
             "Seat is not approved",
             f"Activation requires APPROVED; this seat is {row[6]!r}.",
         )
-    if not await _eval_suites_passed(
-        conn,
-        org_id=org_id,
-        seat_name=name,
-        seat_version=seat_version,
-        pack_version_id=str(row[2]),
-    ):
-        raise SeatError(
-            "conflict",
-            409,
-            "Eval suites have not passed",
-            "Every eval suite for this seat must have a latest run with status passed.",
+    if eval_strict:
+        await _require_eval_no_deferred(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
+        )
+    else:
+        await _require_eval_passed(
+            conn,
+            org_id=org_id,
+            seat_name=name,
+            seat_version=seat_version,
+            pack_version_id=str(row[2]),
         )
 
     configured_by = row[7]
@@ -893,13 +1244,7 @@ async def activate_seat(
             detail="Activation is reserved for the person who owns this seat.",
         )
 
-    cur = await conn.execute(
-        "select version, state from registry.seats"
-        " where org_id = %s and name = %s and version <> %s and state in ('ACTIVE', 'PAUSED')"
-        " limit 1",
-        (org_id, name, seat_version),
-    )
-    live = await cur.fetchone()
+    live = await _find_other_live_seat(conn, org_id, name, seat_version)
     if live is not None:
         live_version, live_state = int(live[0]), live[1]
         raise SeatError(
@@ -907,20 +1252,28 @@ async def activate_seat(
             409,
             "Another seat version is already live",
             f"Seat {name!r} version {live_version} is {live_state!r}; "
-            f"retire or pause it before activating version {seat_version}.",
+            f"retire it before activating version {seat_version}.",
         )
 
     from_state = row[6]
     decision_id = ids.new_decision_id()
     new_record_version = row[9] + 1
-    cur = await conn.execute(
-        "update registry.seats set state = 'ACTIVE', activated_by = %s, record_version = %s, updated_at = now()"
-        " where org_id = %s and name = %s and version = %s and record_version = %s"
-        " returning name, version, pack_version_id, display_name, placement, owner_person_id, state,"
-        " configured_by, activated_by, record_version, updated_at",
-        (actor, new_record_version, org_id, name, seat_version, expected_version),
-    )
-    updated = await cur.fetchone()
+    try:
+        cur = await conn.execute(
+            "update registry.seats set state = 'ACTIVE', activated_by = %s, record_version = %s, updated_at = now()"
+            " where org_id = %s and name = %s and version = %s and record_version = %s"
+            " returning name, version, pack_version_id, display_name, placement, owner_person_id, state,"
+            " configured_by, activated_by, record_version, updated_at",
+            (actor, new_record_version, org_id, name, seat_version, expected_version),
+        )
+        updated = await cur.fetchone()
+    except UniqueViolation as exc:
+        raise SeatError(
+            "conflict",
+            409,
+            "Another seat version is already live",
+            f"Retire the other live version of {name!r} before activating version {seat_version}.",
+        ) from exc
     if updated is None:
         raise SeatError(
             "stale_version",

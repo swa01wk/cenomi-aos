@@ -1,4 +1,4 @@
-"""M1-BE-03a: seat lifecycle (no eval runner)."""
+"""M1-BE-03: seat lifecycle (configure, approve, activate)."""
 
 from __future__ import annotations
 
@@ -68,10 +68,11 @@ class SeatLifecycleTests(unittest.TestCase):
             delete from registry.seat_events where seat = '{SEAT}';
             delete from gov.decision_records where subject_kind = 'seat' and subject_id = '{SEAT}';
             delete from evidence.outbox where event_type = 'seat.state_changed';
+            delete from registry.seats where name = '{SEAT}' and version <> {SEAT_DEF_VERSION};
             update registry.seats
             set state = 'DRAFT', configured_by = null, activated_by = null,
                 record_version = 1, updated_at = now()
-            where name = '{SEAT}';
+            where name = '{SEAT}' and version = {SEAT_DEF_VERSION};
             update registry.pack_versions set status = 'published' where id = '{self.version_id}';
             """,
         )
@@ -136,6 +137,29 @@ class SeatLifecycleTests(unittest.TestCase):
             """,
         )
 
+    def run_evals(self, person: str = "platform_admin") -> object:
+        return self.client.post(
+            f"/api/console/seats/{SEAT}/evals",
+            headers=self.login(person),
+            json={"version": SEAT_DEF_VERSION, "model": "fake"},
+        )
+
+    def wait_for_evals(self) -> dict:
+        for _ in range(50):
+            seat = self.get_seat()
+            evals = seat.get("evals") or []
+            if evals and all(e["status"] != "running" for e in evals):
+                return seat
+        self.fail("eval runs did not finish")
+
+    def to_approved(self, *, configurer: str = "platform_admin") -> dict:
+        configured = self.configure(configurer)
+        self.run_evals(configurer)
+        testing = self.wait_for_evals()
+        r = self.approve("risk", testing["record_version"])
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
+
     def activate(self, person: str, expected_version: int) -> object:
         return self.client.post(
             f"/api/console/seats/{SEAT}/activate",
@@ -184,9 +208,8 @@ class SeatLifecycleTests(unittest.TestCase):
         self.assertTrue(any(c["name"] == "pack_version_published" for c in failed))
 
     def test_configurer_activate_denied_with_audit_and_dr(self) -> None:
-        configured = self.configure("head_of_procurement")
-        self.seed_approved_with_evals(record_version=configured["record_version"])
-        r = self.activate("head_of_procurement", configured["record_version"])
+        approved = self.to_approved(configurer="head_of_procurement")
+        r = self.activate("head_of_procurement", approved["record_version"])
         self.assertEqual(r.status_code, 403, r.text)
         problem = r.json()
         self.assertEqual(problem["code"], "segregation_of_duties")
@@ -208,9 +231,8 @@ class SeatLifecycleTests(unittest.TestCase):
         self.assertIn("seat.activate.denied", actions)
 
     def test_non_owner_activate_not_permitted(self) -> None:
-        configured = self.configure("platform_admin")
-        self.seed_approved_with_evals(record_version=configured["record_version"])
-        r = self.activate("risk", configured["record_version"])
+        approved = self.to_approved(configurer="platform_admin")
+        r = self.activate("risk", approved["record_version"])
         self.assertEqual(r.status_code, 403, r.text)
         problem = r.json()
         self.assertEqual(problem["code"], "not_permitted")
@@ -227,8 +249,7 @@ class SeatLifecycleTests(unittest.TestCase):
         self.assertIn("seat.activate.denied", actions)
 
     def test_activate_blocked_when_other_version_live(self) -> None:
-        configured = self.configure("platform_admin")
-        self.seed_approved_with_evals(record_version=configured["record_version"])
+        approved = self.to_approved(configurer="platform_admin")
         _pg.admin_sql(
             self.db,
             f"""
@@ -239,15 +260,15 @@ class SeatLifecycleTests(unittest.TestCase):
             from registry.seats where name = '{SEAT}' and version = {SEAT_DEF_VERSION};
             """,
         )
-        r = self.activate("head_of_procurement", configured["record_version"])
+        r = self.activate("head_of_procurement", approved["record_version"])
         self.assertEqual(r.status_code, 409, r.text)
         self.assertEqual(r.json()["code"], "conflict")
         self.assertIn("version 2", r.json()["detail"])
+        self.assertIn("retire", r.json()["detail"].lower())
 
     def test_owner_activation_active_and_outbox(self) -> None:
-        configured = self.configure("platform_admin")
-        self.seed_approved_with_evals(record_version=configured["record_version"])
-        r = self.activate("head_of_procurement", configured["record_version"])
+        approved = self.to_approved(configurer="platform_admin")
+        r = self.activate("head_of_procurement", approved["record_version"])
         self.assertEqual(r.status_code, 200, r.text)
         body = r.json()
         self.assertEqual(body["state"], "ACTIVE")
