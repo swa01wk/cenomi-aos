@@ -26,8 +26,8 @@ const PEOPLE: Record<string, Person> = {
   noura: {
     id: "noura",
     name: "Noura",
-    team: "procurement/sourcing",
-    roles: ["sourcing_user"],
+    team: "operations/requests",
+    roles: ["end_user"],
     console: false,
     org: "cenomi",
   },

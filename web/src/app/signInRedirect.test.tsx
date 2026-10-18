@@ -11,7 +11,7 @@ describe("deep link return path", () => {
   });
 
   it("ignores console deep links for workspace-only accounts", () => {
-    expect(postSignInPath("/console/packs", false, ["sourcing_user"])).toBe("/workspace");
+    expect(postSignInPath("/console/packs", false, ["end_user"])).toBe("/workspace");
     expect(postSignInPath("/console/audit?tab=1", false, ["end_user"])).toBe("/workspace");
   });
 });
