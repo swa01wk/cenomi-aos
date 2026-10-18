@@ -236,19 +236,15 @@ def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
 
 
 def _order_tool_calls(pending: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Non-ask tools before the first ask_question, then non-ask after it (except a trailing extra read), then ask."""
+    """All non-ask tools in model order, then the first ask_question; drop further ask_question calls."""
     first_ask = next(
         (i for i, tc in enumerate(pending) if str(tc.get("name") or "") == "ask_question"),
         None,
     )
     if first_ask is None:
         return list(pending)
-    before = [tc for tc in pending[:first_ask] if str(tc.get("name") or "") != "ask_question"]
-    after = [tc for tc in pending[first_ask + 1 :] if str(tc.get("name") or "") != "ask_question"]
-    if len(after) > 1:
-        after = after[:-1]
-    ask_tc = pending[first_ask]
-    return before + after + [ask_tc]
+    non_ask = [tc for tc in pending if str(tc.get("name") or "") != "ask_question"]
+    return non_ask + [pending[first_ask]]
 
 
 async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:

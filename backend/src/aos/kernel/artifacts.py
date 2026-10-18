@@ -576,8 +576,13 @@ def _validate_field_value(name: str, field: FieldSpec, val: Any, pointer_prefix:
     return errors
 
 
-def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, Any]) -> list[dict[str, str]]:
-    """Types of present fields only; completeness is for pack verifiers on submit."""
+def validate_artifact_content(
+    type_spec: ArtifactTypeSpec,
+    content: dict[str, Any],
+    *,
+    partial: bool = False,
+) -> list[dict[str, str]]:
+    """When partial=True (saveDraft), validate types of present fields only. When False, require required fields too."""
     errors: list[dict[str, str]] = []
     if type_spec.row_based:
         rows = content.get("rows")
@@ -587,6 +592,10 @@ def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, An
         for i, row in enumerate(rows):
             if not isinstance(row, dict):
                 continue
+            if not partial:
+                for name, field in type_spec.fields.items():
+                    if field.required and name not in row:
+                        errors.append({"pointer": f"/rows/{i}/{name}", "message": "required field missing"})
             for name, val in row.items():
                 field = type_spec.fields.get(name)
                 if field is None:
@@ -597,6 +606,10 @@ def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, An
     if not isinstance(content, dict):
         errors.append({"pointer": "", "message": "content must be an object"})
         return errors
+    if not partial:
+        for name, field in type_spec.fields.items():
+            if field.required and name not in content:
+                errors.append({"pointer": f"/content/{name}", "message": "required field missing"})
     for name, val in content.items():
         field = type_spec.fields.get(name)
         if field is None:
@@ -638,7 +651,7 @@ async def save_draft_from_attempt(
     content = body["content"]
     if not isinstance(content, dict):
         raise ArtifactError("validation_failed", 422, "Invalid content", "content must be an object.")
-    field_errors = validate_artifact_content(at.spec, content)
+    field_errors = validate_artifact_content(at.spec, content, partial=True)
     if field_errors:
         raise ArtifactError(
             "validation_failed",

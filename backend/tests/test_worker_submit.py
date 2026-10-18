@@ -131,6 +131,41 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertTrue(any("/quantity" in str(e.get("pointer", "")) for e in errors))
         self.assertFalse(any("required" in str(e.get("message", "")).lower() for e in errors))
 
+    def test_submit_output_ref_missing_required_field_is_422(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
+            headers=self._worker_headers(attempt),
+            json={
+                "artifact_type": "brief",
+                "content": {
+                    "title": "Cleaning trolleys",
+                    "category": "CAT-JAN-EQ",
+                    "quantity": 4,
+                    "specification": "Heavy-duty custodial trolleys",
+                },
+                "inputs": [],
+            },
+        )
+        self.assertEqual(r.status_code, 201, r.text)
+        art = r.json()
+        body = _agent_result(attempt)
+        body["output_artifact_refs"] = [
+            {
+                "artifact_id": art["artifact_id"],
+                "version": art["version"],
+                "content_hash": art["content_hash"],
+            }
+        ]
+        sub = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/submit",
+            headers=self._worker_headers(attempt),
+            json=body,
+        )
+        self.assertEqual(sub.status_code, 422, sub.text)
+        self.assertEqual(sub.json()["code"], "validation_failed")
+
     def test_save_draft_partial_draft_accepted(self) -> None:
         self._start_job()
         attempt = self._claim()

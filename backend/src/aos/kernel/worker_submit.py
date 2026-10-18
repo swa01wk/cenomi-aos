@@ -126,7 +126,7 @@ async def _validate_outputs(
             raise WorkerError("validation_failed", 422, "Content hash mismatch", "Reload the draft and submit again.")
         content_doc = content if isinstance(content, dict) else json.loads(content)
         at = parse_artifact_type(defs, artifact_type)
-        errors = validate_artifact_content(at.spec, content_doc)
+        errors = validate_artifact_content(at.spec, content_doc, partial=False)
         if errors:
             raise WorkerError(
                 "validation_failed",
