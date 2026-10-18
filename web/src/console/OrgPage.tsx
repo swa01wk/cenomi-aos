@@ -1,10 +1,18 @@
-import { api } from "../api";
-import { ErrorNote, Loading, useLoad } from "../ui";
+import { useQuery } from "@tanstack/react-query";
+import { client } from "../api/client";
+import { ErrorNote, Loading } from "../lib/ui";
 
 export default function OrgPage() {
-  const { data: org, error } = useLoad(api.org);
-  if (error) return <ErrorNote message={error} />;
-  if (!org) return <Loading what="the organization" />;
+  const { data: org, error, isPending } = useQuery({
+    queryKey: ["org"],
+    queryFn: async () => {
+      const { data } = await client.GET("/org");
+      return data!;
+    },
+  });
+
+  if (error) return <ErrorNote message={(error as Error).message} />;
+  if (isPending || !org) return <Loading what="the organization" />;
   const name = (id: string) => org.people.find((p) => p.id === id)?.name ?? id;
 
   return (
@@ -23,13 +31,13 @@ export default function OrgPage() {
           <div key={d.id} className="panel">
             <div className="panel-head">
               <h2>{d.name}</h2>
-              <span className="muted">Head: {name(d.head)}</span>
+              <span className="muted">Head: {name(d.head ?? "")}</span>
             </div>
             <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {d.teams.map((t) => (
+              {(d.teams ?? []).map((t) => (
                 <div key={t.id} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <span>{t.name}</span>
-                  <span className="muted">{name(t.owner)}</span>
+                  <span className="muted">{name(t.owner ?? "")}</span>
                 </div>
               ))}
             </div>
@@ -64,7 +72,7 @@ export default function OrgPage() {
                   </td>
                   <td>
                     <div className="chips">
-                      {p.roles.map((r) => (
+                      {(p.roles ?? []).map((r) => (
                         <span key={r} className="pill">
                           {r.replace(/_/g, " ")}
                         </span>

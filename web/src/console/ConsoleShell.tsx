@@ -1,16 +1,12 @@
-import type { Session } from "../api";
-import { initials } from "../ui";
-import AuditPage from "./AuditPage";
-import OrgPage from "./OrgPage";
-import PacksPage from "./PacksPage";
-import VersionPage from "./VersionPage";
+import { NavLink, Outlet } from "react-router";
+import { initials } from "../lib/ui";
+import { useSession } from "../app/session";
 
-type NavItem = { label: string; to?: string; key?: string; soon?: string; roles?: string[] };
+type NavItem = { label: string; to?: string; end?: boolean; soon?: string; roles?: string[] };
 
-// Pages arrive milestone by milestone; later ones are shown so the shape of the Console is visible.
 const DEFINE: NavItem[] = [
-  { label: "Organization", to: "/console/org", key: "org" },
-  { label: "Domain packs", to: "/console/packs", key: "packs" },
+  { label: "Organization", to: "/console/org", end: true },
+  { label: "Domain packs", to: "/console/packs", end: true },
   { label: "Seats", soon: "M1" },
   { label: "Workflows", soon: "M2" },
   { label: "Policies", soon: "M3" },
@@ -20,17 +16,15 @@ const OPERATE: NavItem[] = [
   { label: "Instances", soon: "M2" },
   { label: "Approvals", soon: "M3" },
   { label: "Observability", soon: "M4" },
-  { label: "Audit", to: "/console/audit", key: "audit", roles: ["platform_admin", "risk"] },
+  { label: "Audit", to: "/console/audit", end: true, roles: ["platform_admin", "risk"] },
 ];
 
-type Props = { session: Session; route: string[]; signOut: () => void };
+export default function ConsoleShell() {
+  const { me, signOut } = useSession();
+  if (!me) return null;
+  const roles = me.roles;
 
-export default function ConsoleApp({ session, route, signOut }: Props) {
-  const page = route[0] ?? "packs";
-  const roles = session.person.roles;
-  const canAudit = roles.some((r) => r === "platform_admin" || r === "risk");
-  const canSync = roles.some((r) => ["platform_admin", "process_owner", "seat_owner"].includes(r));
-
+  // UX hint only — kernel 403 on Console APIs is authoritative. Follow-up: kernel-provided per-page availability.
   const link = (item: NavItem) => {
     if (item.soon || (item.roles && !item.roles.some((r) => roles.includes(r)))) {
       return (
@@ -40,17 +34,13 @@ export default function ConsoleApp({ session, route, signOut }: Props) {
       );
     }
     return (
-      <a key={item.label} href={`#${item.to}`} aria-current={page === item.key ? "page" : undefined}>
+      <NavLink key={item.label} to={item.to!} end={item.end}>
         {item.label}
-      </a>
+      </NavLink>
     );
   };
 
-  let body;
-  if (page === "org") body = <OrgPage />;
-  else if (page === "audit" && canAudit) body = <AuditPage />;
-  else if (page === "versions" && route[1]) body = <VersionPage id={route[1]} />;
-  else body = <PacksPage canSync={canSync} />;
+  const canSync = roles.some((r) => ["platform_admin", "process_owner", "seat_owner"].includes(r));
 
   return (
     <div className="shell">
@@ -72,17 +62,21 @@ export default function ConsoleApp({ session, route, signOut }: Props) {
         </div>
         <div className="foot">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="avatar console">{initials(session.person.name)}</span>
+            <span className="avatar console">{initials(me.name)}</span>
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-              <span style={{ color: "#fff", fontWeight: 500 }}>{session.person.name}</span>
+              <span style={{ color: "#fff", fontWeight: 500 }}>{me.name}</span>
               <span style={{ fontSize: 12, color: "var(--nav-mute)" }}>{roles.join(", ").replace(/_/g, " ")}</span>
             </div>
           </div>
-          <a href="#/workspace">Open the Workspace</a>
-          <button onClick={signOut}>Sign out</button>
+          <NavLink to="/workspace">Open the Workspace</NavLink>
+          <button type="button" onClick={signOut}>
+            Sign out
+          </button>
         </div>
       </nav>
-      <main>{body}</main>
+      <main>
+        <Outlet context={{ canSync }} />
+      </main>
     </div>
   );
 }

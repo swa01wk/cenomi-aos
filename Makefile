@@ -17,7 +17,10 @@ help:
 
 install: ## install backend (editable, with dev tools) and web dependencies
 	$(PY) -m pip install -e 'backend[dev,runtime]'
-	cd web && npm install
+	cd web && npm ci
+
+web-test: ## run Vitest in web/
+	cd web && npm test
 
 vendor: ## sandbox fallback: fetch FastAPI and psycopg from GitHub when PyPI is blocked
 	bash scripts/vendor-from-github.sh

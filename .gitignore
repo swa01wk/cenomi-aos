@@ -10,4 +10,3 @@ web/dist/
 .env
 *.sqlite3
 .DS_Store
-web/package-lock.json

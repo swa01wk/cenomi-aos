@@ -1,0 +1,63 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font: var(--font-body);
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-ink);
+}
+
+h1 {
+  margin: 0;
+  font: var(--font-page-title);
+}
+
+h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mono {
+  font: var(--font-mono-id);
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.sub {
+  color: var(--ink-2);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.btn:focus-visible,
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

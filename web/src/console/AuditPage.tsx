@@ -1,41 +1,56 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type AuditRecord, type ChainReport, api } from "../api";
-import { ErrorNote, Loading, shortHash, useLoad, when } from "../ui";
+import { client } from "../api/client";
+import type { components } from "../api/schema";
+import { ErrorNote, Loading, shortHash, when } from "../lib/ui";
+
+type AuditRecord = components["schemas"]["AuditRecord"];
+type ChainReport = components["schemas"]["ChainReport"];
 
 export default function AuditPage() {
-  const first = useLoad(() => api.audit());
+  const queryClient = useQueryClient();
   const [older, setOlder] = useState<AuditRecord[]>([]);
-  const [verify, setVerify] = useState<ChainReport | null>(null);
-  const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  if (first.error) return <ErrorNote message={first.error} />;
-  if (!first.data) return <Loading what="the audit log" />;
-  const items = [...first.data.items, ...older];
-  const oldest = items.at(-1)?.seq ?? 1;
+  const first = useQuery({
+    queryKey: ["audit", "first"],
+    queryFn: async () => {
+      const { data } = await client.GET("/console/audit", { params: { query: { limit: 50 } } });
+      return data!.items;
+    },
+  });
 
-  const runVerify = async () => {
-    setBusy(true);
-    setFailure(null);
-    try {
-      setVerify(await api.verify());
+  const verifyMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await client.POST("/console/audit/verify");
+      return data!;
+    },
+    onSuccess: () => {
       setOlder([]);
-      first.reload();
-    } catch (e) {
-      setFailure((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ["audit"] });
+      setFailure(null);
+    },
+    onError: (e: Error) => setFailure(e.message),
+  });
+
+  if (first.error) return <ErrorNote message={(first.error as Error).message} />;
+  if (first.isPending || !first.data) return <Loading what="the audit log" />;
+
+  const items = [...first.data, ...older];
+  const oldest = items.at(-1)?.seq ?? 1;
 
   const loadOlder = async () => {
     try {
-      const page = await api.audit(oldest);
-      setOlder((o) => [...o, ...page.items]);
+      const { data } = await client.GET("/console/audit", {
+        params: { query: { limit: 50, before_seq: oldest } },
+      });
+      setOlder((o) => [...o, ...data!.items]);
     } catch (e) {
       setFailure((e as Error).message);
     }
   };
+
+  const verify = verifyMutation.data as ChainReport | undefined;
 
   return (
     <>
@@ -48,8 +63,8 @@ export default function AuditPage() {
             deletion breaks the chain from that record on.
           </span>
         </div>
-        <button className="btn dark" onClick={runVerify} disabled={busy}>
-          {busy ? "Verifying…" : "Verify chain"}
+        <button type="button" className="btn dark" onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
+          {verifyMutation.isPending ? "Verifying…" : "Verify chain"}
         </button>
       </header>
 
@@ -103,7 +118,7 @@ export default function AuditPage() {
         </div>
         {oldest > 1 && (
           <div className="panel-body" style={{ borderTop: "1px solid var(--line)" }}>
-            <button className="btn" onClick={loadOlder}>
+            <button type="button" className="btn" onClick={loadOlder}>
               Load older records
             </button>
           </div>

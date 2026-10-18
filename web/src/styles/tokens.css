@@ -1,0 +1,56 @@
+/* Values from design/boards/Components.dc.html (Colour tokens + type scale). */
+:root {
+  /* Colour tokens */
+  --ink: #15171c;
+  --ink-2: #4a5160;
+  --ink-3: #6b7280;
+  --line: #e2e5ea;
+  --canvas: #f5f6f8;
+  --panel: #ffffff;
+  --accent: #2b59c3;
+  --accent-ink: #1e4296;
+  --accent-soft: #eaf0fc;
+  --ok: #16693f;
+  --ok-soft: #e3f4ea;
+  --warn: #8a4b08;
+  --warn-soft: #fdf1de;
+  --bad: #a6261c;
+  --bad-soft: #fce8e6;
+  --nav: #111418;
+  --nav-2: #1f2530;
+  --nav-ink: #c9ced6;
+  --nav-mute: #9aa1ad;
+  --border-secondary: #c9ced6;
+  --border-spec: #b9c8e6;
+
+  /* Type scale (Components board) */
+  --font-page-title: 600 24px/1.45 var(--sans);
+  --font-section: 600 15px/1.45 var(--sans);
+  --font-body: 400 14px/1.45 var(--sans);
+  --font-meta: 400 12px/1.45 var(--sans);
+  --font-mono-id: 400 12px/1.45 var(--mono);
+
+  /* Spacing (board gaps / padding) */
+  --space-2: 2px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+
+  /* Radius (Components board: 8px buttons, 10px panels, 6px pills) */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+  --radius-nav-link: 6px;
+
+  /* Touch targets (frontend spec: 44px Workspace, 40px Console) */
+  --touch-workspace: 44px;
+  --touch-console: 40px;
+
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
