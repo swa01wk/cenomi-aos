@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import { ApiProblemError, parseProblem } from "./problems";
-import { clearToken, getToken } from "./session";
+import { getToken } from "./session";
 
 let onUnauthorized: () => void = () => {};
 
@@ -9,9 +9,8 @@ export function setUnauthorizedHandler(fn: () => void): void {
   onUnauthorized = fn;
 }
 
-/** Clears the stored token and notifies the app (401 / unauthenticated). */
+/** Notifies the app (401 / unauthenticated); SessionProvider clears the token and navigates. */
 export function handleUnauthorized(problem?: import("./problems").Problem): never {
-  clearToken();
   onUnauthorized();
   if (problem) throw new ApiProblemError(problem);
   throw new ApiProblemError({

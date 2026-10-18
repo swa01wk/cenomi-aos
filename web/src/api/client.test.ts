@@ -8,9 +8,9 @@ describe("401 handling", () => {
     clearToken();
   });
 
-  it("clears the token and runs the unauthorized handler", () => {
+  it("runs the unauthorized handler (session layer clears the token)", () => {
     saveToken("secret");
-    const handler = vi.fn();
+    const handler = vi.fn(() => clearToken());
     setUnauthorizedHandler(handler);
 
     expect(() =>
@@ -22,7 +22,7 @@ describe("401 handling", () => {
       }),
     ).toThrow(ApiProblemError);
 
-    expect(getToken()).toBeNull();
     expect(handler).toHaveBeenCalled();
+    expect(getToken()).toBeNull();
   });
 });

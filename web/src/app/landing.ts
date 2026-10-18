@@ -16,5 +16,8 @@ export function landingPathAfterSignIn(consoleUser: boolean, roles: string[]): s
 
 /** After sign-in, honour a deep link saved in router state when present. */
 export function postSignInPath(from: string | undefined, consoleUser: boolean, roles: string[]): string {
-  return from && from !== "/" ? from : landingPathAfterSignIn(consoleUser, roles);
+  const landing = landingPathAfterSignIn(consoleUser, roles);
+  if (!from || from === "/") return landing;
+  if (!consoleUser && from.startsWith("/console")) return landing;
+  return from;
 }

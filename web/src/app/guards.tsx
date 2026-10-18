@@ -6,8 +6,16 @@ function savedFromPath(location: ReturnType<typeof useLocation>): string {
   return location.pathname + location.search;
 }
 
+function signInRedirectState(
+  location: ReturnType<typeof useLocation>,
+  sessionJustEnded: () => boolean,
+): { from: string } | { signedOut: true } {
+  if (sessionJustEnded()) return { signedOut: true };
+  return { from: savedFromPath(location) };
+}
+
 export function RequireAuth() {
-  const { me, booting, sessionError, retrySession } = useSession();
+  const { me, booting, sessionError, retrySession, sessionJustEnded } = useSession();
   const location = useLocation();
 
   if (sessionError) {
@@ -25,13 +33,14 @@ export function RequireAuth() {
     return <Loading what="your session" />;
   }
   if (!me) {
-    return <Navigate to="/" replace state={{ from: savedFromPath(location) }} />;
+    if (sessionJustEnded()) return null;
+    return <Navigate to="/" replace state={signInRedirectState(location, sessionJustEnded)} />;
   }
   return <Outlet context={me} />;
 }
 
 export function RequireConsole() {
-  const { me, booting, sessionError, retrySession } = useSession();
+  const { me, booting, sessionError, retrySession, sessionJustEnded } = useSession();
   const location = useLocation();
 
   if (sessionError) {
@@ -46,7 +55,10 @@ export function RequireConsole() {
   }
 
   if (booting) return <Loading what="your session" />;
-  if (!me) return <Navigate to="/" replace state={{ from: savedFromPath(location) }} />;
+  if (!me) {
+    if (sessionJustEnded()) return null;
+    return <Navigate to="/" replace state={signInRedirectState(location, sessionJustEnded)} />;
+  }
   if (!me.console) {
     return (
       <main style={{ padding: 40 }}>

@@ -10,7 +10,7 @@ import { useSession } from "./session";
 type Person = components["schemas"]["Person"];
 
 export default function SignInPage() {
-  const { me, booting, signInWithToken } = useSession();
+  const { me, booting, signInWithToken, acknowledgeSessionEnded } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const [failure, setFailure] = useState<string | null>(null);
@@ -24,10 +24,15 @@ export default function SignInPage() {
   });
 
   useEffect(() => {
+    acknowledgeSessionEnded();
+  }, [acknowledgeSessionEnded]);
+
+  useEffect(() => {
     if (booting || !me) return;
-    const from = (location.state as { from?: string } | null)?.from;
+    const state = (location.state as { from?: string; signedOut?: boolean } | null) ?? {};
+    const from = state.signedOut ? undefined : state.from;
     const target = postSignInPath(from, me.console, me.roles);
-    navigate(target, { replace: true });
+    navigate(target, { replace: true, state: null });
   }, [booting, location.state, me, navigate]);
 
   const signIn = useMutation({

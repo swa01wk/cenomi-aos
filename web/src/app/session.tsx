@@ -1,5 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router";
 import { client, setUnauthorizedHandler } from "../api/client";
 import { clearToken, getToken, saveToken } from "../api/session";
@@ -15,6 +24,9 @@ type SessionContextValue = {
   retrySession: () => void;
   signInWithToken: (token: string) => void;
   signOut: () => void;
+  /** True while redirecting after deliberate sign-out or 401; guards must not save `from`. */
+  sessionJustEnded: () => boolean;
+  acknowledgeSessionEnded: () => void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -23,25 +35,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [tokenTick, setTokenTick] = useState(0);
+  const sessionEndedRef = useRef(false);
   const hasToken = useMemo(() => !!getToken(), [tokenTick]);
 
   const bumpToken = useCallback(() => setTokenTick((t) => t + 1), []);
 
-  const signOut = useCallback(() => {
+  const endSession = useCallback(() => {
+    sessionEndedRef.current = true;
+    navigate("/", { replace: true, state: { signedOut: true } });
     clearToken();
     bumpToken();
     queryClient.removeQueries({ queryKey: ["me"] });
-    navigate("/", { replace: true });
   }, [bumpToken, navigate, queryClient]);
+
+  const signOut = useCallback(() => {
+    endSession();
+  }, [endSession]);
+
+  const sessionJustEnded = useCallback(() => sessionEndedRef.current, []);
+  const acknowledgeSessionEnded = useCallback(() => {
+    sessionEndedRef.current = false;
+  }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      bumpToken();
-      queryClient.removeQueries({ queryKey: ["me"] });
-      navigate("/", { replace: true });
+      endSession();
     });
     return () => setUnauthorizedHandler(() => {});
-  }, [bumpToken, navigate, queryClient]);
+  }, [endSession]);
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -55,9 +76,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signInWithToken = useCallback(
     (token: string) => {
+      sessionEndedRef.current = false;
       saveToken(token);
       bumpToken();
-      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.removeQueries({ queryKey: ["me"] });
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     [bumpToken, queryClient],
   );
@@ -80,8 +103,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       retrySession,
       signInWithToken,
       signOut,
+      sessionJustEnded,
+      acknowledgeSessionEnded,
     }),
-    [booting, hasToken, meQuery.data, retrySession, sessionError, signInWithToken, signOut],
+    [acknowledgeSessionEnded, booting, hasToken, meQuery.data, retrySession, sessionError, sessionJustEnded, signInWithToken, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

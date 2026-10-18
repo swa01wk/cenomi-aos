@@ -21,6 +21,7 @@ describe("RequireAuth", () => {
       booting: false,
       sessionError: null,
       retrySession: vi.fn(),
+      sessionJustEnded: () => false,
     });
     render(
       <MemoryRouter initialEntries={["/workspace"]}>
@@ -42,6 +43,7 @@ describe("RequireAuth", () => {
       booting: true,
       sessionError: null,
       retrySession: vi.fn(),
+      sessionJustEnded: () => false,
     });
     render(
       <MemoryRouter initialEntries={["/workspace"]}>
@@ -63,6 +65,7 @@ describe("RequireAuth", () => {
       booting: false,
       sessionError: new Error("Service unavailable"),
       retrySession,
+      sessionJustEnded: () => false,
     });
     render(
       <MemoryRouter initialEntries={["/workspace"]}>
@@ -87,6 +90,7 @@ describe("RequireConsole", () => {
       booting: false,
       sessionError: null,
       retrySession: vi.fn(),
+      sessionJustEnded: () => false,
     });
     render(
       <MemoryRouter initialEntries={["/console/packs"]}>
@@ -107,6 +111,7 @@ describe("RequireConsole", () => {
       booting: false,
       sessionError: null,
       retrySession: vi.fn(),
+      sessionJustEnded: () => false,
     });
 
     function Capture() {
