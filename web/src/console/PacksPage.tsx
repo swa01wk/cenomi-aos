@@ -1,9 +1,26 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type ValidationReport, api } from "../api";
-import { ErrorNote, Loading, StatusPill, shortHash, useLoad, when } from "../ui";
+import { Link, useOutletContext } from "react-router";
+import { client } from "../api/client";
+import { ApiProblemError, problemMessage } from "../api/problems";
+import type { components } from "../api/schema";
+import { ErrorNote, Loading, StatusPill, shortHash, when } from "../lib/ui";
 
-const COUNT_ORDER = ["Role", "Seat", "Skill", "WorkflowDefinition", "Policy", "Verifier", "ArtifactType", "Resource",
-  "ToolProvider", "EvalSuite", "files"];
+type ValidationReport = components["schemas"]["ValidationReport"];
+
+const COUNT_ORDER = [
+  "Role",
+  "Seat",
+  "Skill",
+  "WorkflowDefinition",
+  "Policy",
+  "Verifier",
+  "ArtifactType",
+  "Resource",
+  "ToolProvider",
+  "EvalSuite",
+  "files",
+];
 
 export function ReportView({ report }: { report: ValidationReport }) {
   const issues = [...report.errors, ...report.warnings];
@@ -17,11 +34,13 @@ export function ReportView({ report }: { report: ValidationReport }) {
         </span>
       </div>
       <div className="chips">
-        {COUNT_ORDER.filter((k) => k in report.counts).map((k) => [k, report.counts[k]] as const).map(([k, v]) => (
-          <span key={k} className="pill">
-            {k} {v}
-          </span>
-        ))}
+        {COUNT_ORDER.filter((k) => k in report.counts)
+          .map((k) => [k, report.counts[k]] as const)
+          .map(([k, v]) => (
+            <span key={k} className="pill">
+              {k} {v}
+            </span>
+          ))}
       </div>
       {issues.length > 0 && (
         <div className="scroll-x">
@@ -56,36 +75,82 @@ export function ReportView({ report }: { report: ValidationReport }) {
   );
 }
 
-export default function PacksPage({ canSync }: { canSync: boolean }) {
-  const { data, error, reload } = useLoad(api.packs);
+export default function PacksPage() {
+  const { canSync } = useOutletContext<{ canSync: boolean }>();
+  const queryClient = useQueryClient();
+  const { data, error, isPending } = useQuery({
+    queryKey: ["packs"],
+    queryFn: async () => {
+      const { data: listing } = await client.GET("/console/packs");
+      return listing!;
+    },
+  });
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ name: string; report: ValidationReport; note?: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
+  const invalidatePacks = () => queryClient.invalidateQueries({ queryKey: ["packs"] });
+
+  const runValidate = useMutation({
+    mutationFn: async (name: string) => {
+      const { data: report } = await client.POST("/console/packs/{name}/validate", { params: { path: { name } } });
+      return { name, report: report! };
+    },
+    onSuccess: ({ name, report }) => {
+      setResult({ name, report });
+      setFailure(null);
+    },
+    onError: (e: Error) => {
+      if (e instanceof ApiProblemError && e.problem.status === 409) {
+        setFailure(`${problemMessage(e.problem)} Reload the page and try again.`);
+        invalidatePacks();
+        return;
+      }
+      setFailure(e.message);
+    },
+  });
+
+  const runSync = useMutation({
+    mutationFn: async (name: string) => {
+      const { data: r } = await client.POST("/console/packs/{name}/sync", {
+        params: { path: { name } },
+        body: { source: "console" },
+      });
+      return { name, r: r! };
+    },
+    onSuccess: ({ name, r }) => {
+      setResult({
+        name,
+        report: r.report,
+        note: r.created
+          ? `Stored as ${r.pack} v${r.version} (${r.status}).`
+          : `Already stored: ${r.pack} v${r.version}, same digest.`,
+      });
+      setFailure(null);
+      invalidatePacks();
+    },
+    onError: (e: Error) => {
+      if (e instanceof ApiProblemError && e.problem.status === 409) {
+        setFailure(`${problemMessage(e.problem)} Reload the page and try again.`);
+        invalidatePacks();
+        return;
+      }
+      setFailure(e.message);
+    },
+  });
+
   const act = async (name: string, kind: "validate" | "sync") => {
     setBusy(`${kind}:${name}`);
-    setFailure(null);
     try {
-      if (kind === "validate") {
-        setResult({ name, report: await api.validate(name) });
-      } else {
-        const r = await api.sync(name);
-        setResult({
-          name,
-          report: r.report,
-          note: r.created ? `Stored as ${r.pack} v${r.version} (${r.status}).` : `Already stored: ${r.pack} v${r.version}, same digest.`,
-        });
-        reload();
-      }
-    } catch (e) {
-      setFailure((e as Error).message);
+      if (kind === "validate") await runValidate.mutateAsync(name);
+      else await runSync.mutateAsync(name);
     } finally {
       setBusy(null);
     }
   };
 
-  if (error) return <ErrorNote message={error} />;
-  if (!data) return <Loading what="packs" />;
+  if (error) return <ErrorNote message={(error as Error).message} />;
+  if (isPending || !data) return <Loading what="packs" />;
   const stored = new Map(data.packs.map((p) => [p.name, p]));
 
   return (
@@ -112,14 +177,15 @@ export default function PacksPage({ canSync }: { canSync: boolean }) {
                     {name}
                   </h2>
                   <span className="muted">
-                    packs/{name} {p && `· owner ${p.owner.replace(/_/g, " ")}`}
+                    packs/{name} {p?.owner && `· owner ${p.owner.replace(/_/g, " ")}`}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn" onClick={() => act(name, "validate")} disabled={busy !== null}>
+                  <button type="button" className="btn" onClick={() => act(name, "validate")} disabled={busy !== null}>
                     {busy === `validate:${name}` ? "Validating…" : "Validate"}
                   </button>
                   <button
+                    type="button"
                     className="btn primary"
                     onClick={() => act(name, "sync")}
                     disabled={busy !== null || !canSync}
@@ -135,7 +201,7 @@ export default function PacksPage({ canSync }: { canSync: boolean }) {
                   <ReportView report={result.report} />
                 </div>
               )}
-              {p && p.versions.length > 0 ? (
+              {p && (p.versions?.length ?? 0) > 0 ? (
                 <div className="scroll-x">
                   <table className="grid">
                     <thead>
@@ -150,23 +216,21 @@ export default function PacksPage({ canSync }: { canSync: boolean }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {p.versions.map((v) => (
+                      {(p.versions ?? []).map((v) => (
                         <tr key={v.id}>
                           <td>
-                            <a href={`#/console/versions/${v.id}`}>
-                              v{v.version}
-                            </a>
+                            <Link to={`/console/versions/${v.id}`}>v{v.version}</Link>
                           </td>
                           <td>
-                            <StatusPill status={v.status} />
+                            <StatusPill status={v.status ?? ""} />
                           </td>
-                          <td className="mono">{shortHash(v.digest)}</td>
+                          <td className="mono">{shortHash(v.digest ?? "")}</td>
                           <td>
                             {v.errors} errors · {v.warnings} warnings
                           </td>
                           <td>{v.source}</td>
-                          <td>{v.created_by.replace(/_/g, " ")}</td>
-                          <td className="muted">{when(v.created_at)}</td>
+                          <td>{(v.created_by ?? "").replace(/_/g, " ")}</td>
+                          <td className="muted">{when(v.created_at ?? "")}</td>
                         </tr>
                       ))}
                     </tbody>
