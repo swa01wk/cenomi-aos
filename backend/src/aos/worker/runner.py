@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING
 
 from .errors import (
+    AttemptWaitingForInput,
     AuthFailed,
     BudgetExhausted,
     Fenced,
@@ -131,6 +132,8 @@ class Worker:
                 return "fenced"
             except Fenced:
                 return "fenced"
+            except AttemptWaitingForInput:
+                return "waiting"
             except AttemptFailed as exc:
                 await self._fail(attempt, exc.failure_class, str(exc))
                 return f"failed:{exc.failure_class}"

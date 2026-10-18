@@ -1210,6 +1210,26 @@ components:
         sources: {type: array, items: {type: object, properties: {source_ref: {type: string}, label: {type: string}}}}
         verification: {type: [object, 'null'], properties: {verifier: {type: string}, verdict: {enum: [PASS, REWORK, FAIL]}, findings: {type: array, items: {type: string}}}}
         created_at: {type: string, format: date-time}
+    SaveDraftCommandInput:
+      type: object
+      description: |
+        Argument schema for the save_draft command on ContextEnvelope.commands, assembled by the kernel from the
+        contract's expected outputs and the pinned ArtifactType definitions. The model receives only content when the
+        Skill produces one artifact type; the worker fills artifact_type, inputs, artifact_id, base_version and key
+        before POST saveDraft (DraftRequest).
+      required: [content]
+      properties:
+        artifact_type: {type: string, description: Present in the assembled schema only when expected_outputs has more than one type}
+        content: {type: object, description: Field types from the ArtifactType with no required list (partial drafts allowed)}
+      additionalProperties: false
+    AskQuestionCommandInput:
+      type: object
+      description: Argument schema for ask_question on ContextEnvelope.commands; maps to askQuestions (blocks from preamble).
+      required: [questions]
+      properties:
+        questions: {type: array, minItems: 1, maxItems: 3, items: {type: string}}
+        preamble: {type: string}
+      additionalProperties: false
     DraftRequest:
       type: object
       required: [artifact_type, content, inputs]

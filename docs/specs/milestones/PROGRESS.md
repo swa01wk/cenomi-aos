@@ -23,7 +23,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M1-AG-01 Runtime and worker process
 - [x] M1-AG-04 Checkpointer
 - [x] M1-AG-02 Assist graph and model
-- [ ] M1-AG-03 request_intake in chat
+- [x] M1-AG-03 request_intake in chat
 - [ ] M1-FE-04 Workspace: start and chat
 - [ ] M1 exit gate (all boxes in the milestone file)
 
