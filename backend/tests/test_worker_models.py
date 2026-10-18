@@ -262,44 +262,56 @@ class ModelRegistryTests(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("AOS_REAL_MODEL") == "1", "manual real-model smoke")
-class RealModelSmokeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_astream_text_reply_with_usage(self) -> None:
-        resolved, cfg, bound = _smoke_model()
-        messages = [HumanMessage(content="Reply in exactly one short sentence: what is 2+2?")]
-        msg, text_chunks = await asyncio.wait_for(_aggregate_astream(bound, messages), timeout=120.0)
-        self.assertGreaterEqual(text_chunks, 2, "expected multiple streamed text chunks")
-        tin, tout = _usage_tokens(msg)
-        self.assertGreater(tin, 0)
-        self.assertGreater(tout, 0)
-        cost = compute_cost_usd(tin, tout, cfg)
-        print(
-            f"real-model smoke (text): provider={resolved.provider} model={resolved.model_id} "
-            f"tokens_in={tin} tokens_out={tout} cost_usd={cost:.6f}"
-        )
+class RealModelSmokeTests(unittest.TestCase):
+    """One live-API run, in ONE event loop.
 
-    async def test_astream_tool_call_echo(self) -> None:
+    langchain-openai shares a cached async HTTP client across every ChatOpenAI in the process. Separate
+    IsolatedAsyncioTestCase methods each get a new loop, so the second test reuses a pooled connection
+    from the first test's closed loop ("Event loop is closed"). The worker itself runs a single loop, so
+    this only affects tests; both checks therefore run inside one asyncio.run().
+    """
+
+    def test_live_streaming_and_tool_call(self) -> None:
+        asyncio.run(self._live_checks())
+
+    async def _live_checks(self) -> None:
         resolved, cfg, bound = _smoke_model()
-        messages = [
-            HumanMessage(
-                content=(
-                    "You must call the echo tool once with text exactly "
-                    '"smoke-echo-42". Do not answer without using the tool.'
-                )
+
+        with self.subTest("text reply streams with usage"):
+            messages = [HumanMessage(content="Reply in exactly one short sentence: what is 2+2?")]
+            msg, text_chunks = await asyncio.wait_for(_aggregate_astream(bound, messages), timeout=120.0)
+            self.assertGreaterEqual(text_chunks, 2, "expected multiple streamed text chunks")
+            tin, tout = _usage_tokens(msg)
+            self.assertGreater(tin, 0)
+            self.assertGreater(tout, 0)
+            cost = compute_cost_usd(tin, tout, cfg)
+            print(
+                f"real-model smoke (text): provider={resolved.provider} model={resolved.model_id} "
+                f"tokens_in={tin} tokens_out={tout} cost_usd={cost:.6f}"
             )
-        ]
-        msg, _text_chunks = await asyncio.wait_for(_aggregate_astream(bound, messages), timeout=120.0)
-        tool_calls = list(getattr(msg, "tool_calls", None) or [])
-        self.assertGreaterEqual(len(tool_calls), 1, msg)
-        echo = next((tc for tc in tool_calls if tc.get("name") == "echo"), None)
-        self.assertIsNotNone(echo, tool_calls)
-        args = echo.get("args") if isinstance(echo.get("args"), dict) else {}
-        self.assertEqual(str(args.get("text") or ""), "smoke-echo-42")
-        tin, tout = _usage_tokens(msg)
-        cost = compute_cost_usd(tin, tout, cfg)
-        print(
-            f"real-model smoke (tool): provider={resolved.provider} model={resolved.model_id} "
-            f"tokens_in={tin} tokens_out={tout} cost_usd={cost:.6f}"
-        )
+
+        with self.subTest("tool call through bind_tools"):
+            messages = [
+                HumanMessage(
+                    content=(
+                        "You must call the echo tool once with text exactly "
+                        '"smoke-echo-42". Do not answer without using the tool.'
+                    )
+                )
+            ]
+            msg, _text_chunks = await asyncio.wait_for(_aggregate_astream(bound, messages), timeout=120.0)
+            tool_calls = list(getattr(msg, "tool_calls", None) or [])
+            self.assertGreaterEqual(len(tool_calls), 1, msg)
+            echo = next((tc for tc in tool_calls if tc.get("name") == "echo"), None)
+            self.assertIsNotNone(echo, tool_calls)
+            args = echo.get("args") if isinstance(echo.get("args"), dict) else {}
+            self.assertEqual(str(args.get("text") or ""), "smoke-echo-42")
+            tin, tout = _usage_tokens(msg)
+            cost = compute_cost_usd(tin, tout, cfg)
+            print(
+                f"real-model smoke (tool): provider={resolved.provider} model={resolved.model_id} "
+                f"tokens_in={tin} tokens_out={tout} cost_usd={cost:.6f}"
+            )
 
 
 if __name__ == "__main__":
