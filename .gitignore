@@ -7,6 +7,8 @@ backend/.vendor-src/
 .ruff_cache/
 node_modules/
 web/dist/
+web/test-results/
+web/playwright-report/
 .env
 *.sqlite3
 .DS_Store

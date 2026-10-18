@@ -9,7 +9,9 @@
     "build:offline": "node scripts/build-offline.mjs",
     "preview": "vite preview",
     "gen:api": "openapi-typescript ../docs/specs/contracts/openapi.yaml -o src/api/schema.d.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.4",
@@ -21,6 +23,7 @@
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans": "5.3.0",
+    "@playwright/test": "1.51.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@types/react": "^19.2.0",

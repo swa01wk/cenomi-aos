@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check db up down logs ps dev-api dev-web web-offline clean
+.PHONY: help install vendor test validate check db up down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -21,6 +21,9 @@ install: ## install backend (editable, with dev tools) and web dependencies
 
 web-test: ## run Vitest in web/
 	cd web && npm test
+
+e2e: ## Playwright sign-in and routing (expects `make up`)
+	cd web && npm run e2e
 
 vendor: ## sandbox fallback: fetch FastAPI and psycopg from GitHub when PyPI is blocked
 	bash scripts/vendor-from-github.sh
