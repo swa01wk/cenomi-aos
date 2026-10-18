@@ -807,7 +807,13 @@ async def call_tool_route(
         detail = result.detail
         return problem_response(
             request,
-            KernelProblem("connector_failed", 502, title, detail),
+            KernelProblem(
+                "connector_failed",
+                502,
+                title,
+                detail,
+                timed_out=result.timed_out,
+            ),
         )
     return result
 

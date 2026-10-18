@@ -48,8 +48,14 @@ def available() -> bool:
 def create_migrated() -> str:
     db = "aos_t_" + uuid.uuid4().hex[:8]
     _admin(f"createdb {db}", check=True)
-    files = " ".join(f"-f {p}" for p in sorted(MIGRATIONS.glob("*.sql")))
-    _admin(f"psql -q -v ON_ERROR_STOP=1 -d {db} {files}", check=True, capture_output=True)
+    for path in sorted(MIGRATIONS.glob("*.sql")):
+        _admin(
+            f"psql -q -v ON_ERROR_STOP=1 -d {db}",
+            input=path.read_text(),
+            text=True,
+            check=True,
+            capture_output=True,
+        )
     return db
 
 

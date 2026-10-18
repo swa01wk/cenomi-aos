@@ -48,6 +48,7 @@ class ToolInvocationError(Exception):
     message: str
     code: str | None = None
     effect_unknown: bool = False
+    timed_out: bool = False
     rule: str | None = None
     decision_id: str | None = None
     errors: list[dict[str, Any]] | None = None

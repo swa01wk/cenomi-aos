@@ -79,7 +79,11 @@ except SystemExit as e:
             text=True,
         )
         self.assertEqual(proc.returncode, 1)
-        self.assertIn("langgraph", proc.stderr.lower() + proc.stdout.lower())
+        combined = (proc.stderr + proc.stdout).lower()
+        self.assertTrue(
+            "openai_api_key" in combined or "aos_model_price" in combined,
+            combined,
+        )
 
     def test_aos_worker_lanes_must_be_known(self) -> None:
         token = jwt.encode({"aud": "aos-worker", "sub": "worker-1"}, _DEV, algorithm="HS256")

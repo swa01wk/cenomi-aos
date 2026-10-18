@@ -1,0 +1,6 @@
+turns:
+  - stream_chunks: ["Over budget."]
+    reply_text: "Over budget."
+    usage:
+      tokens_in: 40
+      tokens_out: 40

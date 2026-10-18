@@ -1,11 +1,13 @@
-"""AgentRuntime adapters (fake for tests, LangGraph skeleton for M1-AG-02)."""
+"""AgentRuntime adapters: ScriptedRuntime (tests), FakeRuntime and LangGraphRuntime (assist graph)."""
 
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
+from .models import load_model_registry_config, validate_real_model_startup
 from .protocol import AttemptContext
 from .types import AgentResult, WorkerAttempt
 
@@ -32,20 +34,21 @@ async def _prepare_checkpoint_thread(
     checkpointer: CheckpointerHandle,
     *,
     is_resume: bool,
-) -> None:
+):
     resolved = await checkpointer.resolve(attempt)
     if resolved.fresh_after_missing_checkpoint:
         await ctx.post_events(
             events=[{"event_type": "AgentStarted", "redacted_summary": _MISSING_CHECKPOINT_SUMMARY}],
         )
         await ctx.assemble_context(reason="start")
-        return
+        return resolved
     if is_resume and resolved.checkpoint_id:
         await ctx.assemble_context(reason="resume")
+    return resolved
 
 
-class FakeRuntime:
-    """Runs an ordered list of async steps; the last step's return value wins."""
+class ScriptedRuntime:
+    """Ordered async steps for protocol tests; not the production assist graph."""
 
     def __init__(
         self,
@@ -71,22 +74,79 @@ class FakeRuntime:
         for step in self._steps:
             result = await step(attempt, ctx)
         if result is None:
-            raise RuntimeError("FakeRuntime had no steps")
+            raise RuntimeError("ScriptedRuntime had no steps")
         return result
 
 
-class LangGraphRuntime:
-    """Skeleton only — graph and model arrive in M1-AG-02."""
+class FakeRuntime:
+    """Same assist graph as production, with a scripted FakeChatModel."""
 
-    def __init__(self, *, checkpointer: CheckpointerHandle | None = None):
+    def __init__(
+        self,
+        *,
+        checkpointer: CheckpointerHandle,
+        script: str | None = None,
+    ):
         self._checkpointer = checkpointer
+        self._script = script
+
+    def _script_name(self) -> str:
+        return (self._script or os.environ.get("AOS_FAKE_SCRIPT") or "assist.stream.yaml").strip()
 
     async def start(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
-        if self._checkpointer is not None:
-            await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=False)
-        raise NotImplementedError("LangGraphRuntime is not wired until M1-AG-02 (set AOS_RUNTIME=fake)")
+        resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=False)
+        return await self._run_graph(attempt, ctx, resolved)
 
     async def resume(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
-        if self._checkpointer is not None:
-            await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=True)
-        raise NotImplementedError("LangGraphRuntime is not wired until M1-AG-02 (set AOS_RUNTIME=fake)")
+        resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=True)
+        return await self._run_graph(attempt, ctx, resolved)
+
+    async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
+        from .fake_chat import chat_model_from_script
+        from .graph_runner import run_assist_graph
+        from .scripts_loader import load_fake_script
+
+        script = load_fake_script(self._script_name())
+        model = chat_model_from_script(script)
+        return await run_assist_graph(
+            attempt=attempt,
+            ctx=ctx,
+            chat_model=model,
+            checkpointer=self._checkpointer,
+            resolved=resolved,
+            adapter="fake",
+        )
+
+
+class LangGraphRuntime:
+    """Assist graph with the configured provider chat model."""
+
+    def __init__(self, *, checkpointer: CheckpointerHandle):
+        self._checkpointer = checkpointer
+        self._cfg = load_model_registry_config()
+        self._resolved = validate_real_model_startup(self._cfg)
+
+    async def start(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
+        resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=False)
+        return await self._run_graph(attempt, ctx, resolved)
+
+    async def resume(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
+        resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=True)
+        return await self._run_graph(attempt, ctx, resolved)
+
+    async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
+        from .graph_runner import run_assist_graph
+        from .models import build_chat_model
+
+        contract = attempt.get("contract") or {}
+        model = build_chat_model(self._resolved, contract, self._cfg)
+        return await run_assist_graph(
+            attempt=attempt,
+            ctx=ctx,
+            chat_model=model,
+            checkpointer=self._checkpointer,
+            resolved=resolved,
+            adapter="langgraph",
+            resolved_model=self._resolved,
+            model_cfg=self._cfg,
+        )

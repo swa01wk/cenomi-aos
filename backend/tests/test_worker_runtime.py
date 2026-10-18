@@ -1,4 +1,4 @@
-"""FakeRuntime E2E and lease fencing via HTTP worker."""
+"""ScriptedRuntime E2E and lease fencing via HTTP worker."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import unittest
 from aos.worker.default_fake import minimal_agent_result
 from aos.worker.http_client import HttpKernelClient
 from aos.worker.runner import Worker
-from aos.worker.runtime import FakeRuntime
+from aos.worker.runtime import ScriptedRuntime
 from aos.worker.types import WorkerAttempt
 
 from . import _pg
@@ -27,7 +27,7 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             return minimal_agent_result(attempt, text="Listed categories.")
 
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
-        worker = Worker("worker-test-1", client, FakeRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         await client.aclose()
 
@@ -52,7 +52,7 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         worker = Worker(
             "worker-test-1",
             client,
-            FakeRuntime([blocked]),
+            ScriptedRuntime([blocked]),
             ("assist",),
             heartbeat_enabled=False,
         )

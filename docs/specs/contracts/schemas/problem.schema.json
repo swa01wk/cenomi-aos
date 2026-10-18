@@ -36,6 +36,10 @@
         },
         "additionalProperties": false
       }
+    },
+    "timed_out": {
+      "type": "boolean",
+      "description": "When code is connector_failed (502): true if the connector call hit the gateway timeout."
     }
   },
   "additionalProperties": false
