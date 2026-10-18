@@ -12,7 +12,7 @@ function shouldRetryQuery(failureCount: number, error: unknown): boolean {
 export function createAppQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: shouldRetryQuery },
+      queries: { retry: shouldRetryQuery, networkMode: "always" },
       mutations: { retry: false },
     },
   });

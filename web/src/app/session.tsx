@@ -9,7 +9,10 @@ export type Me = components["schemas"]["Me"];
 
 type SessionContextValue = {
   me: Me | null;
+  hasToken: boolean;
   booting: boolean;
+  sessionError: Error | null;
+  retrySession: () => void;
   signInWithToken: (token: string) => void;
   signOut: () => void;
 };
@@ -22,20 +25,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [tokenTick, setTokenTick] = useState(0);
   const hasToken = useMemo(() => !!getToken(), [tokenTick]);
 
+  const bumpToken = useCallback(() => setTokenTick((t) => t + 1), []);
+
   const signOut = useCallback(() => {
     clearToken();
-    setTokenTick((t) => t + 1);
+    bumpToken();
     queryClient.removeQueries({ queryKey: ["me"] });
     navigate("/", { replace: true });
-  }, [navigate, queryClient]);
+  }, [bumpToken, navigate, queryClient]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      bumpToken();
       queryClient.removeQueries({ queryKey: ["me"] });
       navigate("/", { replace: true });
     });
     return () => setUnauthorizedHandler(() => {});
-  }, [navigate, queryClient]);
+  }, [bumpToken, navigate, queryClient]);
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -50,22 +56,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signInWithToken = useCallback(
     (token: string) => {
       saveToken(token);
-      setTokenTick((t) => t + 1);
+      bumpToken();
       queryClient.invalidateQueries({ queryKey: ["me"] });
     },
-    [queryClient],
+    [bumpToken, queryClient],
   );
 
-  const booting = hasToken && meQuery.isPending;
+  const retrySession = useCallback(() => {
+    void meQuery.refetch();
+  }, [meQuery]);
+
+  const booting = hasToken && meQuery.isLoading;
+
+  const sessionError =
+    hasToken && meQuery.isError ? (meQuery.error instanceof Error ? meQuery.error : new Error(String(meQuery.error))) : null;
 
   const value = useMemo(
     (): SessionContextValue => ({
       me: hasToken && meQuery.data ? meQuery.data : null,
+      hasToken,
       booting,
+      sessionError,
+      retrySession,
       signInWithToken,
       signOut,
     }),
-    [booting, hasToken, meQuery.data, signInWithToken, signOut],
+    [booting, hasToken, meQuery.data, retrySession, sessionError, signInWithToken, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

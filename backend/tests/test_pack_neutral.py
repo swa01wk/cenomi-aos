@@ -45,8 +45,7 @@ def _files():
         paths = [base] if base.is_file() else base.rglob("*")
         for p in paths:
             if p.suffix in SUFFIXES and "__pycache__" not in p.parts and "/scripts/" not in p.as_posix():
-                # OpenAPI examples and @description strings; not hand-written UI code.
-                if p.name == "schema.d.ts":
+                if p == ROOT / "web/src/api/schema.d.ts":
                     continue
                 yield p
 

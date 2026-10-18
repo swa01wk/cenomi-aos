@@ -37,5 +37,15 @@ const middleware: Middleware = {
   },
 };
 
-export const client = createClient<paths>({ baseUrl: "/api" });
+function apiBaseUrl(): string {
+  if (typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null") {
+    return `${window.location.origin}/api`;
+  }
+  return "/api";
+}
+
+export const client = createClient<paths>({
+  baseUrl: apiBaseUrl(),
+  fetch: (request) => globalThis.fetch(request),
+});
 client.use(middleware);

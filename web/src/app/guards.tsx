@@ -1,27 +1,52 @@
 import { Navigate, Outlet, useLocation } from "react-router";
-import { Loading } from "../lib/ui";
+import { ErrorNote, Loading } from "../lib/ui";
 import { useSession } from "./session";
 
-export function RequireAuth() {
-  const { me, booting } = useSession();
-  const location = useLocation();
-  const hasToken = typeof localStorage !== "undefined" && !!localStorage.getItem("aos.token");
+function savedFromPath(location: ReturnType<typeof useLocation>): string {
+  return location.pathname + location.search;
+}
 
-  if (booting || (hasToken && !me)) {
+export function RequireAuth() {
+  const { me, booting, sessionError, retrySession } = useSession();
+  const location = useLocation();
+
+  if (sessionError) {
+    return (
+      <main style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
+        <ErrorNote message={`Can't load your session: ${sessionError.message}`} />
+        <button type="button" className="btn primary" onClick={retrySession}>
+          Retry
+        </button>
+      </main>
+    );
+  }
+
+  if (booting) {
     return <Loading what="your session" />;
   }
   if (!me) {
-    return <Navigate to="/" replace state={{ from: location.pathname + location.search }} />;
+    return <Navigate to="/" replace state={{ from: savedFromPath(location) }} />;
   }
   return <Outlet context={me} />;
 }
 
 export function RequireConsole() {
-  const { me, booting } = useSession();
+  const { me, booting, sessionError, retrySession } = useSession();
   const location = useLocation();
 
+  if (sessionError) {
+    return (
+      <main style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
+        <ErrorNote message={`Can't load your session: ${sessionError.message}`} />
+        <button type="button" className="btn primary" onClick={retrySession}>
+          Retry
+        </button>
+      </main>
+    );
+  }
+
   if (booting) return <Loading what="your session" />;
-  if (!me) return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  if (!me) return <Navigate to="/" replace state={{ from: savedFromPath(location) }} />;
   if (!me.console) {
     return (
       <main style={{ padding: 40 }}>
