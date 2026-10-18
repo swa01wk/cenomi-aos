@@ -131,6 +131,9 @@ class AttemptContext:
             self._usage["cost_usd"] = float(self._usage["cost_usd"]) + float(cost_usd)
         self._usage["steps"] = int(self._usage["steps"]) + 1
 
+    def record_tool_action(self) -> None:
+        self._usage["actions"] = int(self._usage["actions"]) + 1
+
     def consumed_budget(self) -> dict[str, Any]:
         elapsed = max(0.0, time.monotonic() - self._started_at)
         out = dict(self._usage)

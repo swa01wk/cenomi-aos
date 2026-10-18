@@ -1,0 +1,10 @@
+turns:
+  - tool_calls:
+      - name: not_in_contract_tool
+        id: forbid-1
+        args: {}
+  - stream_chunks: ["Continuing after refusal."]
+    reply_text: "Continuing after refusal."
+    usage:
+      tokens_in: 5
+      tokens_out: 4

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
@@ -138,6 +138,16 @@ async def setup_checkpointer_tables(saver: AsyncPostgresSaver, conninfo: str) ->
 class CheckpointerHandle:
     pool: AsyncConnectionPool
     saver: AsyncPostgresSaver
+    _assist_graph: Any = field(default=None, init=False, repr=False, compare=False)
+
+    def assist_graph(self, *, interrupt_after: list[str] | None = None):
+        from .graphs.assist import build_assist_graph
+
+        if interrupt_after:
+            return build_assist_graph(self.saver, interrupt_after=interrupt_after)
+        if self._assist_graph is None:
+            self._assist_graph = build_assist_graph(self.saver)
+        return self._assist_graph
 
     @classmethod
     async def open(cls, checkpoint_database_url: str) -> CheckpointerHandle:

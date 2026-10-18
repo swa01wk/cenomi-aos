@@ -5,10 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import time
 from typing import Any, Literal
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -19,13 +18,11 @@ from ..models import ModelRegistryConfig, ResolvedModel, compute_cost_usd
 from ..prompt_render import prompt_version as assist_prompt_version
 from ..protocol import AttemptContext, AttemptFailed
 from ..prompt_render import render_context_message, render_system_message
-from ..streaming import stream_text_deltas
+from ..streaming import LiveStreamBatcher
 from ..types import AgentResult, WorkerAttempt
 from .state import AssistGraphState
 
 log = logging.getLogger("aos.worker.graph.assist")
-
-_COMPILED: dict[int, CompiledStateGraph] = {}
 
 
 def _configurable(config) -> dict[str, Any]:
@@ -53,11 +50,72 @@ def _model_meta(config) -> tuple[ResolvedModel | None, ModelRegistryConfig | Non
     return cfg.get("resolved_model"), cfg.get("model_cfg")
 
 
-def _tool_class(contract: dict[str, Any], tool_name: str) -> str | None:
-    for entry in contract.get("allowed_tools") or []:
-        if isinstance(entry, dict) and entry.get("name") == tool_name:
-            return str(entry.get("class") or "")
-    return None
+def _usage_from_message(msg: AIMessage) -> tuple[int, int]:
+    meta = getattr(msg, "usage_metadata", None) or {}
+    if isinstance(meta, dict):
+        tin = int(meta.get("input_tokens") or 0)
+        tout = int(meta.get("output_tokens") or 0)
+        if tin or tout:
+            return tin, tout
+    resp = getattr(msg, "response_metadata", None) or {}
+    usage = resp.get("token_usage") or resp.get("usage") or {}
+    if isinstance(usage, dict):
+        tin = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+        tout = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+        return tin, tout
+    return 0, 0
+
+
+def _stream_chunk(raw: Any) -> Any:
+    """Normalize LangChain stream items to message chunks."""
+    if hasattr(raw, "message") and not hasattr(raw, "tool_call_chunks"):
+        return raw.message
+    return raw
+
+
+async def _invoke_model_step(
+    bound,
+    messages: list,
+    *,
+    ctx: AttemptContext,
+    turn_id: str,
+    stream_seq: int,
+) -> tuple[AIMessage, int]:
+    saw_tool_chunks = False
+    batcher: LiveStreamBatcher | None = None
+    if turn_id:
+        batcher = LiveStreamBatcher(ctx, turn_id=turn_id, seq_start=stream_seq)
+    accumulated = None
+    async for raw in bound.astream(messages):
+        ctx.check()
+        chunk = _stream_chunk(raw)
+        tool_chunks = getattr(chunk, "tool_call_chunks", None) or []
+        if tool_chunks:
+            saw_tool_chunks = True
+        if not saw_tool_chunks and batcher is not None:
+            content = chunk.content
+            if isinstance(content, str) and content:
+                await batcher.push(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, str) and part:
+                        await batcher.push(part)
+                    elif isinstance(part, dict) and part.get("type") == "text":
+                        text = part.get("text")
+                        if isinstance(text, str) and text:
+                            await batcher.push(text)
+        accumulated = chunk if accumulated is None else accumulated + chunk
+
+    if batcher is not None and not saw_tool_chunks:
+        stream_seq, _ = await batcher.finish()
+    elif batcher is not None:
+        stream_seq = batcher.seq
+
+    if accumulated is None:
+        return AIMessage(content=""), stream_seq
+    if isinstance(accumulated, AIMessage):
+        return accumulated, stream_seq
+    return AIMessage(content=accumulated.content, tool_calls=getattr(accumulated, "tool_calls", None) or []), stream_seq
 
 
 async def load_node(state: AssistGraphState, config) -> dict[str, Any]:
@@ -115,17 +173,20 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     model = _chat_model(config)
     tools = envelope.get("commands") or []
     bound = model.bind_tools(tools) if tools else model
-    ai = await bound.ainvoke(messages)
-    usage_meta = getattr(ai, "response_metadata", {}) or {}
-    token_usage = usage_meta.get("token_usage") or usage_meta.get("usage") or {}
-    tokens_in = int(token_usage.get("input_tokens") or token_usage.get("prompt_tokens") or 0)
-    tokens_out = int(token_usage.get("output_tokens") or token_usage.get("completion_tokens") or 0)
+    turn_id = str((state.get("ids") or {}).get("turn_id") or ctx.attempt.get("turn_id") or "")
+    stream_seq = int(state.get("stream_seq") or 0)
+    try:
+        ai, stream_seq = await _invoke_model_step(
+            bound,
+            messages,
+            ctx=ctx,
+            turn_id=turn_id,
+            stream_seq=stream_seq,
+        )
+    except Fenced:
+        raise
+    tokens_in, tokens_out = _usage_from_message(ai)
     resolved, model_cfg = _model_meta(config)
-    if tokens_in == 0 and tokens_out == 0 and hasattr(bound, "fake"):
-        last = bound.fake._last  # noqa: SLF001
-        turn_usage = last.usage if last and isinstance(last.usage, dict) else {}
-        tokens_in = int(turn_usage.get("tokens_in") or 10)
-        tokens_out = int(turn_usage.get("tokens_out") or 5)
     provider = resolved.provider if resolved else "fake"
     model_id = resolved.model_id if resolved else "fake"
     cost = compute_cost_usd(tokens_in, tokens_out, model_cfg) if model_cfg else 0.0
@@ -157,11 +218,13 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
             "pending_tool_calls": tool_calls,
             "model_reply_text": "",
             "worker_notes": [],
+            "stream_seq": stream_seq,
         }
     return {
         "pending_tool_calls": [],
         "model_reply_text": text,
         "worker_notes": [],
+        "stream_seq": stream_seq,
     }
 
 
@@ -174,7 +237,6 @@ def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
 async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx = _ctx(config)
     ctx.check()
-    contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     notes: list[str] = []
     counts = dict(state.get("draft_422_counts") or {})
     pending = list(state.get("pending_tool_calls") or [])
@@ -196,12 +258,12 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 }
             ]
         )
-        tool_class = _tool_class(contract, name)
         try:
-            if name == "save_draft" or tool_class == "staged_write":
+            if name == "save_draft":
                 await ctx.save_draft(args)
             else:
                 await ctx.call_tool(name, args)
+            ctx.record_tool_action()
         except ToolInvocationError as exc:
             if exc.timed_out:
                 raise AttemptFailed("tool_timeout", exc.message) from exc
@@ -233,30 +295,9 @@ async def reply_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx = _ctx(config)
     ctx.check()
     attempt = _attempt(config)
-    turn_id = str((state.get("ids") or {}).get("turn_id") or attempt.get("turn_id") or "")
     text = str(state.get("model_reply_text") or "")
-    blocks = list(state.get("reply_blocks") or [])
-    bound = _chat_model(config)
-    if hasattr(bound, "fake") and bound.fake._last and bound.fake._last.reply_blocks:  # noqa: SLF001
-        blocks = list(bound.fake._last.reply_blocks)
-    if not blocks:
-        # M1-AG-02: text-only replies. Typed chips/refusal blocks arrive in M1-AG-03.
-        blocks = [{"kind": "text", "text": text}]
-    chunks = []
-    if hasattr(bound, "fake") and bound.fake._last and bound.fake._last.stream_chunks:  # noqa: SLF001
-        chunks = list(bound.fake._last.stream_chunks)
-    elif text:
-        chunks = [text[i : i + 50] for i in range(0, len(text), 50)] if text else []
-    seq = int(state.get("stream_seq") or 0)
-    if turn_id and chunks:
-        try:
-            seq, streamed = await stream_text_deltas(ctx, turn_id=turn_id, seq_start=seq, chunks=chunks)
-            if not text:
-                text = streamed
-                if blocks == [{"kind": "text", "text": ""}]:
-                    blocks = [{"kind": "text", "text": text}]
-        except Fenced:
-            raise
+    # M1-AG-02: text-only replies. Typed chips/refusal blocks arrive in M1-AG-03.
+    blocks = [{"kind": "text", "text": text}]
     contract = (ctx.contract_bundle or {}).get("contract") or attempt["contract"]
     consumed = ctx.consumed_budget()
     result: AgentResult = {
@@ -271,7 +312,8 @@ async def reply_node(state: AssistGraphState, config) -> dict[str, Any]:
         "summary": (text[:497] + "...") if len(text) > 500 else (text or "Completed assist turn."),
         "reply_blocks": blocks,
     }
-    return {"stream_seq": seq, "agent_result": result, "reply_blocks": blocks}
+    stream_seq = int(state.get("stream_seq") or 0)
+    return {"stream_seq": stream_seq, "agent_result": result, "reply_blocks": blocks}
 
 
 def build_assist_graph(
@@ -279,9 +321,6 @@ def build_assist_graph(
     *,
     interrupt_after: list[str] | None = None,
 ) -> CompiledStateGraph:
-    key = (id(checkpointer), tuple(interrupt_after or ()))
-    if key in _COMPILED:
-        return _COMPILED[key]
     graph = StateGraph(AssistGraphState)
     graph.add_node("load", load_node)
     graph.add_node("assemble_context", assemble_context_node)
@@ -294,6 +333,4 @@ def build_assist_graph(
     graph.add_conditional_edges("model_step", _route_after_model, {"tools": "tools", "reply": "reply"})
     graph.add_edge("tools", "assemble_context")
     graph.add_edge("reply", END)
-    compiled = graph.compile(checkpointer=checkpointer, interrupt_after=interrupt_after or None)
-    _COMPILED[key] = compiled
-    return compiled
+    return graph.compile(checkpointer=checkpointer, interrupt_after=interrupt_after or None)

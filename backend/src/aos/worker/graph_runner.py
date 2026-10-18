@@ -8,11 +8,17 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from .checkpointer import CheckpointerHandle, ResolvedThread
 from .errors import Fenced
-from .graphs.assist import build_assist_graph
 from .graphs.state import AssistGraphState
 from .models import ModelRegistryConfig, ResolvedModel
 from .protocol import AttemptContext
 from .types import AgentResult, WorkerAttempt
+
+
+def _recursion_limit(contract: dict[str, Any]) -> int:
+    steps = int((contract.get("budget") or {}).get("steps") or 0)
+    if steps > 0:
+        return 3 * steps + 5
+    return 25
 
 
 async def run_assist_graph(
@@ -26,7 +32,8 @@ async def run_assist_graph(
     resolved_model: ResolvedModel | None = None,
     model_cfg: ModelRegistryConfig | None = None,
 ) -> AgentResult:
-    graph = build_assist_graph(checkpointer=checkpointer.saver)
+    graph = checkpointer.assist_graph()
+    contract = attempt.get("contract") or {}
     configurable: dict[str, Any] = {
         "thread_id": resolved.thread_id,
         "ctx": ctx,
@@ -38,7 +45,10 @@ async def run_assist_graph(
     }
     if resolved.checkpoint_id:
         configurable["checkpoint_id"] = resolved.checkpoint_id
-    config = {"configurable": configurable}
+    config = {
+        "configurable": configurable,
+        "recursion_limit": _recursion_limit(contract),
+    }
     initial: AssistGraphState = {
         "ids": {"turn_id": str(attempt.get("turn_id") or "")},
         "worker_notes": [],

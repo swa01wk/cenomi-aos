@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
-from typing import Any
 
 from .errors import Fenced
 from .protocol import AttemptContext
@@ -13,37 +11,39 @@ _FLUSH_INTERVAL_S = 0.25
 _FLUSH_CHARS = 200
 
 
-async def stream_text_deltas(
-    ctx: AttemptContext,
-    *,
-    turn_id: str,
-    seq_start: int,
-    chunks: list[str],
-) -> tuple[int, str]:
-    """Post batched stream deltas; return (next_seq, full_text)."""
-    seq = seq_start
-    buf = ""
-    last_flush = time.monotonic()
-    full = ""
+class LiveStreamBatcher:
+    """Batch live text chunks into POST /events stream payloads."""
 
-    async def flush(force: bool = False) -> None:
-        nonlocal buf, seq, last_flush
-        if not buf:
+    def __init__(self, ctx: AttemptContext, *, turn_id: str, seq_start: int = 0):
+        self._ctx = ctx
+        self._turn_id = turn_id
+        self.seq = seq_start
+        self._buf = ""
+        self.full = ""
+        self._last_flush = time.monotonic()
+
+    async def push(self, text: str) -> None:
+        if not text:
             return
-        if not force and len(buf) < _FLUSH_CHARS and (time.monotonic() - last_flush) < _FLUSH_INTERVAL_S:
+        self._buf += text
+        self.full += text
+        await self._flush(force=False)
+
+    async def finish(self) -> tuple[int, str]:
+        await self._flush(force=True)
+        return self.seq, self.full
+
+    async def _flush(self, *, force: bool) -> None:
+        if not self._buf:
+            return
+        if not force and len(self._buf) < _FLUSH_CHARS and (time.monotonic() - self._last_flush) < _FLUSH_INTERVAL_S:
             return
         try:
-            await ctx.post_events(stream=[{"turn_id": turn_id, "seq": seq, "text": buf}])
+            await self._ctx.post_events(
+                stream=[{"turn_id": self._turn_id, "seq": self.seq, "text": self._buf}],
+            )
         except Fenced:
             raise
-        seq += 1
-        buf = ""
-        last_flush = time.monotonic()
-
-    for chunk in chunks:
-        ctx.check()
-        buf += chunk
-        full += chunk
-        await flush(force=False)
-    await flush(force=True)
-    return seq, full
+        self.seq += 1
+        self._buf = ""
+        self._last_flush = time.monotonic()
