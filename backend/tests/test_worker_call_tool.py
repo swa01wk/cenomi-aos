@@ -150,6 +150,23 @@ class CallToolTests(WorkerHarness):
         self.assertEqual(r.status_code, 409, r.text)
         self.assertEqual(r.json()["code"], "fenced")
 
+    def test_connector_timeout_includes_timed_out_flag(self) -> None:
+        import asyncio
+
+        self._start_job()
+        attempt_id, fencing = self._claimed()
+
+        async def slow_hook(**_kwargs):
+            await asyncio.sleep(2.0)
+
+        self.client.app.state.kernel.gateway._timeout_s = 0.05  # type: ignore[attr-defined]
+        self.client.app.state.kernel.gateway._invoke_hook = slow_hook  # type: ignore[attr-defined]
+        r = self._call_tool(attempt_id, "browse_categories", {}, token=fencing)
+        self.assertEqual(r.status_code, 502, r.text)
+        body = r.json()
+        self.assertEqual(body["code"], "connector_failed")
+        self.assertIs(body.get("timed_out"), True)
+
     def test_connector_failure_returns_502_with_outcome_failed(self) -> None:
         self._start_job()
         attempt_id, fencing = self._claimed()

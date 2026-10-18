@@ -25,7 +25,7 @@ Names follow reference architecture v1.2 §29. The worker may **propose** only t
 | RunCreated | An instance is started | kernel | `workflow_id`, `graph_revision` |
 | TaskDispatched | An attempt is admitted and claimed | kernel | `attempt_id`, `n`, `fencing_token` |
 | AgentStarted W | The graph starts running | worker | `adapter`, `graph` |
-| ModelInvoked W | One model call ends | worker | `model`, `tokens_in`, `tokens_out`, `cost_usd`, `prompt_version` |
+| ModelInvoked W | One model call ends | worker | `provider`, `model`, `tokens_in`, `tokens_out`, `cost_usd`, `prompt_version` |
 | ToolRequested W | The graph asks for a tool | worker | `tool`, `args_sha256` |
 | ToolAuthorized | Policy allows a tool call | kernel | `tool`, `decision_id` |
 | ToolDenied | Policy refuses a tool call | kernel | `tool`, `decision_id`, `rule` |

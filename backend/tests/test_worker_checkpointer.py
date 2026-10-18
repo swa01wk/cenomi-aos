@@ -22,7 +22,7 @@ from aos.worker.checkpointer import (
     validate_checkpoint_database_url,
 )
 from aos.worker.default_fake import minimal_agent_result
-from aos.worker.runtime import FakeRuntime
+from aos.worker.runtime import ScriptedRuntime
 from aos.worker.types import AgentResult, WorkerAttempt
 
 from . import _pg
@@ -264,7 +264,7 @@ class WorkerCheckpointerTests(unittest.TestCase):
                 async def finish(a: WorkerAttempt, c: object) -> AgentResult:
                     return minimal_agent_result(a)
 
-                runtime = FakeRuntime([finish], checkpointer=handle)
+                runtime = ScriptedRuntime([finish], checkpointer=handle)
                 await runtime.resume(attempt, ctx)
                 self.assertTrue(
                     any(

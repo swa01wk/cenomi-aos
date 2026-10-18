@@ -1,0 +1,11 @@
+turns:
+  - tool_calls:
+      - name: browse_categories
+        id: resume-1
+        args:
+          query: "resume"
+  - stream_chunks: ["Done."]
+    reply_text: "Done."
+    usage:
+      tokens_in: 5
+      tokens_out: 3

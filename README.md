@@ -79,6 +79,12 @@ against an empty database named `aos`. The API seeds the organization on start.
 Environment: `AOS_DATABASE_URL`, `AOS_SESSION_SECRET`, `AOS_ORG_FILE`, `AOS_PACKS_DIR`,
 `AOS_SEED_ON_START`, `AOS_CORS_ORIGINS`, `AOS_WEB_DIST` (serve a built web app from the API origin).
 
+Worker (Compose defaults to `AOS_RUNTIME=fake`): `AOS_WORKER_TOKEN`, `AOS_RUNTIME=fake|langgraph`,
+`AOS_CHECKPOINT_DATABASE_URL` (aos_worker role, `lg_checkpoints`), optional `AOS_FAKE_SCRIPT`
+(default `assist.stream.yaml`). Real model: `OPENAI_API_KEY`, `OPENAI_MODEL`, `AOS_MODEL_PRICE_IN_PER_MTOK`,
+`AOS_MODEL_PRICE_OUT_PER_MTOK` (and the same pattern for `anthropic` when `AOS_MODEL_PROVIDER=anthropic`).
+OpenTelemetry tracing for attempts is deferred to M4 (M4-BE-03 / M4-AG-01).
+
 **Sandboxes without PyPI or npm:** `make vendor` fetches FastAPI and psycopg (pure Python) from GitHub
 release tags into `backend/.vendor`. `make web-offline NODE_MODULES=…` builds the web app with esbuild
 alone. Neither is needed on a normal machine.

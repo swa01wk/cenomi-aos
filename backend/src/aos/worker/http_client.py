@@ -81,10 +81,12 @@ class HttpKernelClient:
             errors = prob.errors
         rule = body.get("rule")
         decision_id = body.get("decision_id")
+        timed_out = body.get("timed_out") is True
         return ToolInvocationError(
             prob.detail or prob.title,
             code=prob.code,
             effect_unknown=False,
+            timed_out=timed_out,
             rule=rule if isinstance(rule, str) else None,
             decision_id=decision_id if isinstance(decision_id, str) else None,
             errors=errors,

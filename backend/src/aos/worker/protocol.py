@@ -60,6 +60,18 @@ class AttemptContext:
         self.fenced = fenced
         self._ignore_local_lease = ignore_local_lease_deadline
         self._local_deadline = time.monotonic() + float(attempt["lease_seconds"])
+        self.contract_bundle: dict[str, Any] | None = None
+        self.envelope: dict[str, Any] | None = None
+        self.agent_started = False
+        self._usage = {
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "cost_usd": 0.0,
+            "time_s": 0.0,
+            "steps": 0,
+            "actions": 0,
+        }
+        self._started_at = time.monotonic()
 
     def extend_lease(self, *, heartbeat_sent_at: float | None = None) -> None:
         base = heartbeat_sent_at if heartbeat_sent_at is not None else time.monotonic()
@@ -111,3 +123,16 @@ class AttemptContext:
     async def submit_result(self, result: AgentResult) -> dict[str, Any]:
         self.check()
         return await self.kernel.submit_result(self.attempt, result)
+
+    def record_model_usage(self, tokens_in: int, tokens_out: int, cost_usd: float | None) -> None:
+        self._usage["tokens_in"] = int(self._usage["tokens_in"]) + int(tokens_in)
+        self._usage["tokens_out"] = int(self._usage["tokens_out"]) + int(tokens_out)
+        if cost_usd is not None:
+            self._usage["cost_usd"] = float(self._usage["cost_usd"]) + float(cost_usd)
+        self._usage["steps"] = int(self._usage["steps"]) + 1
+
+    def consumed_budget(self) -> dict[str, Any]:
+        elapsed = max(0.0, time.monotonic() - self._started_at)
+        out = dict(self._usage)
+        out["time_s"] = float(out.get("time_s") or 0) + elapsed
+        return out

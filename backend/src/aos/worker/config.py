@@ -62,6 +62,10 @@ def load_config() -> WorkerConfig:
     runtime = os.environ.get("AOS_RUNTIME", "").strip().lower()
     if not runtime:
         raise RuntimeError("AOS_RUNTIME is required (set to fake or langgraph)")
+    if runtime == "langgraph":
+        from .models import validate_real_model_startup
+
+        validate_real_model_startup()
 
     from .checkpointer import validate_checkpoint_database_url
 

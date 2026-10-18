@@ -10,7 +10,7 @@ from aos.worker.config import WorkerConfig
 from aos.worker.errors import AuthFailed
 from aos.worker.default_fake import assist_complete
 from aos.worker.runner import Worker
-from aos.worker.runtime import FakeRuntime
+from aos.worker.runtime import ScriptedRuntime
 
 from . import _pg
 from .worker_harness import WorkerHarness, make_http_client
@@ -22,7 +22,7 @@ class WorkerTokenRedactionTests(WorkerHarness, unittest.IsolatedAsyncioTestCase)
         await asyncio.to_thread(self._start_job)
         token = self.worker_auth()["Authorization"].split(" ", 1)[1]
         client = await make_http_client(self)
-        worker = Worker("worker-test-1", client, FakeRuntime([assist_complete]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([assist_complete]), ("assist",))
 
         root = logging.getLogger()
         prior_root = root.level

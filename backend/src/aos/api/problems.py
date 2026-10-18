@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-_ALLOWED_EXTRA = frozenset({"trace_id", "decision_id", "rule", "current_version", "errors"})
+_ALLOWED_EXTRA = frozenset({"trace_id", "decision_id", "rule", "current_version", "errors", "timed_out"})
 
 
 class KernelProblem(Exception):
