@@ -1,0 +1,36 @@
+attempts:
+  - turns:
+      - tool_calls:
+          - name: browse_categories
+            args: {query: "cleaning trolley"}
+      - tool_calls:
+          - name: save_draft
+            args:
+              content:
+                title: "Cleaning trolleys"
+                category: CAT-JAN-EQ
+                quantity: 4
+                specification: "Heavy-duty custodial trolleys"
+      - tool_calls:
+          - name: ask_question
+            args:
+              preamble: "I saved a first draft of your brief."
+              questions:
+                - "Delivery date and place?"
+                - "Any budget guidance? It stays internal."
+                - "Who signs off on quality?"
+  - turns:
+      - tool_calls:
+          - name: save_draft
+            args:
+              content:
+                title: "Cleaning trolleys"
+                category: CAT-JAN-EQ
+                quantity: 4
+                specification: "Heavy-duty custodial trolleys"
+                delivery_date: "2026-11-01"
+                delivery_site: "North warehouse"
+                quality_signoff: "Facilities manager"
+                budget_guidance: 15000
+      - stream_chunks: ["Thanks", ", your brief is updated."]
+        reply_text: "Thanks, your brief is updated."

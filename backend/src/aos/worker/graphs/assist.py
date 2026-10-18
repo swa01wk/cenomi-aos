@@ -13,7 +13,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from ..budget import require_model_budget
-from ..errors import Fenced, ToolInvocationError
+from ..draft_body import build_save_draft_body
+from ..errors import AttemptWaitingForInput, Fenced, ToolInvocationError
 from ..models import ModelRegistryConfig, ResolvedModel, compute_cost_usd
 from ..prompt_render import prompt_version as assist_prompt_version
 from ..protocol import AttemptContext, AttemptFailed
@@ -234,14 +235,36 @@ def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
     return "reply"
 
 
+def _order_tool_calls(pending: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Non-ask tools before the first ask_question, then non-ask after it (except a trailing extra read), then ask."""
+    first_ask = next(
+        (i for i, tc in enumerate(pending) if str(tc.get("name") or "") == "ask_question"),
+        None,
+    )
+    if first_ask is None:
+        return list(pending)
+    before = [tc for tc in pending[:first_ask] if str(tc.get("name") or "") != "ask_question"]
+    after = [tc for tc in pending[first_ask + 1 :] if str(tc.get("name") or "") != "ask_question"]
+    if len(after) > 1:
+        after = after[:-1]
+    ask_tc = pending[first_ask]
+    return before + after + [ask_tc]
+
+
 async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx = _ctx(config)
     ctx.check()
     notes: list[str] = []
     counts = dict(state.get("draft_422_counts") or {})
-    pending = list(state.get("pending_tool_calls") or [])
+    saved = dict(state.get("saved_in_attempt") or {})
+    pending = _order_tool_calls(list(state.get("pending_tool_calls") or []))
+    contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
+    envelope = ctx.envelope or {}
+    ended_needs_input = False
     for tc in pending:
         ctx.check()
+        if ctx.attempt_closed:
+            break
         name = str(tc.get("name") or "")
         args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
         await ctx.post_events(
@@ -260,7 +283,31 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
         )
         try:
             if name == "save_draft":
-                await ctx.save_draft(args)
+                body = build_save_draft_body(
+                    contract=contract,
+                    envelope=envelope,
+                    model_args=args,
+                    saved_in_attempt=saved,
+                )
+                saved_row = await ctx.save_draft(body)
+                at = str(body["artifact_type"])
+                saved[at] = {
+                    "artifact_id": saved_row.get("artifact_id"),
+                    "version": saved_row.get("version"),
+                }
+            elif name == "ask_question":
+                questions_raw = args.get("questions")
+                questions = (
+                    [str(q) for q in questions_raw]
+                    if isinstance(questions_raw, list)
+                    else []
+                )
+                preamble = str(args.get("preamble") or "").strip()
+                blocks = [{"kind": "text", "text": preamble}] if preamble else []
+                await ctx.ask_questions(blocks, questions=questions or None)
+                ended_needs_input = True
+                ctx.record_tool_action()
+                break
             else:
                 await ctx.call_tool(name, args)
             ctx.record_tool_action()
@@ -281,14 +328,32 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 continue
             notes.append(str(exc.message))
             continue
+        except ValueError as exc:
+            notes.append(str(exc))
+            continue
         except Fenced:
             raise
-    return {
+    out: dict[str, Any] = {
         "pending_tool_calls": [],
         "worker_notes": notes,
         "draft_422_counts": counts,
+        "saved_in_attempt": saved,
         "assemble_reason": "tool_result",
     }
+    if ended_needs_input:
+        out["ended_needs_input"] = True
+    return out
+
+
+def _route_after_tools(state: AssistGraphState) -> Literal["assemble_context", "needs_input"]:
+    if state.get("ended_needs_input"):
+        return "needs_input"
+    return "assemble_context"
+
+
+async def needs_input_node(state: AssistGraphState, config) -> dict[str, Any]:
+    _ctx(config).check()
+    raise AttemptWaitingForInput()
 
 
 async def reply_node(state: AssistGraphState, config) -> dict[str, Any]:
@@ -327,10 +392,16 @@ def build_assist_graph(
     graph.add_node("model_step", model_step_node)
     graph.add_node("tools", tools_node)
     graph.add_node("reply", reply_node)
+    graph.add_node("needs_input", needs_input_node)
     graph.add_edge(START, "load")
     graph.add_edge("load", "assemble_context")
     graph.add_edge("assemble_context", "model_step")
     graph.add_conditional_edges("model_step", _route_after_model, {"tools": "tools", "reply": "reply"})
-    graph.add_edge("tools", "assemble_context")
+    graph.add_conditional_edges(
+        "tools",
+        _route_after_tools,
+        {"assemble_context": "assemble_context", "needs_input": "needs_input"},
+    )
+    graph.add_edge("needs_input", END)
     graph.add_edge("reply", END)
     return graph.compile(checkpointer=checkpointer, interrupt_after=interrupt_after or None)

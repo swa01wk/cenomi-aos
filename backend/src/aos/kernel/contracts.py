@@ -191,7 +191,7 @@ def build_assist_contract(
     tools_idx = _tool_index(defs)
     allowed: list[dict[str, Any]] = []
     for native in NATIVE_TOOLS:
-        if native in ("read_artifact", "save_draft", "ask_question"):
+        if native in ("save_draft", "ask_question"):
             allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
     for tname in skill_spec.get("may_request") or []:
         if tname in _KERNEL_TOOL_NAMES:

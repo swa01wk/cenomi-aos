@@ -27,6 +27,7 @@ from .conversation import turn_visible
 from .contracts import _tool_index, load_skill_instructions
 from .org import OrgModel
 from .refusal import CommittedRefusal, record_context_denied, refuse_context_viewer_not_participant
+from .command_schemas import enrich_command_schema
 from .worker_fence import ClaimedAttempt
 
 MAX_ENVELOPE_BYTES = 64 * 1024
@@ -138,14 +139,14 @@ def _commands_from_contract(contract: dict[str, Any], defs: dict[str, dict[str, 
     for grant in contract.get("allowed_tools") or []:
         if not isinstance(grant, dict):
             continue
-        name = grant.get("name")
-        if not name:
+        name = str(grant.get("name") or "")
+        if not name or name == "read_artifact":
             continue
         entry: dict[str, Any] = {"name": name, "input_schema": {"type": "object"}}
         if isinstance(grant.get("input_schema"), dict):
             entry["input_schema"] = grant["input_schema"]
         if grant.get("kind") == "kernel":
-            out.append(entry)
+            out.append(enrich_command_schema(name, contract, defs, entry))
             continue
         if name in tools:
             _prov, tool = tools[name]

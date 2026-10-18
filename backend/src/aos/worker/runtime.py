@@ -106,7 +106,7 @@ class FakeRuntime:
         from .graph_runner import run_assist_graph
         from .scripts_loader import load_fake_script
 
-        script = load_fake_script(self._script_name())
+        script = load_fake_script(self._script_name(), attempt_n=int(attempt.get("n") or 1))
         model = chat_model_from_script(script)
         return await run_assist_graph(
             attempt=attempt,

@@ -10,6 +10,10 @@ class Fenced(Exception):
     """409 fenced — stop this attempt without further kernel calls."""
 
 
+class AttemptWaitingForInput(Exception):
+    """askQuestions ended the attempt; the runner must not submit."""
+
+
 class AuthFailed(Exception):
     """401 — bad or expired worker token; the process must exit."""
 

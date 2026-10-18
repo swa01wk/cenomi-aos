@@ -556,7 +556,28 @@ def artifact_type_audience_roles(type_spec: ArtifactTypeSpec) -> list[str]:
     return sorted(set(roles))
 
 
+def _validate_field_value(name: str, field: FieldSpec, val: Any, pointer_prefix: str) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    if val is None:
+        return errors
+    ptr = f"{pointer_prefix}/{name}"
+    if field.type == "integer" and not isinstance(val, int):
+        errors.append({"pointer": ptr, "message": "must be an integer"})
+    elif field.type in ("number", "money") and not isinstance(val, (int, float)):
+        errors.append({"pointer": ptr, "message": f"must be a {field.type}"})
+    elif field.type in ("string", "text", "date", "datetime") and not isinstance(val, str):
+        errors.append({"pointer": ptr, "message": "must be a string"})
+    elif field.type == "list" and not isinstance(val, list):
+        errors.append({"pointer": ptr, "message": "must be a list"})
+    elif field.type == "boolean" and not isinstance(val, bool):
+        errors.append({"pointer": ptr, "message": "must be a boolean"})
+    elif field.type == "object" and not isinstance(val, dict):
+        errors.append({"pointer": ptr, "message": "must be an object"})
+    return errors
+
+
 def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, Any]) -> list[dict[str, str]]:
+    """Types of present fields only; completeness is for pack verifiers on submit."""
     errors: list[dict[str, str]] = []
     if type_spec.row_based:
         rows = content.get("rows")
@@ -566,27 +587,22 @@ def validate_artifact_content(type_spec: ArtifactTypeSpec, content: dict[str, An
         for i, row in enumerate(rows):
             if not isinstance(row, dict):
                 continue
-            for name, field in type_spec.fields.items():
-                if field.required and name not in row:
-                    errors.append({"pointer": f"/rows/{i}/{name}", "message": "required field missing"})
+            for name, val in row.items():
+                field = type_spec.fields.get(name)
+                if field is None:
+                    errors.append({"pointer": f"/rows/{i}/{name}", "message": "unknown field"})
+                    continue
+                errors.extend(_validate_field_value(name, field, val, f"/rows/{i}"))
         return errors
     if not isinstance(content, dict):
         errors.append({"pointer": "", "message": "content must be an object"})
         return errors
-    for name, field in type_spec.fields.items():
-        if field.required and name not in content:
-            errors.append({"pointer": f"/content/{name}", "message": "required field missing"})
-        val = content.get(name)
-        if val is None and not field.required:
+    for name, val in content.items():
+        field = type_spec.fields.get(name)
+        if field is None:
+            errors.append({"pointer": f"/content/{name}", "message": "unknown field"})
             continue
-        if field.type == "integer" and not isinstance(val, int):
-            errors.append({"pointer": f"/content/{name}", "message": "must be an integer"})
-        elif field.type in ("number", "money") and not isinstance(val, (int, float)):
-            errors.append({"pointer": f"/content/{name}", "message": f"must be a {field.type}"})
-        elif field.type == "string" and not isinstance(val, str):
-            errors.append({"pointer": f"/content/{name}", "message": "must be a string"})
-        elif field.type == "list" and not isinstance(val, list):
-            errors.append({"pointer": f"/content/{name}", "message": "must be a list"})
+        errors.extend(_validate_field_value(name, field, val, "/content"))
     return errors
 
 

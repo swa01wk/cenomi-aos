@@ -15,3 +15,5 @@ class AssistGraphState(TypedDict, total=False):
     model_reply_text: str
     reply_blocks: list[dict[str, Any]]
     agent_result: dict[str, Any]
+    saved_in_attempt: dict[str, dict[str, Any]]
+    ended_needs_input: bool

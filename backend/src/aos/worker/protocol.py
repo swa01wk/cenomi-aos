@@ -63,6 +63,7 @@ class AttemptContext:
         self.contract_bundle: dict[str, Any] | None = None
         self.envelope: dict[str, Any] | None = None
         self.agent_started = False
+        self.attempt_closed = False
         self._usage = {
             "tokens_in": 0,
             "tokens_out": 0,
@@ -118,7 +119,9 @@ class AttemptContext:
         questions: list[str] | None = None,
     ) -> dict[str, Any]:
         self.check()
-        return await self.kernel.ask_questions(self.attempt, blocks=blocks, questions=questions)
+        result = await self.kernel.ask_questions(self.attempt, blocks=blocks, questions=questions)
+        self.attempt_closed = True
+        return result
 
     async def submit_result(self, result: AgentResult) -> dict[str, Any]:
         self.check()

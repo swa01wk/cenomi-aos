@@ -7,7 +7,7 @@ from typing import Any
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from .checkpointer import CheckpointerHandle, ResolvedThread
-from .errors import Fenced
+from .errors import AttemptWaitingForInput, Fenced
 from .graphs.state import AssistGraphState
 from .models import ModelRegistryConfig, ResolvedModel
 from .protocol import AttemptContext
@@ -54,12 +54,15 @@ async def run_assist_graph(
         "worker_notes": [],
         "draft_422_counts": {},
         "stream_seq": 0,
+        "saved_in_attempt": {},
     }
     try:
         if resolved.checkpoint_id:
             final = await graph.ainvoke(None, config)
         else:
             final = await graph.ainvoke(initial, config)
+    except AttemptWaitingForInput:
+        raise
     except Fenced:
         raise
     result = final.get("agent_result")
