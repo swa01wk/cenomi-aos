@@ -46,6 +46,9 @@ assist graph: load ─▶ assemble_context ─▶ model_step ─┬─▶ read t
 - **load**: `GET /contract` → TaskContract + Skill instructions. Verify `contract_hash`.
 - **assemble_context**: `POST /context` before every model step. The kernel re-reads state, so a policy or input
   change between steps is seen (guidebook "re-check before action").
+- **tools** (one model step's calls): connector and kernel calls run in the model's order; `ask_question` runs last
+  and ends the attempt. When the same step also calls a connector tool, the question is held instead (a note says
+  so), because it was written before the lookup's result: the next step sees the result, saves, then asks.
 - **model_step**: one model call with the envelope rendered by the prompt template; tools = `envelope.commands`.
   Post `ModelInvoked` with tokens and cost. Enforce `budget.steps` and `budget.tokens` before calling.
 - **call_tool**: `POST /tools/{tool}`. A 403 becomes a tool message "not allowed: <rule>" to the model, never a crash.

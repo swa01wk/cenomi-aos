@@ -206,10 +206,8 @@ class RequestIntakeRealModelSmoke(WorkerHarness, unittest.IsolatedAsyncioTestCas
 
 
 class AssistToolsNodeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_batch_runs_ask_question_last(self) -> None:
-        """Non-ask tools keep model order; first ask_question runs last; extra asks dropped."""
-        calls: list[str] = []
-
+    @staticmethod
+    def _ctx(calls: list[str]):
         class Ctx:
             attempt_closed = False
             envelope = {"artifacts": []}
@@ -242,25 +240,39 @@ class AssistToolsNodeTests(unittest.IsolatedAsyncioTestCase):
             def record_tool_action(self) -> None:
                 return None
 
-        ctx = Ctx()
-        state: AssistGraphState = {
-            "pending_tool_calls": [
+        return Ctx()
+
+    async def _run(self, pending: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
+        calls: list[str] = []
+        state: AssistGraphState = {"pending_tool_calls": pending, "draft_422_counts": {}, "saved_in_attempt": {}}
+        out = await tools_node(state, {"configurable": {"ctx": self._ctx(calls)}})
+        return calls, out
+
+    async def test_tool_batch_runs_ask_question_last(self) -> None:
+        """Kernel tools keep model order; the first ask_question runs last; extra asks are dropped."""
+        calls, out = await self._run(
+            [
+                {"name": "ask_question", "args": {"questions": ["Q?"]}},
+                {"name": "save_draft", "args": {"content": {"title": "T"}}},
+                {"name": "ask_question", "args": {"questions": ["Again?"]}},
+            ]
+        )
+        self.assertTrue(out.get("ended_needs_input"))
+        self.assertEqual(calls, ["save_draft", "ask_questions"])
+
+    async def test_question_beside_a_lookup_is_held(self) -> None:
+        """A question written beside a lookup waits for its result: the lookups run, the attempt goes on."""
+        calls, out = await self._run(
+            [
                 {"name": "ask_question", "args": {"questions": ["Q?"]}},
                 {"name": "browse_categories", "args": {"query": "x"}},
                 {"name": "save_draft", "args": {"content": {"title": "T"}}},
                 {"name": "browse_categories", "args": {"query": "after"}},
-            ],
-            "draft_422_counts": {},
-            "saved_in_attempt": {},
-        }
-        config = {"configurable": {"ctx": ctx}}
-        out = await tools_node(state, config)
-        self.assertTrue(out.get("ended_needs_input"))
-        self.assertEqual(
-            calls,
-            ["tool:browse_categories", "save_draft", "tool:browse_categories", "ask_questions"],
+            ]
         )
-
+        self.assertFalse(out.get("ended_needs_input"))
+        self.assertEqual(calls, ["tool:browse_categories", "save_draft", "tool:browse_categories"])
+        self.assertTrue(any("ask_question was held" in n for n in out["worker_notes"]))
 
 if __name__ == "__main__":
     unittest.main()
