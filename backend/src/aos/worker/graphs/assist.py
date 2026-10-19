@@ -20,6 +20,7 @@ from ..prompt_render import prompt_version as assist_prompt_version
 from ..protocol import AttemptContext, AttemptFailed
 from ..prompt_render import render_context_message, render_system_message
 from ..streaming import LiveStreamBatcher
+from ..untrusted import already_observed
 from ..types import AgentResult, WorkerAttempt
 from .state import AssistGraphState
 
@@ -229,6 +230,9 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     }
 
 
+_KERNEL_TOOLS = frozenset({"save_draft", "ask_question"})
+
+
 def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
     if state.get("pending_tool_calls"):
         return "tools"
@@ -256,6 +260,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     pending = _order_tool_calls(list(state.get("pending_tool_calls") or []))
     contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     envelope = ctx.envelope or {}
+    observed: list[dict[str, Any]] = list(envelope.get("tool_observations") or [])
     ended_needs_input = False
     for tc in pending:
         ctx.check()
@@ -263,6 +268,16 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
             break
         name = str(tc.get("name") or "")
         args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
+        if name not in _KERNEL_TOOLS:
+            # The model sees earlier calls only through observations; a repeat would spend an action for a
+            # result it already has. Answer from the note instead of calling the tool again.
+            if already_observed(observed, name, args):
+                notes.append(
+                    f"{name} was already called with {json.dumps(args, sort_keys=True)}; "
+                    "its result is in tool_observations_rendered. Use it instead of calling again."
+                )
+                continue
+            observed.append({"tool": name, "args": args})
         await ctx.post_events(
             events=[
                 {

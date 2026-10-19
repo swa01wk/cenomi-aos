@@ -202,6 +202,7 @@ class CallToolTests(WorkerHarness):
         obs = ctx.json().get("tool_observations") or []
         self.assertGreaterEqual(len(obs), 1)
         self.assertTrue(obs[-1]["untrusted"])
+        self.assertEqual(obs[-1]["args"], {"query": "Janitorial"})
         self.assertIn("items", obs[-1]["content"])
 
     def test_zero_action_budget_refuses_every_call(self) -> None:

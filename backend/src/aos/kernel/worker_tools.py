@@ -435,6 +435,8 @@ async def complete_tool_call(
     at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     observation = {
         "tool": authorized.tool,
+        # The model sees its own earlier calls only through observations, so keep what it asked for.
+        "args": authorized.args,
         "at": at,
         "untrusted": True,
         "content": invoke.content,

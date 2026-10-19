@@ -125,6 +125,12 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             "select (usage->>'actions')::int from work.attempts order by admitted_at desc limit 1;",
         ).stdout.strip()
         self.assertGreater(int(actions or 0), 0)
+        # The script repeats the same call every step; only the first reaches the gateway, the repeats get a note.
+        authorized = _pg.admin_sql(
+            self.db,
+            "select count(*) from evidence.execution_events where event_type = 'ToolAuthorized';",
+        ).stdout.strip()
+        self.assertEqual(authorized, "1")
 
     async def test_budget_cross_on_post_then_fenced_no_submit(self) -> None:
         outcome = await self._run_fake("assist.heavy.yaml", budget_tokens=50, budget_steps=10)
