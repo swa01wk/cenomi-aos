@@ -70,7 +70,9 @@ jobs:
         env:
           AOS_WORKER_TOKEN: unused
         run: |
-          TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps api aos worker-token --worker-id e2e-worker)
+          TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker)
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
           echo "AOS_WORKER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
       - name: Start stack (postgres, api, web, mock-erp, worker)
         env:

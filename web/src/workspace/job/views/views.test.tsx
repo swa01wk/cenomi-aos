@@ -71,7 +71,11 @@ describe("artifact views", () => {
     );
     expect(screen.getByText("Units")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
-    // A bare number in a money field gets no invented currency.
+  });
+
+  it("formats a bare number in a money field without inventing a currency", () => {
+    const View = artifactViewComponent("document");
+    render(<View view={documentView} version={version({ fee: 10 })} />);
     expect(screen.getByText(new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(10))).toBeInTheDocument();
   });
 
