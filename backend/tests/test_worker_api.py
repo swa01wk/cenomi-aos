@@ -30,6 +30,17 @@ SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
 
 
+def _failure_notices(db, instance_id: str | None = None) -> list[str]:
+    """Texts of seat turns carrying a 'notice' block (the reply-failed message)."""
+    where = f" and instance_id = '{instance_id}'" if instance_id else ""
+    out = _pg.admin_sql(
+        db,
+        "select b->>'text' from work.turns t, jsonb_array_elements(t.blocks) b"
+        f" where t.author_kind = 'seat' and b->>'kind' = 'notice'{where} order by t.seq;",
+    ).stdout.strip()
+    return [line for line in out.splitlines() if line]
+
+
 class WorkerHarness(unittest.TestCase):
     """Shared Postgres app fixture for worker protocol tests (no test methods)."""
     @classmethod
@@ -268,6 +279,54 @@ class WorkerApiTests(WorkerHarness):
         )
         self.assertEqual(hb.status_code, 409, hb.text)
         self.assertEqual(hb.json()["code"], "fenced")
+
+    def test_final_failure_tells_the_participant(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/fail",
+            headers={**self.worker_auth(), "X-AOS-Fencing-Token": str(attempt["fencing_token"])},
+            json={"failure_class": "budget_exhausted", "message": "no steps left"},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        notices = _failure_notices(self.db)
+        self.assertEqual(len(notices), 1, notices)
+        self.assertIn("I couldn't finish this reply: I reached my limit", notices[0])
+        self.assertNotIn("no steps left", notices[0])  # the worker's message stays in the events
+        completed = _pg.admin_sql(
+            self.db,
+            "select count(*) from evidence.outbox where event_type = 'agent.message.completed';",
+        ).stdout.strip()
+        self.assertEqual(completed, "1")
+
+    def test_retryable_failure_with_attempts_left_says_nothing_yet(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        _pg.admin_sql(
+            self.db,
+            f"update work.tasks set max_attempts = 3 where id = '{attempt['task_id']}';",
+        )
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/fail",
+            headers={**self.worker_auth(), "X-AOS-Fencing-Token": str(attempt["fencing_token"])},
+            json={"failure_class": "model_error", "message": "provider 500"},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(_failure_notices(self.db), [])
+
+    def test_expired_lease_with_no_attempts_left_tells_the_participant(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        _pg.admin_sql(
+            self.db,
+            f"update work.tasks set max_attempts = attempts_used where id = '{attempt['task_id']}';"
+            f" update work.attempts set lease_expires_at = now() - interval '1 minute'"
+            f" where id = '{attempt['attempt_id']}';",
+        )
+        self._run_tick()
+        notices = _failure_notices(self.db)
+        self.assertEqual(len(notices), 1, notices)
+        self.assertIn("I stopped responding", notices[0])
 
     def test_fail_racing_expiry_settles_budget_once(self) -> None:
         self._start_job()

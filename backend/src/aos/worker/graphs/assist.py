@@ -327,6 +327,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                     "artifact_id": saved_row.get("artifact_id"),
                     "version": saved_row.get("version"),
                     "args_sha": args_sha,
+                    "content": body["content"],
                 }
                 actions.append(
                     f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save it "

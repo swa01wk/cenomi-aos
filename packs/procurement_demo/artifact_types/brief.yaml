@@ -5,13 +5,26 @@ spec:
   description: What the requester needs, confirmed by them.
   fields:
     title: {type: string, required: true}
-    category: {type: string, required: true}
+    category:
+      type: string
+      required: true
+      description: >-
+        The ERP category id from browse_categories (e.g. CAT-...). Fill it in the first draft, with the closest
+        category; the requester can change it.
     quantity: {type: integer, required: true}
     specification: {type: string, required: true}
-    delivery_date: {type: date, required: true}
+    delivery_date:
+      type: date
+      required: true
+      description: Only a date the requester gave; never a guess.
     delivery_site: {type: string, required: true}
-    quality_signoff: {type: string}
-    budget_guidance: {type: money, classification: internal}
+    quality_signoff:
+      type: string
+      description: Who signs off on quality, as the requester said.
+    budget_guidance:
+      type: money
+      classification: internal
+      description: A budget the requester mentions, as a number. Internal; never shared with suppliers.
     attachments: {type: list}
   view: {type: document}
   visibility:
