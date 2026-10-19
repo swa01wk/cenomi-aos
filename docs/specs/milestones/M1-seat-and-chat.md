@@ -10,9 +10,9 @@
 - [x] A reloaded job page rebuilds the conversation from snapshot + cursor (C10). A stalled worker is fenced.
 - [x] `make test` green, including the new API and worker tests; contract tests green.
 
-
 Passed 2026-10-19: `make gate` (stops 1–3, then `e2e/m1-gate-real-model.spec.ts` on gpt-5.4-mini): brief v1 → v2,
 2 agent replies, both streamed, spend today USD 0.0061. Fencing: `test_stalled_worker_is_fenced_and_cannot_commit`.
+
 **Walkthrough stops made real:** 1 (publish), 2, 3, 4, 5 (chat and drafts; the confirm decision comes in M2).
 
 **Out of scope:** workflow transitions, decisions, claims, timers (M2); policy engine, approvals, effects (M3).
