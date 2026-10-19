@@ -81,6 +81,10 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
    Deltas are not stored in the outbox; the hub relays them in-process. The JSON may carry an ephemeral `id`, but SSE
    sends only `event:` and `data:` (no SSE `id:` line) so `Last-Event-ID` remains an outbox cursor.
 4. Refusals are delivered as a `refusal` block carrying the decision ID and rule, never the refused data.
+5. When an assist reply ends for good without one (a failure that won't be retried, a budget stop, a lease that
+   expired with no attempts left), the kernel adds a Seat turn with a `notice` block (tone `bad`) saying the reply
+   couldn't be finished and the kind of reason, and sends it as `agent.message.completed`. Details stay in the
+   execution events.
 
 ## Outbox mechanics (backend)
 

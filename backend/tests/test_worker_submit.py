@@ -221,6 +221,12 @@ class WorkerSubmitTests(WorkerHarness):
             f" where attempt_id = '{attempt['attempt_id']}' and event_type = 'BudgetExceeded';",
         ).stdout.strip()
         self.assertEqual(be, "1")
+        notices = _pg.admin_sql(
+            self.db,
+            "select b->>'text' from work.turns t, jsonb_array_elements(t.blocks) b"
+            " where t.author_kind = 'seat' and b->>'kind' = 'notice';",
+        ).stdout.strip()
+        self.assertIn("I reached my limit for a single reply", notices)
         hb = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/heartbeat",
             headers=self._worker_headers(attempt),
