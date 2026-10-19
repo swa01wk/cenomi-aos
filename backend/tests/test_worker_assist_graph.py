@@ -65,7 +65,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         async def capture(**kwargs):
             seqs.append(int(kwargs["delta_seq"]))
 
-        await asyncio.to_thread(self._start_job)
+        instance_id = await asyncio.to_thread(self._start_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
@@ -88,6 +88,15 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         blocks = json.loads(turns)
         self.assertEqual(blocks[0]["kind"], "text")
         self.assertIn("streamed assist reply", blocks[0]["text"])
+
+        # The snapshot names the agent by the Seat's display name, as the live turn event does (not its id).
+        snapshot = self.client.get(f"/api/instances/{instance_id}", headers=self._auth("faisal")).json()
+        seat_turns = [t for t in snapshot["turns"] if t["author"]["kind"] == "seat"]
+        self.assertTrue(seat_turns)
+        workers = self.client.get("/api/workspace/digital-workers", headers=self._auth("faisal")).json()["items"]
+        display = next(w["display_name"] for w in workers if w["seat"] == seat_turns[0]["author"]["id"])
+        self.assertNotEqual(display, seat_turns[0]["author"]["id"])
+        self.assertEqual({t["author"]["name"] for t in seat_turns}, {display})
 
     async def test_step_budget_stops_loop_without_submit(self) -> None:
         outcome = await self._run_fake("assist.loop.yaml", budget_steps=9)

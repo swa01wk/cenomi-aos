@@ -11,6 +11,9 @@ test("stop 1: publish pack through Risk and owner approvals", async ({ page }) =
 
   await packPanel.getByRole("button", { name: "Sync from folder" }).click();
   await expect(packPanel.getByText(/^(Stored as|Already stored)/)).toBeVisible({ timeout: 60_000 });
+  // While an action runs, the page's buttons are disabled with a reason (which joins their accessible name),
+  // and a click on them is ignored. Wait until Validate is enabled again before clicking it.
+  await expect(packPanel.getByRole("button", { name: "Validate", exact: true })).toBeVisible({ timeout: 30_000 });
 
   await packPanel.getByRole("button", { name: "Validate", exact: true }).click();
   // Wait for the action to finish (the busy label also matches "Valid…"), then read the report.

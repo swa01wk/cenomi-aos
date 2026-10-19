@@ -66,10 +66,20 @@ jobs:
       - name: Install web dependencies and Chromium
         working-directory: web
         run: npm ci && npx playwright install --with-deps chromium
-      - name: Start stack (postgres, api, web)
+      - name: Mint worker token
         env:
           AOS_WORKER_TOKEN: unused
-        run: docker compose -f deploy/docker-compose.yml up -d --build --wait postgres api web
+        run: |
+          # Build first so build output can't end up in the captured token.
+          docker compose -f deploy/docker-compose.yml build api
+          TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker 2>/dev/null | tail -n 1 | tr -d '\r')
+          [[ "$TOKEN" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]] || { echo "worker token not minted"; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "AOS_WORKER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Start stack (postgres, api, web, mock-erp, worker)
+        env:
+          AOS_FAKE_SCRIPT: request_intake.happy.yaml
+        run: docker compose -f deploy/docker-compose.yml up -d --build --wait postgres api web mock-erp worker
       - name: Playwright e2e
         working-directory: web
         env:
@@ -84,10 +94,19 @@ jobs:
             web/playwright-report/
             web/test-results/
           retention-days: 7
+      - name: Stack logs as annotations
+        if: failure()
+        env:
+          AOS_WORKER_TOKEN: unused
+        run: |
+          for svc in api worker; do
+            body=$(docker compose -f deploy/docker-compose.yml logs --no-color --tail=120 "$svc" 2>&1 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::warning title=$svc logs (last 120 lines)::$body"
+          done
       - name: Stack logs and teardown
         if: always()
         env:
           AOS_WORKER_TOKEN: unused
         run: |
-          docker compose -f deploy/docker-compose.yml logs --tail=200 api web || true
+          docker compose -f deploy/docker-compose.yml logs --tail=200 api web worker || true
           docker compose -f deploy/docker-compose.yml down -v

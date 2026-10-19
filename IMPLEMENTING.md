@@ -52,7 +52,8 @@ aos worker-token --worker-id dev-worker-1
 Pass it as `Authorization: Bearer …` on `/api/worker/*` routes. Person session tokens are rejected on those
 routes; worker tokens are rejected on Workspace and Console routes.
 
-For Compose, mint the token on the **host** (same command) and set `AOS_WORKER_TOKEN` in `.env`. The **worker**
+For Compose, `make up` mints the token into `.env` when it is missing or expires within the hour
+(`scripts/dev-worker-token.sh`; `make worker-token` forces a new one). The **worker**
 service reads only `AOS_WORKER_TOKEN` and `AOS_API_URL` — never `AOS_SESSION_SECRET`. Token TTL is 8 hours; on **401**
 the worker exits and Compose does not restart it (`restart: "no"`).
 

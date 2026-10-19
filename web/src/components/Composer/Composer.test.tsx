@@ -36,6 +36,18 @@ describe("Composer", () => {
     expect(onSend.mock.calls[1]![1]).toBe(firstId);
   });
 
+  it("calls onTextChange and respects initialText", () => {
+    const onTextChange = vi.fn();
+    const { rerender } = render(
+      <Composer onSend={vi.fn()} initialText="seed" onTextChange={onTextChange} />,
+    );
+    expect(screen.getByPlaceholderText("Message")).toHaveValue("seed");
+    fireEvent.change(screen.getByPlaceholderText("Message"), { target: { value: "edit" } });
+    expect(onTextChange).toHaveBeenCalledWith("edit");
+    rerender(<Composer onSend={vi.fn()} initialText="fresh" onTextChange={onTextChange} />);
+    expect(screen.getByPlaceholderText("Message")).toHaveValue("fresh");
+  });
+
   it("Shift+Enter does not send", () => {
     const onSend = vi.fn();
     render(<Composer onSend={onSend} />);

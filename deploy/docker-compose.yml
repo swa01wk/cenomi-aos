@@ -72,6 +72,7 @@ services:
       AOS_CHECKPOINT_DATABASE_URL: postgresql://aos_worker:aos_worker_dev@postgres:5432/aos?options=-c%20search_path%3Dlg_checkpoints
       # Task lane returns when task Skills exist (M2); assist-only for M1.
       AOS_WORKER_LANES: assist
+      AOS_FAKE_SCRIPT: ${AOS_FAKE_SCRIPT:-}
     depends_on:
       api: {condition: service_healthy}
 

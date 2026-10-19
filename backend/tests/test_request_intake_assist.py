@@ -116,6 +116,14 @@ class RequestIntakeAssistTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         inputs = json.loads(parts[3])
         self.assertTrue(any(i.get("artifact_id") == artifact_id and i.get("version") == 1 for i in inputs))
 
+        # The requester sees who produced each version by the Seat's display name, not the attempt id.
+        workers = self.client.get("/api/workspace/digital-workers", headers=self._auth("faisal")).json()["items"]
+        display = workers[0]["display_name"]
+        version = self.client.get(f"/api/artifacts/{artifact_id}/versions/2", headers=self._auth("faisal")).json()
+        self.assertEqual(version["produced_by"], {"kind": "attempt", "id": attempt2, "name": display})
+        summary = self.client.get(f"/api/artifacts/{artifact_id}", headers=self._auth("faisal")).json()
+        self.assertEqual({v["by"] for v in summary["versions"]}, {display})
+
     async def test_ask_question_ends_without_submit(self) -> None:
         await asyncio.to_thread(self._start_job)
         inner = await make_http_client(self, invoke_hook=mock_erp_hook)
