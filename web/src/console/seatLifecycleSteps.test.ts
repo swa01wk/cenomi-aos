@@ -17,6 +17,15 @@ describe("buildSeatLifecycleSteps", () => {
     expect(steps.find((s) => s.state === "CONFIGURED")?.meta).toContain("alice");
   });
 
+  it("ignores a refused action recorded as a self-transition", () => {
+    const history = [
+      { from: "TESTING", to: "APPROVED", by: "risk", at: "2026-01-04T10:00:00Z" },
+      { from: "APPROVED", to: "APPROVED", by: "configurer", at: "2026-01-04T11:00:00Z" },
+    ];
+    const steps = buildSeatLifecycleSteps("APPROVED", history, fmt);
+    expect(steps.find((s) => s.state === "APPROVED")?.meta).toContain("risk");
+  });
+
   it("uses the latest transition when history has multiple entries to the same state", () => {
     const history = [
       { from: "DRAFT", to: "CONFIGURED", by: "first", at: "2026-01-01T10:00:00Z" },

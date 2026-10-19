@@ -19,6 +19,22 @@ type Seat = components["schemas"]["Seat"];
 
 export default function SeatsPage() {
   const { personName } = useOrgPeople();
+  // Same query as the Packs page; maps a Seat's pack_version id to "<pack> v<n>".
+  const packs = useQuery({
+    queryKey: ["packs"],
+    queryFn: async () => {
+      const { data: listing } = await client.GET("/console/packs");
+      return listing!;
+    },
+  });
+  const packVersionLabel = (id: string | undefined) => {
+    if (!id) return "";
+    for (const p of packs.data?.packs ?? []) {
+      const v = p.versions?.find((x) => x.id === id);
+      if (v) return `${p.name} v${v.version}`;
+    }
+    return id;
+  };
   const { data, error, isPending } = useQuery({
     queryKey: ["seats"],
     queryFn: async () => {
@@ -72,7 +88,7 @@ export default function SeatsPage() {
             header: "Version",
             render: (s) => (
               <span className="mono">
-                v{s.version} · {s.pack_version}
+                v{s.version} · {packVersionLabel(s.pack_version)}
               </span>
             ),
           },
@@ -100,7 +116,7 @@ export default function SeatsPage() {
                 label={`USD ${(s.spend_today_usd ?? 0).toFixed(2)} of ${(s.daily_limit_usd ?? 0).toFixed(2)}`}
                 value={s.spend_today_usd ?? 0}
                 limit={s.daily_limit_usd ?? 0}
-              />
+              showValues={false} />
             ),
           },
           { id: "owner", header: "Owner", render: (s) => personName(s.owner) },

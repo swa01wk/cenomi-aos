@@ -1,6 +1,16 @@
 import styles from "./MeterBar.module.css";
 
-export function MeterBar({ label, value, limit }: { label: string; value: number; limit: number }) {
+export function MeterBar({
+  label,
+  value,
+  limit,
+  showValues = true,
+}: {
+  label: string;
+  value: number;
+  limit: number;
+  showValues?: boolean;
+}) {
   const pct = limit > 0 ? Math.min(100, (value / limit) * 100) : 0;
   return (
     <div className={styles.root}>
@@ -8,9 +18,11 @@ export function MeterBar({ label, value, limit }: { label: string; value: number
       <div className={styles.track} role="meter" aria-valuenow={value} aria-valuemin={0} aria-valuemax={limit} aria-label={label}>
         <div className={styles.fill} style={{ width: `${pct}%` }} />
       </div>
-      <span className={styles.meta}>
-        {value} / {limit}
-      </span>
+      {showValues && (
+        <span className={styles.meta}>
+          {value} / {limit}
+        </span>
+      )}
     </div>
   );
 }

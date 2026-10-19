@@ -213,6 +213,7 @@ export default function SeatPage() {
         </Panel>
       </div>
 
+      {(showConfigure || showRunEvals || showApprove || showActivate) && (
       <Panel title="Actions">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {showConfigure && (
@@ -269,6 +270,7 @@ export default function SeatPage() {
           )}
         </div>
       </Panel>
+      )}
 
     </>
   );

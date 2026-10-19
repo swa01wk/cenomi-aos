@@ -13,7 +13,8 @@ function latestTransitionTo(
   if (!history?.length) return undefined;
   let best: HistoryEntry | undefined;
   for (const h of history) {
-    if (h.to !== state) continue;
+    // A refused action is recorded as a self-transition (e.g. APPROVED -> APPROVED); it isn't how the Seat got there.
+    if (h.to !== state || h.from === h.to) continue;
     if (!best || (h.at && (!best.at || h.at > best.at))) best = h;
   }
   return best;

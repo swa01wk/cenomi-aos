@@ -5,6 +5,11 @@
 }
 
 .head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
   padding: var(--space-16) var(--space-20);
   border-bottom: 1px solid var(--line);
 }
