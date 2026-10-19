@@ -77,6 +77,13 @@ copies. It records jobs per minute, attempt latency, database load and event-str
 committed effect happened exactly once and the audit chain verifies. The results go into an ADR as the first scale
 baseline.
 
+### Digital worker levels
+
+`digital-worker-levels.md` maps the Level 3–5 characteristics of a digital worker to AOS and proposes seven building
+blocks to add: the conversation skill (ADR 015), conversation memory, enterprise context, visible plans, watchers
+and triggers, delegation and experience measures. Some go into M2–M4 and the rest come after the POC. With them
+the POC ends at Level 3 complete and Level 4 in large part.
+
 ### After the POC
 
 These follow the AOS proposition's Phase 3: domain expansion and enterprise hardening.
