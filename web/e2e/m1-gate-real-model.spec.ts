@@ -21,6 +21,12 @@ const ANSWER =
   "The Mall A facilities manager signs off on quality. That's everything; please update the brief.";
 const BUDGET = 20_000;
 
+const escapeRegExp = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Faisal's own message: a paragraph whose whole text is the need (a reply may quote it). */
+const NEED_EXACT = new RegExp(`^${escapeRegExp(NEED)}$`);
+/** A reply that pastes JSON instead of talking (e.g. `{"content":{"title":...` or `brief: [{"title":...`). */
+const LOOKS_LIKE_JSON = /[{[]\s*"[^"]+"\s*:/;
+
 type Check = { check: string; ok: boolean; detail: string };
 
 function scorecard() {
@@ -195,15 +201,21 @@ test("M1 gate: Faisal chats on the real model; replies stream; brief v1 and v2 a
 
   const streamed = await streamedTurns(page);
   check("reply text streams", streamed.length >= 1, `${streamed.length} of 2 replies streamed`);
-  const replyTexts = (await replies.allInnerTexts()).join("\n");
-  check("no reply says it failed", !/couldn't finish this reply/i.test(replyTexts));
+  const replyTexts = await replies.allInnerTexts();
+  check("no reply says it failed", !replyTexts.some((t) => /couldn't finish this reply/i.test(t)));
+  const jsonReplies = replyTexts.filter((t) => LOOKS_LIKE_JSON.test(t));
+  check(
+    "replies are plain language, not JSON",
+    jsonReplies.length === 0,
+    jsonReplies.map((t) => t.replace(/\s+/g, " ").slice(0, 80)).join(" | "),
+  );
 
   // Reload: the same conversation and brief come back from the snapshot.
   const url = page.url();
   const replyCount = await replies.count();
   await page.reload();
   await expect(page).toHaveURL(url);
-  await expect(conversation.getByRole("paragraph").filter({ hasText: NEED })).toBeVisible();
+  await expect(conversation.getByRole("paragraph").filter({ hasText: NEED_EXACT })).toBeVisible();
   await expect(conversation.getByText(ANSWER, { exact: true })).toBeVisible();
   await expect(replies).toHaveCount(replyCount);
   await expect(docTab).toContainText(`v${finalVersion}`);

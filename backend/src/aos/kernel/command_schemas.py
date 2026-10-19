@@ -122,8 +122,17 @@ def enrich_command_schema(
         return entry
     if name == "save_draft":
         entry["input_schema"] = save_draft_command_schema(contract, defs)
+        entry["description"] = (
+            "Save a new draft version of the job's output. Send the fields you have learned; fields you leave out keep "
+            "their current values, and null clears a field. The requester sees the draft next to the chat, so don't "
+            "repeat it in your reply."
+        )
         return entry
     if name == "ask_question":
         entry["input_schema"] = ask_question_command_schema()
+        entry["description"] = (
+            "Ask the requester up to three questions and end this reply; their answer starts your next one. "
+            "preamble is one short sentence shown before the questions."
+        )
         return entry
     return entry

@@ -87,6 +87,8 @@ Versioned in the worker (`worker/prompts/task_v1.jinja`, `assist_v1.jinja`); the
    graph also skips a connector call whose tool and arguments are already observed in the attempt, with a note.
    For the same reason the context lists `your_actions_this_reply` (drafts saved, lookups made), and a `save_draft`
    identical to one already saved in the attempt is skipped with a note.
+6. `save_draft` is an update: the worker merges the model's fields onto the draft's current content (fields left out
+   are kept, `null` clears one), unless the envelope redacted fields of that type, when the content is saved as sent.
 6. Remaining budget, so the model can stop early.
 
 ## Model registry

@@ -25,6 +25,28 @@ def _artifact_refs_from_envelope(envelope: dict[str, Any]) -> list[dict[str, Any
     return refs
 
 
+def _current_content(
+    envelope: dict[str, Any], artifact_type: str, prior: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """The draft's current content, or None when the envelope can't show all of it (fields were redacted)."""
+    for red in envelope.get("redactions") or []:
+        if isinstance(red, dict) and red.get("artifact_type") == artifact_type:
+            return None
+    if prior and isinstance(prior.get("content"), dict):
+        return dict(prior["content"])  # saved earlier in this attempt; newer than the envelope may be
+    for art in envelope.get("artifacts") or []:
+        if isinstance(art, dict) and art.get("artifact_type") == artifact_type and isinstance(art.get("content"), dict):
+            return dict(art["content"])
+    return {}
+
+
+def merge_draft_content(current: dict[str, Any] | None, update: dict[str, Any]) -> dict[str, Any]:
+    """A save is an update: fields the model sends replace the current ones, fields it leaves out are kept, and null
+    clears a field. When the current content isn't fully visible, the update is saved as it is."""
+    merged = {**(current or {}), **update}
+    return {k: v for k, v in merged.items() if v is not None}
+
+
 def build_save_draft_body(
     *,
     contract: dict[str, Any],
@@ -62,7 +84,7 @@ def build_save_draft_body(
 
     body: dict[str, Any] = {
         "artifact_type": artifact_type,
-        "content": content,
+        "content": merge_draft_content(_current_content(envelope, artifact_type, prior), content),
         "inputs": inputs,
         "key": key,
     }
