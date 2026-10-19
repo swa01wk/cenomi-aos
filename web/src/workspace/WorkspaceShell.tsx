@@ -1,6 +1,7 @@
 import { Link } from "react-router";
-import { initials, teamLabel } from "../lib/ui";
+import { ShellProvider } from "../components";
 import { useSession } from "../app/session";
+import { initials, teamLabel } from "../lib/ui";
 
 export default function WorkspaceShell() {
   const { me, signOut } = useSession();
@@ -8,6 +9,7 @@ export default function WorkspaceShell() {
   const dept = teamLabel(me.team).split(" · ")[0];
 
   return (
+    <ShellProvider shell="workspace">
     <div className="shell">
       <nav className="ws-rail" aria-label="Workspace">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -70,5 +72,6 @@ export default function WorkspaceShell() {
         </div>
       </main>
     </div>
+    </ShellProvider>
   );
 }

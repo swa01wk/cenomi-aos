@@ -54,7 +54,7 @@ describe("RequireAuth", () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(screen.getByText(/Loading your session/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
   });
 
   it("shows retry when session load fails", () => {
@@ -77,7 +77,7 @@ describe("RequireAuth", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText(/Can't load your session/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retrySession).toHaveBeenCalled();
   });
 });

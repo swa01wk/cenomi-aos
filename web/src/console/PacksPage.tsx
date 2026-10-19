@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { client } from "../api/client";
-import { ApiProblemError, problemMessage } from "../api/problems";
+import type { Problem } from "../api/problems";
+import { ApiProblemError } from "../api/problems";
 import type { components } from "../api/schema";
-import { ErrorNote, Loading, StatusPill, shortHash, when } from "../lib/ui";
+import { ConflictNotice, ErrorBanner, Skeleton, StatusPill } from "../components";
+import { shortHash, when } from "../lib/ui";
 
 type ValidationReport = components["schemas"]["ValidationReport"];
 
@@ -88,6 +90,7 @@ export default function PacksPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ name: string; report: ValidationReport; note?: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<Problem | null>(null);
 
   const invalidatePacks = () => queryClient.invalidateQueries({ queryKey: ["packs"] });
 
@@ -102,10 +105,12 @@ export default function PacksPage() {
     },
     onError: (e: Error) => {
       if (e instanceof ApiProblemError && e.problem.status === 409) {
-        setFailure(`${problemMessage(e.problem)} Reload the page and try again.`);
+        setConflict(e.problem);
+        setFailure(null);
         invalidatePacks();
         return;
       }
+      setConflict(null);
       setFailure(e.message);
     },
   });
@@ -131,10 +136,12 @@ export default function PacksPage() {
     },
     onError: (e: Error) => {
       if (e instanceof ApiProblemError && e.problem.status === 409) {
-        setFailure(`${problemMessage(e.problem)} Reload the page and try again.`);
+        setConflict(e.problem);
+        setFailure(null);
         invalidatePacks();
         return;
       }
+      setConflict(null);
       setFailure(e.message);
     },
   });
@@ -149,8 +156,8 @@ export default function PacksPage() {
     }
   };
 
-  if (error) return <ErrorNote message={(error as Error).message} />;
-  if (isPending || !data) return <Loading what="packs" />;
+  if (error) return <ErrorBanner title="We couldn't load packs" detail={(error as Error).message} />;
+  if (isPending || !data) return <Skeleton />;
   const stored = new Map(data.packs.map((p) => [p.name, p]));
 
   return (
@@ -164,7 +171,18 @@ export default function PacksPage() {
         </span>
       </header>
 
-      {failure && <ErrorNote message={failure} />}
+      {conflict && (
+        <ConflictNotice
+          title={conflict.title}
+          detail={conflict.detail}
+          onReload={() => {
+            setConflict(null);
+            void invalidatePacks();
+          }}
+          reloadLabel="Reload"
+        />
+      )}
+      {failure && <ErrorBanner title="Request failed" detail={failure} />}
 
       <section aria-label="Packs" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {data.available.map((name) => {
@@ -222,7 +240,7 @@ export default function PacksPage() {
                             <Link to={`/console/versions/${v.id}`}>v{v.version}</Link>
                           </td>
                           <td>
-                            <StatusPill status={v.status ?? ""} />
+                            <StatusPill state={v.status ?? ""} />
                           </td>
                           <td className="mono">{shortHash(v.digest ?? "")}</td>
                           <td>

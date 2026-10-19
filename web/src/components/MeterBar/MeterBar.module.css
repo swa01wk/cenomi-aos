@@ -1,0 +1,28 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.label {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.track {
+  height: 8px;
+  background: var(--canvas);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--ink-3);
+}

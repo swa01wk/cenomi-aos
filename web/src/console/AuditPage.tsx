@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { client } from "../api/client";
 import type { components } from "../api/schema";
-import { ErrorNote, Loading, shortHash, when } from "../lib/ui";
+import { ErrorBanner, Skeleton } from "../components";
+import { shortHash, when } from "../lib/ui";
 
 type AuditRecord = components["schemas"]["AuditRecord"];
 type ChainReport = components["schemas"]["ChainReport"];
@@ -33,8 +34,8 @@ export default function AuditPage() {
     onError: (e: Error) => setFailure(e.message),
   });
 
-  if (first.error) return <ErrorNote message={(first.error as Error).message} />;
-  if (first.isPending || !first.data) return <Loading what="the audit log" />;
+  if (first.error) return <ErrorBanner title="We couldn't load the audit log" detail={(first.error as Error).message} />;
+  if (first.isPending || !first.data) return <Skeleton />;
 
   const items = [...first.data, ...older];
   const oldest = items.at(-1)?.seq ?? 1;
@@ -68,7 +69,7 @@ export default function AuditPage() {
         </button>
       </header>
 
-      {failure && <ErrorNote message={failure} />}
+      {failure && <ErrorBanner title="Request failed" detail={failure} />}
       {verify && (
         <div className={`banner ${verify.intact ? "ok" : "bad"}`} role="status">
           {verify.intact ? (

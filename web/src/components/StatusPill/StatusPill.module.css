@@ -1,0 +1,34 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-8);
+  border-radius: 6px;
+  font: var(--font-mono-id);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.neutral {
+  background: #eef1f5;
+  color: var(--ink-2);
+}

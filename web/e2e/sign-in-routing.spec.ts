@@ -119,6 +119,6 @@ test.describe("sign-in and routing", () => {
     await page.reload();
 
     await expect(page.getByText("Can't load your session")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 });

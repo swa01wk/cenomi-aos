@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router";
-import { ErrorNote, Loading } from "../lib/ui";
+import { ErrorBanner, Skeleton } from "../components";
 import { useSession } from "./session";
 
 function savedFromPath(location: ReturnType<typeof useLocation>): string {
@@ -21,16 +21,17 @@ export function RequireAuth() {
   if (sessionError) {
     return (
       <main style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
-        <ErrorNote message={`Can't load your session: ${sessionError.message}`} />
-        <button type="button" className="btn primary" onClick={retrySession}>
-          Retry
-        </button>
+        <ErrorBanner title={`Can't load your session`} detail={sessionError.message} onRetry={retrySession} />
       </main>
     );
   }
 
   if (booting) {
-    return <Loading what="your session" />;
+    return (
+      <main style={{ padding: 40 }}>
+        <Skeleton />
+      </main>
+    );
   }
   if (!me) {
     if (sessionJustEnded()) return null;
@@ -46,15 +47,18 @@ export function RequireConsole() {
   if (sessionError) {
     return (
       <main style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
-        <ErrorNote message={`Can't load your session: ${sessionError.message}`} />
-        <button type="button" className="btn primary" onClick={retrySession}>
-          Retry
-        </button>
+        <ErrorBanner title={`Can't load your session`} detail={sessionError.message} onRetry={retrySession} />
       </main>
     );
   }
 
-  if (booting) return <Loading what="your session" />;
+  if (booting) {
+    return (
+      <main style={{ padding: 40 }}>
+        <Skeleton />
+      </main>
+    );
+  }
   if (!me) {
     if (sessionJustEnded()) return null;
     return <Navigate to="/" replace state={signInRedirectState(location, sessionJustEnded)} />;

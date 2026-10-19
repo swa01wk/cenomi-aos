@@ -1,0 +1,19 @@
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.head {
+  padding: var(--space-16) var(--space-20);
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  font: var(--font-section);
+  margin: 0;
+}
+
+.body {
+  padding: var(--space-16) var(--space-20);
+}

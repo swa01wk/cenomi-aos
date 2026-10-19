@@ -1,0 +1,33 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.reconnecting {
+  background: var(--panel);
+  border: 1px solid var(--border-secondary);
+}
+
+.synced {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.reconnecting .dot {
+  background: #e5a13a;
+}
+
+.synced .dot {
+  background: var(--ok);
+}

@@ -1,0 +1,68 @@
+.row {
+  display: flex;
+  gap: var(--space-10);
+}
+
+.avatar {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.text {
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.notice {
+  font-size: 13px;
+  padding: var(--space-8);
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+
+.noticeInfo {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.noticeWarn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.noticeBad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.noticeOk {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.pending {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-style: italic;
+}
