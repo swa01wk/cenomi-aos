@@ -11,7 +11,7 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   await expect(page).toHaveURL(/\/workspace\/jobs\/.+/, { timeout: 60_000 });
 
   const conversation = page.getByRole("region", { name: "Conversation" });
-  await expect(conversation.getByText(need, { exact: true })).toBeVisible();
+  await expect(conversation.getByRole("paragraph").filter({ hasText: need })).toBeVisible();
 
   // Attempt 1 (fake script): saves the first draft, then asks three questions. They arrive over the stream,
   // without a reload.
@@ -37,7 +37,7 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   const url = page.url();
   await page.reload();
   await expect(page).toHaveURL(url);
-  await expect(conversation.getByText(need, { exact: true })).toBeVisible();
+  await expect(conversation.getByRole("paragraph").filter({ hasText: need })).toBeVisible();
   await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
   await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible();
   await expect(docTab).toContainText("v2");
