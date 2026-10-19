@@ -40,3 +40,16 @@ export function runEvents(instanceId: string): RunEvent[] {
       `where run_id = '${instanceId}' order by occurred_at, aggregate_seq`,
   ).map(([attemptId, type, tool, argsSha]) => ({ attemptId, type, tool, argsSha }));
 }
+
+/** Category ids and names the ERP returned to this job's lookups (what a saved category may be). */
+export function erpCategories(instanceId: string): string[] {
+  if (!/^[A-Za-z0-9_-]+$/.test(instanceId)) throw new Error(`unexpected instance id ${instanceId}`);
+  return query(
+    "select distinct x.v from work.attempts a join work.tasks t on t.id = a.task_id, " +
+      "jsonb_array_elements(a.tool_observations) o, " +
+      "jsonb_array_elements(case when jsonb_typeof(o->'content'->'items') = 'array' " +
+      "then o->'content'->'items' else '[]'::jsonb end) i, " +
+      "lateral (values (i->>'id'), (i->>'name')) x(v) " +
+      `where t.instance_id = '${instanceId}' and o->>'tool' = 'browse_categories' and x.v is not null`,
+  ).map(([v]) => v);
+}

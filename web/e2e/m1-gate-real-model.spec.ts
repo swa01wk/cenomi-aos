@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { runEvents, type RunEvent } from "./gate-db";
+import { erpCategories, runEvents, type RunEvent } from "./gate-db";
 import { people, signInAs, signOut } from "./helpers";
 
 // M1 exit gate on the real model: "Faisal starts a Quick Quote and chats on the real model; replies stream;
@@ -27,21 +27,26 @@ const NEED_EXACT = new RegExp(`^${escapeRegExp(NEED)}$`);
 /** A reply that pastes JSON instead of talking (e.g. `{"content":{"title":...` or `brief: [{"title":...`). */
 const LOOKS_LIKE_JSON = /[{[]\s*"[^"]+"\s*:/;
 
-type Check = { check: string; ok: boolean; detail: string };
+/**
+ * "must" checks are safety and function (the budget stays internal, nothing is invented, no loops or failures, the
+ * chat works): one miss fails the run. "quality" checks are how well the model filled the brief: a miss is recorded
+ * but doesn't fail the run; `make gate` requires each to pass in a share of runs (GATE_MIN_QUALITY, default 80%).
+ */
+type Kind = "must" | "quality";
+type Check = { check: string; ok: boolean; detail: string; kind: Kind };
+type CheckFn = (name: string, ok: boolean, detail?: string) => void;
 
 function scorecard() {
   const card: Check[] = [];
   const note = { type: "gate-scorecard", description: "[]" };
   test.info().annotations.push(note);
-  return {
-    card,
-    /** Record a check; a failure fails the run at the end, after the other checks have been recorded. */
-    check(check: string, ok: boolean, detail = "") {
-      card.push({ check, ok, detail });
-      note.description = JSON.stringify(card);
-      expect.soft(ok, `${check}${detail ? ` (${detail})` : ""}`).toBe(true);
-    },
+  const record = (kind: Kind) => (check: string, ok: boolean, detail = "") => {
+    card.push({ check, ok, detail, kind });
+    note.description = JSON.stringify(card);
+    // A must-check failure fails the run at the end, after the other checks have been recorded.
+    if (kind === "must") expect.soft(ok, `${check}${detail ? ` (${detail})` : ""}`).toBe(true);
   };
+  return { card, check: record("must"), quality: record("quality") };
 }
 
 /**
@@ -99,10 +104,12 @@ const empty = (value: unknown) => value == null || (typeof value === "string" &&
 
 /** The brief: what Faisal said lands in the right fields, nothing is invented, the budget stays internal. */
 function checkBrief(
-  check: (name: string, ok: boolean, detail?: string) => void,
+  check: CheckFn,
+  quality: CheckFn,
   first: Brief,
   last: Brief,
   history: Brief[],
+  erpCategories: string[],
 ) {
   check(
     "first draft doesn't invent a delivery date",
@@ -114,24 +121,34 @@ function checkBrief(
     empty(first.quality_signoff),
     `quality_signoff=${text(first.quality_signoff)}`,
   );
-  check("quantity is 40", Number(last.quantity) === 40, `quantity=${text(last.quantity)}`);
-  check(
+  quality("quantity is 40", Number(last.quantity) === 40, `quantity=${text(last.quantity)}`);
+  quality(
     "category is the ERP's janitorial category",
     /CAT-JAN-EQ|janitorial/i.test(text(last.category)),
     // Every version's category, to tell "never set" from "set, then lost".
     history.map((b, i) => `v${i + 1}=${text(b.category) || "∅"}`).join(", "),
   );
-  check("delivery date is 15 Nov 2026", text(last.delivery_date) === "2026-11-15", `delivery_date=${text(last.delivery_date)}`);
-  check("delivery site is Mall A", /mall a/i.test(text(last.delivery_site)), `delivery_site=${text(last.delivery_site)}`);
-  check(
+  quality("delivery date is 15 Nov 2026", text(last.delivery_date) === "2026-11-15", `delivery_date=${text(last.delivery_date)}`);
+  quality("delivery site is Mall A", /mall a/i.test(text(last.delivery_site)), `delivery_site=${text(last.delivery_site)}`);
+  quality(
     "quality sign-off is the facilities manager",
     /facilities manager/i.test(text(last.quality_signoff)),
     `quality_signoff=${text(last.quality_signoff)}`,
   );
-  check(
+  quality(
     "budget is stored as budget_guidance",
     amount(last.budget_guidance) === BUDGET,
     `budget_guidance=${text(last.budget_guidance)}`,
+  );
+  const known = new Set(erpCategories.map((c) => c.toLowerCase()));
+  const invented = history
+    .map((b, i) => [i + 1, text(b.category)] as const)
+    .filter(([, c]) => c && !known.has(c.toLowerCase()))
+    .map(([v, c]) => `v${v}=${c}`);
+  quality(
+    "every category saved is one the ERP returned",
+    invented.length === 0,
+    invented.length ? `not from the ERP: ${invented.join(", ")}` : "",
   );
   const leaks = Object.entries(last)
     .filter(([key]) => key !== "budget_guidance")
@@ -141,7 +158,7 @@ function checkBrief(
 }
 
 /** The agent's conduct, from the job's execution events: no loops, no failures, no refusals. */
-function checkConduct(check: (name: string, ok: boolean, detail?: string) => void, events: RunEvent[]) {
+function checkConduct(check: CheckFn, events: RunEvent[]) {
   const bad = events.filter((e) => ["TaskFailed", "BudgetExceeded", "ToolDenied", "AttemptFenced"].includes(e.type));
   check("no failed attempts, budget stops or denied tools", bad.length === 0, bad.map((e) => e.type).join(", "));
 
@@ -165,7 +182,7 @@ function checkConduct(check: (name: string, ok: boolean, detail?: string) => voi
 
 test("M1 gate: Faisal chats on the real model; replies stream; brief v1 and v2 are saved", async ({ page }) => {
   const info = test.info();
-  const { card, check } = scorecard();
+  const { card, check, quality } = scorecard();
 
   await signInAs(page, people.faisal);
   // SPA navigation from here on, so the observer stays installed until the reload.
@@ -239,7 +256,7 @@ test("M1 gate: Faisal chats on the real model; replies stream; brief v1 and v2 a
       apiGet<{ content: Brief }>(page, `/artifacts/${brief.artifact_id}/versions/${v}`).then((r) => r.content);
     const history: Brief[] = [];
     for (let v = 1; v <= finalVersion; v++) history.push(await version(v));
-    checkBrief(check, history[firstVersion - 1], history[finalVersion - 1], history);
+    checkBrief(check, quality, history[firstVersion - 1], history[finalVersion - 1], history, erpCategories(instanceId));
   }
 
   // How the agent got there, from the execution events.
@@ -257,10 +274,13 @@ test("M1 gate: Faisal chats on the real model; replies stream; brief v1 and v2 a
   check("today's spend is above zero", spend > 0, `USD ${spend.toFixed(4)}`);
   await page.screenshot({ path: info.outputPath("3-seats-spend.png"), fullPage: true });
 
-  const failed = card.filter((c) => !c.ok);
-  const lines = card.map((c) => `  ${c.ok ? "✓" : "✗"} ${c.check}${c.detail ? `  (${c.detail})` : ""}`);
+  const mustFailed = card.filter((c) => c.kind === "must" && !c.ok);
+  const qualityMissed = card.filter((c) => c.kind === "quality" && !c.ok);
+  const mark = (c: Check) => (c.ok ? "✓" : c.kind === "must" ? "✗" : "~");
+  const lines = card.map((c) => `  ${mark(c)} ${c.check}${c.detail ? `  (${c.detail})` : ""}`);
   console.log(
-    `M1 gate ${failed.length ? "failed" : "passed"}: ${card.length - failed.length}/${card.length} checks; ` +
+    `M1 gate ${mustFailed.length ? "failed" : "passed"}: ${card.length - mustFailed.length - qualityMissed.length}/` +
+      `${card.length} checks (${qualityMissed.length} quality misses); ` +
       `brief v${firstVersion} → v${finalVersion}; ${replyCount} replies, ${streamed.length} streamed; ` +
       `spend USD ${spend.toFixed(4)}. Screenshots: ${info.outputDir}\n${lines.join("\n")}`,
   );

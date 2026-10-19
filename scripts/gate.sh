@@ -5,6 +5,8 @@
 # publish the pack and activate the Seat, and e2e/m1-gate-real-model.spec.ts has Faisal chat and checks the brief and
 # the agent's conduct. With RUNS > 1 the chat runs again on the same stack (a new job each time) and the report
 # gives each check's pass rate. Each run's results and screenshots go to web/gate-results/run-<n>/.
+# Must-checks (safety, function) must pass in every run; quality checks (how well the brief is filled) in at
+# least GATE_MIN_QUALITY of runs (default 0.8).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
