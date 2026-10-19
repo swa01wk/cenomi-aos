@@ -107,6 +107,33 @@ describe("reduceJobStreamEvent", () => {
     expect(r.aux.deltas).toHaveLength(0);
   });
 
+  it("clears live text keyed by the answered turn when the reply completes", () => {
+    const aux = emptyJobStreamAux("instance:inst-1:0");
+    let r = reduceJobStreamEvent(baseSnapshot(), aux, {
+      id: "d1",
+      type: "agent.message.delta",
+      at: "t",
+      data: { instance_id: "inst-1", turn_id: "person-turn-1", seq: 0, text: "Thanks" },
+    });
+    expect(r.aux.deltas).toHaveLength(1);
+    r = reduceJobStreamEvent(r.snapshot, r.aux, {
+      id: "instance:inst-1:1",
+      type: "agent.message.completed",
+      at: "t",
+      data: {
+        instance_id: "inst-1",
+        turn: {
+          turn_id: "reply-turn-2",
+          seq: 2,
+          author: { kind: "seat" as const, id: "s", name: "Agent" },
+          blocks: [{ kind: "text" as const, text: "Thanks, updated." }],
+          at: "t",
+        },
+      },
+    });
+    expect(r.aux.deltas).toHaveLength(0);
+  });
+
   it("requests snapshot refetch on snapshot.required", () => {
     const aux = emptyJobStreamAux("instance:inst-1:3");
     const r = reduceJobStreamEvent(baseSnapshot(), aux, {

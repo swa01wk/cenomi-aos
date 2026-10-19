@@ -130,7 +130,19 @@ function TurnView({
 }) {
   const isStreaming = turn.turn_id === streamingTurnId;
   if (turn.author.kind === "person") {
-    return <PersonMessage turn={turn} />;
+    // The kernel streams a reply against the turn it answers (the person's message); the reply turn itself only
+    // exists once it completes. Show the live text right under the message being answered.
+    return (
+      <>
+        <PersonMessage turn={turn} />
+        {isStreaming && (
+          <div className={styles.agentStream}>
+            <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
+            {toolActivity && <ToolActivity activity={toolActivity} />}
+          </div>
+        )}
+      </>
+    );
   }
   return (
     <article className={styles.agentBlock} aria-label={`Reply from ${turn.author.name}`}>

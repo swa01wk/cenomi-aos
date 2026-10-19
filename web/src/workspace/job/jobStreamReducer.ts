@@ -115,6 +115,12 @@ export function reduceJobStreamEvent(
       const data = event.data as { turn: Turn };
       next = { ...next, turns: upsertTurn(next.turns, data.turn) };
       clearDeltasForTurn(aux, data.turn.turn_id);
+      if (event.type === "agent.message.completed") {
+        // Deltas are keyed by the turn being answered, not the reply's own id; the completed reply replaces them.
+        // Only this viewer's own reply streams to them, one at a time, so all live text belongs to it.
+        aux.deltas = [];
+        aux.lastDeltaSeqByTurn.clear();
+      }
       if (data.turn.attempt_id) clearToolActivityForAttempt(aux, data.turn.attempt_id);
       break;
     }
