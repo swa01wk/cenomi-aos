@@ -8,6 +8,11 @@
 - [ ] Faisal asking for prices gets a refusal; Risk replays the decision and gets NEVER again.
 - [ ] Guidebook C02, C04, C05 (approval bound to an old payload), C06 (injected supplier text), C08, C11 pass.
 - [ ] `AOS_EVAL_STRICT=1`: the `refusals` and `dry_run` suites pass in full before activation.
+- [ ] The conversation suite grows and still passes on the real model:
+      - progress turns for approvals requested and decided, RFQs sent, each quote arriving ("2 of 3 quotes in") and the
+        PO created;
+      - "where are we?" while awaiting quotes names the deadline and who has replied;
+      - no turn shows a price to Faisal.
 
 **Walkthrough stops made real:** 7 (approval), 8, 9, 10, 11, 12, 13, 14.
 
@@ -42,6 +47,13 @@
 ### M3-BE-04 Inbound mail and quotes
 - `receiveInbound` (HMAC with `connectors/inbound.py`, dedupe by message id), mock_mail posting to it, one
   `quote_triage` Task per reply, `quote_count`/`all_quotes_received` rules; demo `simulateVendorReply`, `setFaults`.
+
+### M3-BE-06 Progress for governed actions (ADR 015)
+- Progress turns for `approval.requested` (to the approver, with the `ApprovalCard`), approval decided, each send
+  completed, each quote received with the running count, the PO created, and the handover. Same mechanism as
+  M2-BE-07; visibility per reader, so quote values never reach the requester.
+- **Tests:** the approver gets the card in the conversation; Faisal's quote-count turn carries no price; a voided
+  approval posts a turn saying why.
 
 ### M3-BE-05 Verifiers and budgets
 - `recipient_check`, `score_recompute`, `payload_match`; full budget enforcement on actions (`budget.actions`) and

@@ -77,6 +77,18 @@ copies. It records jobs per minute, attempt latency, database load and event-str
 committed effect happened exactly once and the audit chain verifies. The results go into an ADR as the first scale
 baseline.
 
+### Digital worker levels
+
+`digital-worker-levels.md` maps the Level 3–5 characteristics of a digital worker to AOS. Inside the POC, M2–M4 make
+a dispatched job feel agentic (ADR 015):
+- the chat follows the job's state, for every participant;
+- the agent answers "where are we?" from kernel records;
+- it reports progress with decision cards in the chat;
+- it answers "why?" from the explain records.
+
+A conversation suite gates each of these milestones. Memory, enterprise context, plans, watchers and delegation
+come after the POC. The POC ends at Level 3 complete and Level 4 in good part.
+
 ### After the POC
 
 These follow the AOS proposition's Phase 3: domain expansion and enterprise hardening.

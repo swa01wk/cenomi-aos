@@ -23,6 +23,8 @@
 ### M4-BE-02 Outcome and explain
 - Outcome Record on close; `explainOutcome` walks Decision Records, approvals, verifications, drafts and turns back
   to the first message, each with the pack version in force.
+- The assist Skill gets `explain_outcome` as a read-only tool, so "why Najd Supplies?" can be answered in the chat
+  from the same records, cited, within the asker's visibility.
 
 ### M4-BE-03 Telemetry and dashboards
 - OpenTelemetry in API, kernel, worker and gateway (OTLP to Jaeger in Compose); `getTaskTrace`; `getDashboard` for

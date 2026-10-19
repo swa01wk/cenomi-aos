@@ -5,6 +5,7 @@
 | [`plan/north-star.md`](plan/north-star.md) | What the POC must prove: eight checks, each tied to a walkthrough stop and a test |
 | [`plan/capabilities-and-roadmap.md`](plan/capabilities-and-roadmap.md) | What the POC provides now and at M5 (organizations, agents, workflows, domains), how far it scales, and the plan after it |
 | [`guidebook/`](guidebook/README.md) | One chapter per finished milestone: what it delivered, how it was verified, the development report, and what to expect when you try it |
+| [`plan/digital-worker-levels.md`](plan/digital-worker-levels.md) | Digital worker levels 3–5 mapped to AOS: what is built, planned and missing, how each stays governed; what M2–M4 add so a dispatched job feels agentic, and what comes after the POC |
 | [`specs/`](specs/README.md) | Build specs: trace map, contracts, backend, agent, frontend, and milestones M1–M5 |
 | [`adr/`](adr/README.md) | Architecture decisions 001–014, mapped to the reference architecture ADRs |
 | [`../design/`](../design/README.md) | The 32 design boards (HTML source and PNG) for the Console, the Workspace and shared states |
