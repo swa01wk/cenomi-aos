@@ -2905,6 +2905,8 @@ export interface components {
             /** @description Results of earlier tool calls in this attempt. Text from outside AOS (email bodies, supplier names) is wrapped and marked untrusted. */
             tool_observations?: {
                 tool: string;
+                /** @description Arguments the tool was called with, so the model can tell its earlier calls apart. */
+                args?: Record<string, never>;
                 /** Format: date-time */
                 at: string;
                 untrusted: boolean;
