@@ -42,15 +42,15 @@ model-real: ## switch the Compose worker to the real model (asks only for a miss
 model-fake: ## switch the Compose worker back to the scripted model
 	@bash scripts/dev-model.sh fake
 
-gate: ## M1 exit gate setup: real model, fresh stack, publish and activate the Seat (e2e stops 1-3)
+gate: ## M1 exit gate on the real model: fresh stack, stops 1-3, then Faisal's chat checked by Playwright
 	@bash scripts/dev-model.sh real
 	@$(MAKE) --no-print-directory down V=1
 	@$(MAKE) --no-print-directory up
-	cd web && npm run e2e -- --project=stop-01 --project=stop-02 --project=stop-03
+	@cd web && E2E_GATE=1 npm run e2e -- --project=gate \
+		|| { echo ""; echo "Gate failed; worker log and events follow."; $(MAKE) --no-print-directory -C .. diag; exit 1; }
 	@echo ""
-	@echo "Seat active on the real model. Now, at http://localhost:8080 as Faisal: New job -> Quick Quote,"
-	@echo "describe a need, answer the agent's questions; expect streamed replies and brief v1 then v2."
-	@echo "Worker log: docker compose -f deploy/docker-compose.yml logs -f worker. Back to scripted: make model-fake && make up"
+	@echo "M1 gate passed. Screenshots: web/test-results/ (report: cd web && npx playwright show-report)."
+	@echo "The stack is still on the real model. Back to scripted: make model-fake && make up"
 
 smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and both prices in .env, and `make db`)
 	cd backend && AOS_REAL_MODEL=1 PYTHONPATH=$(PYPATH) $(PY) -m unittest -v \

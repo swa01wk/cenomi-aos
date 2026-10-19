@@ -133,7 +133,7 @@ function TurnView({
     return <PersonMessage turn={turn} />;
   }
   return (
-    <div className={styles.agentBlock}>
+    <article className={styles.agentBlock} aria-label={`Reply from ${turn.author.name}`}>
       <AgentMessage
         turn={turn}
         onOpenArtifact={(id) => onOpenArtifact(id)}
@@ -144,6 +144,6 @@ function TurnView({
           {toolActivity && <ToolActivity activity={toolActivity} />}
         </>
       )}
-    </div>
+    </article>
   );
 }

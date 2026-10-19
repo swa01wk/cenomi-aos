@@ -72,5 +72,21 @@ export default defineConfig({
       timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
+    // M1 exit gate on the real model (`make gate`). Only with E2E_GATE=1, so CI and a plain `npm run e2e`
+    // (scripted model) never run it. Running it also runs stops 1–3 first, on a fresh stack.
+    ...(process.env.E2E_GATE
+      ? [
+          {
+            name: "gate",
+            testMatch: /m1-gate-real-model\.spec\.ts/,
+            dependencies: ["stop-03"],
+            fullyParallel: false,
+            retries: 0,
+            // Two real-model turns and the checks around them.
+            timeout: 600_000,
+            use: { ...devices["Desktop Chrome"] },
+          },
+        ]
+      : []),
   ],
 });
