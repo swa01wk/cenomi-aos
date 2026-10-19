@@ -43,5 +43,21 @@ export default defineConfig({
       retries: 0,
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "stop-04",
+      testMatch: /stop-04-new-job\.spec\.ts/,
+      dependencies: ["stop-03"],
+      fullyParallel: false,
+      retries: 0,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "stop-05",
+      testMatch: /stop-05-chat\.spec\.ts/,
+      dependencies: ["stop-04"],
+      fullyParallel: false,
+      retries: 0,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
 });

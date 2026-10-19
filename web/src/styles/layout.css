@@ -317,6 +317,115 @@ table.grid tr:last-child td {
   border-radius: var(--radius-sm);
 }
 
+.ws-main {
+  flex: 999 1 560px;
+  min-width: 0;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ws-main-flush {
+  padding: 0;
+  gap: 0;
+}
+
+.ws-new-job {
+  height: 44px;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.ws-worker-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.ws-worker-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+
+.ws-job-link {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.ws-job-link.active {
+  background: var(--canvas);
+  font-weight: 500;
+}
+
+.ws-filter-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--canvas);
+  border-radius: 8px;
+}
+
+.ws-filter-tab {
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ws-filter-tab.active {
+  background: var(--panel);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ws-job-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-job-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  align-items: center;
+}
+
+.ws-open-job {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .login {
   min-height: 100%;
   display: flex;

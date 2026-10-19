@@ -6,20 +6,33 @@ import styles from "./Composer.module.css";
 export function Composer({
   onSend,
   disabledReason,
+  initialText = "",
+  onTextChange,
 }: {
   onSend: (text: string, clientTurnId: string) => Promise<void>;
   disabledReason?: string;
+  initialText?: string;
+  onTextChange?: (text: string) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
   const clientTurnIdRef = useRef<string | null>(null);
   const lastSentTextRef = useRef("");
+
+  useEffect(() => {
+    setText(initialText);
+  }, [initialText]);
 
   useEffect(() => {
     if (text !== lastSentTextRef.current) {
       clientTurnIdRef.current = null;
     }
   }, [text]);
+
+  const setTextAndNotify = (next: string) => {
+    setText(next);
+    onTextChange?.(next);
+  };
 
   const send = async () => {
     const trimmed = text.trim();
@@ -33,7 +46,7 @@ export function Composer({
       await onSend(trimmed, id);
       lastSentTextRef.current = "";
       clientTurnIdRef.current = null;
-      setText("");
+      setTextAndNotify("");
     } catch {
       lastSentTextRef.current = text;
     } finally {
@@ -55,7 +68,7 @@ export function Composer({
       <textarea
         className={styles.input}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => setTextAndNotify(e.target.value)}
         onKeyDown={onKeyDown}
         aria-disabled={blocked ? "true" : undefined}
         readOnly={blocked}

@@ -8,13 +8,17 @@ Most specs run against a stack started with `make up` (Postgres, API, nginx serv
 
 ## Walkthrough stops (stateful)
 
-Stops **1–3** change kernel state (publish, Seat lifecycle). They assume a **fresh** database:
+Stops **1–5** change kernel state (publish, Seat lifecycle, job start, chat). They assume a **fresh** database and a **worker** with the intake fake script:
 
 ```bash
+# In repo-root .env (loaded by make):
+AOS_WORKER_TOKEN=<from: docker compose -f deploy/docker-compose.yml run --rm --no-deps api aos worker-token --worker-id e2e-worker>
+AOS_FAKE_SCRIPT=request_intake.happy.yaml
+
 make down V=1 && make up
-cd web && npm run e2e -- --project=stop-01 --project=stop-02 --project=stop-03
+cd web && npm run e2e -- --project=stop-01 --project=stop-02 --project=stop-03 --project=stop-04 --project=stop-05
 ```
 
-Playwright runs `stop-01`, then `stop-02`, then `stop-03` in order (`dependencies`, serial mode, no retries). Do not run these projects in parallel with each other or against a dirty stack.
+Playwright runs stop projects in order (`dependencies`, serial mode, no retries). Do not run these projects in parallel with each other or against a dirty stack.
 
 Later milestones add more stop specs; M5 runs the full chain twice on a clean stack.

@@ -15,7 +15,7 @@ function signInRedirectState(
 }
 
 export function RequireAuth() {
-  const { me, booting, sessionError, retrySession, sessionJustEnded } = useSession();
+  const { me, booting, sessionError, retrySession, sessionJustEnded, sessionExpired } = useSession();
   const location = useLocation();
 
   if (sessionError) {
@@ -33,7 +33,7 @@ export function RequireAuth() {
       </main>
     );
   }
-  if (!me) {
+  if (!me && !sessionExpired) {
     if (sessionJustEnded()) return null;
     return <Navigate to="/" replace state={signInRedirectState(location, sessionJustEnded)} />;
   }

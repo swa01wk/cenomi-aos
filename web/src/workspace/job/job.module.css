@@ -1,0 +1,107 @@
+.jobLayout {
+  display: flex;
+  flex-wrap: wrap;
+  margin: calc(-1 * var(--space-32)) calc(-1 * var(--space-40));
+  min-height: calc(100vh - 64px);
+}
+
+.conversation {
+  flex: 999 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.convHeader {
+  padding: var(--space-18) var(--space-28);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.turns {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-24) var(--space-28);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  min-height: 280px;
+}
+
+.agentBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.agentStream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.composerWrap {
+  padding: var(--space-16) var(--space-28) var(--space-20);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.workPanel {
+  flex: 1 1 400px;
+  min-width: 0;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+}
+
+.workMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-20);
+  border-bottom: 1px solid var(--line);
+}
+
+.workTabs {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--space-16) 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.workTab {
+  padding: var(--space-10) var(--space-12);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.workTab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .jobLayout {
+    margin: 0;
+  }
+  .conversation {
+    border-right: none;
+  }
+}

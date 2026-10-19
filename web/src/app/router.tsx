@@ -6,6 +6,9 @@ import PacksPage from "../console/PacksPage";
 import SeatPage from "../console/SeatPage";
 import SeatsPage from "../console/SeatsPage";
 import VersionPage from "../console/VersionPage";
+import JobPage from "../workspace/job/JobPage";
+import MyJobsPage from "../workspace/MyJobsPage";
+import NewJobPage from "../workspace/NewJobPage";
 import WorkspaceShell from "../workspace/WorkspaceShell";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import HashRedirect from "./HashRedirect";
@@ -45,7 +48,15 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { path: "/workspace", element: <WorkspaceShell /> },
+          {
+            path: "/workspace",
+            element: <WorkspaceShell />,
+            children: [
+              { index: true, element: <MyJobsPage /> },
+              { path: "new", element: <NewJobPage /> },
+              { path: "jobs/:id", element: <JobPage /> },
+            ],
+          },
           {
             element: <RequireConsole />,
             children: [
