@@ -12,7 +12,7 @@ Stops **1–5** change kernel state (publish, Seat lifecycle, job start, chat). 
 
 ```bash
 # In repo-root .env (loaded by make):
-AOS_WORKER_TOKEN=<from: docker compose -f deploy/docker-compose.yml run --rm --no-deps api aos worker-token --worker-id e2e-worker>
+AOS_WORKER_TOKEN=<from: docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker>
 AOS_FAKE_SCRIPT=request_intake.happy.yaml
 
 make down V=1 && make up

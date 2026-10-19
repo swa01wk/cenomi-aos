@@ -70,8 +70,10 @@ jobs:
         env:
           AOS_WORKER_TOKEN: unused
         run: |
-          TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker)
-          test -n "$TOKEN"
+          # Build first so build output can't end up in the captured token.
+          docker compose -f deploy/docker-compose.yml build api
+          TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker 2>/dev/null | tail -n 1 | tr -d '\r')
+          [[ "$TOKEN" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]] || { echo "worker token not minted"; exit 1; }
           echo "::add-mask::$TOKEN"
           echo "AOS_WORKER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
       - name: Start stack (postgres, api, web, mock-erp, worker)
