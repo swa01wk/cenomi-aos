@@ -170,7 +170,11 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     contract = bundle.get("contract") if isinstance(bundle.get("contract"), dict) else ctx.attempt["contract"]
     skill = str(bundle.get("skill_instructions") or envelope.get("skill_instructions") or "")
     system = render_system_message(contract=contract, skill_instructions=skill, envelope=envelope)
-    context = render_context_message(envelope=envelope, worker_notes=list(state.get("worker_notes") or []))
+    context = render_context_message(
+        envelope=envelope,
+        worker_notes=list(state.get("worker_notes") or []),
+        actions_this_reply=list(state.get("actions_this_reply") or []),
+    )
     messages = [SystemMessage(content=system), HumanMessage(content=context)]
     model = _chat_model(config)
     tools = envelope.get("commands") or []
@@ -271,6 +275,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     envelope = ctx.envelope or {}
     observed: list[dict[str, Any]] = list(envelope.get("tool_observations") or [])
+    actions: list[str] = list(state.get("actions_this_reply") or [])
     ended_needs_input = False
     for tc in pending:
         ctx.check()
@@ -288,6 +293,12 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 )
                 continue
             observed.append({"tool": name, "args": args})
+        args_sha = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
+        if name == "save_draft":
+            same = next((v for v in saved.values() if v.get("args_sha") == args_sha), None)
+            if same is not None:
+                notes.append(f"save_draft skipped: same content as the v{same.get('version')} you saved in this reply.")
+                continue
         await ctx.post_events(
             events=[
                 {
@@ -315,7 +326,12 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 saved[at] = {
                     "artifact_id": saved_row.get("artifact_id"),
                     "version": saved_row.get("version"),
+                    "args_sha": args_sha,
                 }
+                actions.append(
+                    f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save it "
+                    "again unless something changed. Next, ask for what is still missing or reply."
+                )
             elif name == "ask_question":
                 questions_raw = args.get("questions")
                 questions = (
@@ -331,6 +347,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 break
             else:
                 await ctx.call_tool(name, args)
+                actions.append(f"{name}({json.dumps(args, sort_keys=True)}): result in tool_observations_rendered.")
             ctx.record_tool_action()
         except ToolInvocationError as exc:
             if exc.timed_out:
@@ -357,6 +374,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     out: dict[str, Any] = {
         "pending_tool_calls": [],
         "worker_notes": notes,
+        "actions_this_reply": actions,
         "draft_422_counts": counts,
         "saved_in_attempt": saved,
         "assemble_reason": "tool_result",

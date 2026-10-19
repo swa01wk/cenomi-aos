@@ -85,6 +85,8 @@ Versioned in the worker (`worker/prompts/task_v1.jinja`, `assist_v1.jinja`); the
 5. Context: job snapshot, running summary, recent messages, artifacts (as JSON), tool observations. Each step starts
    from this context, not from a chat history, so every observation carries the arguments it was called with. The
    graph also skips a connector call whose tool and arguments are already observed in the attempt, with a note.
+   For the same reason the context lists `your_actions_this_reply` (drafts saved, lookups made), and a `save_draft`
+   identical to one already saved in the attempt is skipped with a note.
 6. Remaining budget, so the model can stop early.
 
 ## Model registry

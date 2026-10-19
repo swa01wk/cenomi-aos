@@ -86,9 +86,18 @@ class AssistPromptTests(unittest.TestCase):
         self.assertEqual(rendered[0].count("</untrusted>"), 1)
         self.assertEqual(rendered[1], 'calc({"x":1}) -> 2')
 
+    def test_context_lists_this_replys_actions(self) -> None:
+        context = json.loads(
+            render_context_message(
+                envelope={"resolvers": {}}, worker_notes=[], actions_this_reply=["save_draft: saved brief v1."]
+            )
+        )
+        self.assertEqual(context["your_actions_this_reply"], ["save_draft: saved brief v1."])
+
     def test_system_message_says_not_to_repeat_a_call(self) -> None:
         system = render_system_message(contract={"objective": "Demo."}, skill_instructions="", envelope={})
         self.assertIn("never call a tool again with the same arguments", system)
+        self.assertIn("your_actions_this_reply", system)
 
 
 class AlreadyObservedTests(unittest.TestCase):

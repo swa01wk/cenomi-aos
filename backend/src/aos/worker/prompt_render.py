@@ -51,7 +51,9 @@ def render_system_message(*, contract: dict[str, Any], skill_instructions: str, 
     ).strip()
 
 
-def render_context_message(*, envelope: dict[str, Any], worker_notes: list[str]) -> str:
+def render_context_message(
+    *, envelope: dict[str, Any], worker_notes: list[str], actions_this_reply: list[str] | None = None
+) -> str:
     """Envelope snapshot for one model step; untrusted observations wrapped; worker_notes never in system."""
     resolvers = envelope.get("resolvers") if isinstance(envelope.get("resolvers"), dict) else {}
     observations = envelope.get("tool_observations") if isinstance(envelope.get("tool_observations"), list) else []
@@ -64,6 +66,7 @@ def render_context_message(*, envelope: dict[str, Any], worker_notes: list[str])
         "artifacts": envelope.get("artifacts"),
         "tool_observations_rendered": obs_lines,
         "worker_notes": notes,
+        "your_actions_this_reply": list(actions_this_reply or []),
         "remaining_budget": envelope.get("remaining_budget"),
         "redactions": envelope.get("redactions"),
     }

@@ -274,5 +274,16 @@ class AssistToolsNodeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, ["tool:browse_categories", "save_draft", "tool:browse_categories"])
         self.assertTrue(any("ask_question was held" in n for n in out["worker_notes"]))
 
+    async def test_actions_are_recorded_and_an_identical_save_is_skipped(self) -> None:
+        """Each step starts from the envelope, so the reply's own actions are carried for the next step."""
+        draft = {"name": "save_draft", "args": {"content": {"title": "T"}}}
+        calls, out = await self._run([draft, {"name": "browse_categories", "args": {"query": "x"}}, draft])
+        self.assertEqual(calls, ["save_draft", "tool:browse_categories"])
+        actions = out["actions_this_reply"]
+        self.assertEqual(len(actions), 2)
+        self.assertIn("saved brief v1", actions[0])
+        self.assertIn('browse_categories({"query": "x"})', actions[1])
+        self.assertTrue(any("save_draft skipped" in n for n in out["worker_notes"]))
+
 if __name__ == "__main__":
     unittest.main()
