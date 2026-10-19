@@ -89,7 +89,9 @@ Versioned in the worker (`worker/prompts/task_v1.jinja`, `assist_v1.jinja`); the
    identical to one already saved in the attempt is skipped with a note.
 6. Remaining budget, so the model can stop early.
 
-Kernel commands reach the model with descriptions. `save_draft` is an update: the worker merges the model's fields
+Kernel commands reach the model with descriptions, and `save_draft`'s content schema carries each field's
+`description` from the pack's artifact type (plus "Required before the output can be confirmed" for required
+fields). `save_draft` is an update: the worker merges the model's fields
 onto the draft's current content (fields left out, or sent null or empty, keep their value: models often null every
 field they aren't touching), unless the envelope redacted fields of that type, when the content is saved as sent. `ask_question` ends the reply.
 

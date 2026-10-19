@@ -67,5 +67,26 @@ class KernelCommandDescriptionTests(unittest.TestCase):
         self.assertIn("end this reply", entry["description"])
 
 
+
+class FieldDescriptionTests(unittest.TestCase):
+    def test_field_descriptions_and_required_reach_the_model(self) -> None:
+        from aos.kernel.command_schemas import artifact_content_schema
+        from aos.registry.kinds import ArtifactTypeSpec
+
+        spec = ArtifactTypeSpec.model_validate(
+            {
+                "fields": {
+                    "code": {"type": "string", "required": True, "description": "An id from the lookup."},
+                    "note": {"type": "string"},
+                },
+                "view": {"type": "document"},
+                "visibility": {"requester": "all"},
+            }
+        )
+        props = artifact_content_schema(spec)["properties"]
+        self.assertEqual(props["code"]["description"], "An id from the lookup. Required before the output can be confirmed.")
+        self.assertNotIn("description", props["note"])
+
+
 if __name__ == "__main__":
     unittest.main()
