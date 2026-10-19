@@ -25,11 +25,12 @@ export function FieldListView({
           const field = byName.get(name);
           if (!field) return null;
           const raw = version.content[name];
-          const { text, alignRight } = formatFieldValue(field, raw);
+          // Right-aligning numbers is for row views (sheet, tracker); in a label/value list they stay under their label.
+          const { text } = formatFieldValue(field, raw);
           return (
             <div key={name} className={styles.fieldRow}>
               <dt>{field.label}</dt>
-              <dd className={alignRight ? styles.num : undefined}>{text}</dd>
+              <dd>{text}</dd>
             </div>
           );
         })}

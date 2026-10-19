@@ -22,6 +22,18 @@ export function useDigitalWorkers() {
   });
 }
 
+/** Workflow name → its title, from the digital workers the person can start work with. Falls back to the name. */
+export function useWorkflowTitle() {
+  const workers = useDigitalWorkers();
+  return (name: string) => {
+    for (const w of workers.data ?? []) {
+      const wf = w.workflows.find((x) => x.name === name);
+      if (wf) return wf.title;
+    }
+    return name;
+  };
+}
+
 export function useMyInstances(status?: "active" | "closed") {
   return useQuery({
     queryKey: workspaceKeys.myInstances(status),

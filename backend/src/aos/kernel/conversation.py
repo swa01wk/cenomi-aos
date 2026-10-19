@@ -104,8 +104,9 @@ async def insert_person_turn(
 
 
 def project_turn(row: tuple, *, person_name: str) -> dict[str, Any]:
+    """``person_name`` is the author's display name: the person's name, or the Seat's display name."""
     turn_id, seq, author_kind, author_id, _audience, blocks, attempt_id, at = row
-    author_name = person_name if author_kind == "person" else author_id
+    author_name = person_name or author_id
     return {
         "turn_id": turn_id,
         "seq": seq,

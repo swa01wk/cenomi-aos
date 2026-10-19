@@ -158,10 +158,36 @@ def _initial_task_template(workflow_doc: dict) -> dict[str, Any]:
     return templates[0]
 
 
+def _state_order(spec: dict) -> list[str]:
+    """Workflow states in flow order.
+
+    Definitions are stored as jsonb, which doesn't keep object key order, so ``spec.states`` can't give the order.
+    Walk the transitions (a list, so its order is kept) breadth-first from ``initial``; states no transition
+    reaches follow in name order.
+    """
+    states = spec.get("states") or {}
+    initial = spec.get("initial")
+    order: list[str] = []
+    if initial in states:
+        order.append(initial)
+    transitions = [t for t in (spec.get("transitions") or []) if isinstance(t, dict)]
+    i = 0
+    while i < len(order):
+        for t in transitions:
+            froms = t.get("from")
+            froms = froms if isinstance(froms, list) else [froms]
+            to = t.get("to")
+            if order[i] in froms and to in states and to not in order:
+                order.append(to)
+        i += 1
+    order.extend(sorted(n for n in states if n not in order))
+    return order
+
+
 def _stages(workflow_doc: dict, current_state: str) -> list[dict[str, str]]:
     spec = workflow_doc.get("spec") or {}
     states = spec.get("states") or {}
-    names = list(states.keys())
+    names = _state_order(spec)
     if current_state not in states:
         current_state = names[0] if names else current_state
     idx = names.index(current_state) if current_state in names else 0
@@ -309,11 +335,23 @@ async def _fetch_turns(
             (instance_id, limit),
         )
     rows = await cur.fetchall()
+    # Agent turns name the Seat by its display name, as the live turn event does.
+    seat_cur = await conn.execute(
+        "select i.seat, s.display_name from work.instances i"
+        " join registry.seats s on s.org_id = i.org_id and s.name = i.seat and s.version = i.seat_version"
+        " where i.id = %s",
+        (instance_id,),
+    )
+    seat_row = await seat_cur.fetchone()
+    seat_names = {seat_row[0]: seat_row[1]} if seat_row else {}
     out: list[dict[str, Any]] = []
     for row in reversed(rows):
         if not turn_visible(row[4], viewer_roles):
             continue
-        pname = org.people[row[3]].name if row[2] == "person" and row[3] in org.people else row[3]
+        if row[2] == "person":
+            pname = org.people[row[3]].name if row[3] in org.people else row[3]
+        else:
+            pname = seat_names.get(row[3], row[3])
         out.append(project_turn(row, person_name=pname))
     return out
 

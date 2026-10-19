@@ -9,6 +9,7 @@ import {
   ToolActivity,
 } from "../../components";
 import type { MessageDelta, ToolActivity as ToolActivityType, Turn } from "../../components/types";
+import { useWorkflowTitle } from "../useWorkspaceQueries";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
@@ -43,6 +44,7 @@ export function Conversation({
   onLoadOlder?: () => void;
   showLoadOlder?: boolean;
 }) {
+  const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
   const streamingOnly = streamingTurnId && !turnIds.has(streamingTurnId);
 
@@ -54,7 +56,7 @@ export function Conversation({
       <header className={styles.convHeader}>
         <div>
           <span className="muted" style={{ fontSize: 12 }}>
-            {snapshot.workflow} · {snapshot.instance_id}
+            {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
           </span>
           <h1 style={{ margin: "4px 0 0", fontSize: 20 }}>{snapshot.title}</h1>
         </div>

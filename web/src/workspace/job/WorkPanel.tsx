@@ -70,6 +70,7 @@ export function WorkPanel({
         <StatusPill state={summary.status} />
         <span className="muted" style={{ fontSize: 12 }}>
           v{version}
+          {content.data?.produced_by?.name ? ` · by ${content.data.produced_by.name}` : ""}
           {detail.data?.versions?.length ? (
             <>
               {" "}
@@ -77,7 +78,7 @@ export function WorkPanel({
               <select aria-label="Version" value={version} onChange={(e) => setViewVersion(Number(e.target.value))}>
                 {(detail.data.versions ?? summary.versions ?? []).map((v) => (
                   <option key={v.version} value={v.version}>
-                    v{v.version} · {v.by} · {new Date(v.at).toLocaleString()}
+                    v{v.version} · {new Date(v.at).toLocaleString()}
                   </option>
                 ))}
               </select>

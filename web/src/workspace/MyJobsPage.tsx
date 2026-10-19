@@ -1,13 +1,14 @@
 import { Link } from "react-router";
 import { useState } from "react";
 import { EmptyState, StatusPill } from "../components";
-import { useMyInstances } from "./useWorkspaceQueries";
+import { useMyInstances, useWorkflowTitle } from "./useWorkspaceQueries";
 
 type Filter = "active" | "closed";
 
 export default function MyJobsPage() {
   const [filter, setFilter] = useState<Filter>("active");
   const jobs = useMyInstances(filter);
+  const workflowTitle = useWorkflowTitle();
 
   return (
     <>
@@ -41,7 +42,7 @@ export default function MyJobsPage() {
           <li key={j.instance_id} className="ws-job-card">
             <div style={{ flex: "1 1 320px", minWidth: 0 }}>
               <span className="muted" style={{ fontSize: 12 }}>
-                {j.workflow} · {j.instance_id}
+                {workflowTitle(j.workflow)} · {j.instance_id}
               </span>
               <h2 style={{ margin: "6px 0", fontSize: 17 }}>{j.title}</h2>
               <StatusPill state={j.state_label} />
