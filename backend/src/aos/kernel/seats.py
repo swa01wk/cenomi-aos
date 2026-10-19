@@ -557,6 +557,9 @@ async def project_seat_detail(
     running = await _running_attempts(conn, org_id, name)
     daily_limit, spend = await _spend_today(conn, org_id, name)
     limits = await _limits_from_pack(conn, str(pack_version_id), name)
+    if not daily_limit and limits and limits.get("daily_cost_usd") is not None:
+        # No budget ledger row yet today (nothing admitted): the limit is the Seat's own.
+        daily_limit = float(limits["daily_cost_usd"])
     body: dict[str, Any] = {
         "name": name,
         "display_name": display_name,

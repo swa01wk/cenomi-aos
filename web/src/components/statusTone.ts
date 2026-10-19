@@ -17,6 +17,9 @@ const TONE: Record<string, StatusTone> = {
   invalid: "bad",
   retired: "neutral",
   WAITING_APPROVAL: "warn",
+  passed: "ok",
+  failed: "bad",
+  running: "info",
   UNAVAILABLE: "neutral",
   TESTING: "info",
 };

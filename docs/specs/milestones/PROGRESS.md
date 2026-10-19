@@ -15,7 +15,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M1-FE-02 Shared components
 - [x] M1-BE-02 Publish requests
 - [x] M1-BE-03 Seat lifecycle
-- [ ] M1-FE-03 Console: publish and Seats
+- [x] M1-FE-03 Console: publish and Seats
 - [x] M1-BE-04 Jobs and conversation
 - [x] M1-BE-05 Worker protocol
 - [x] M1-BE-06 Context assembler and visibility

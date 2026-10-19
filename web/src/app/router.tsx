@@ -3,6 +3,8 @@ import AuditPage from "../console/AuditPage";
 import ConsoleShell from "../console/ConsoleShell";
 import OrgPage from "../console/OrgPage";
 import PacksPage from "../console/PacksPage";
+import SeatPage from "../console/SeatPage";
+import SeatsPage from "../console/SeatsPage";
 import VersionPage from "../console/VersionPage";
 import WorkspaceShell from "../workspace/WorkspaceShell";
 import { AppErrorBoundary } from "./AppErrorBoundary";
@@ -52,6 +54,8 @@ export const router = createBrowserRouter([
                 children: [
                   { path: "/console/org", element: <OrgPage /> },
                   { path: "/console/packs", element: <PacksPage /> },
+                  { path: "/console/seats", element: <SeatsPage /> },
+                  { path: "/console/seats/:seat", element: <SeatPage /> },
                   { path: "/console/versions/:id", element: <VersionPage /> },
                   { path: "/console/audit", element: <AuditPage /> },
                 ],

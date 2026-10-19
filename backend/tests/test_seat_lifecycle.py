@@ -186,6 +186,15 @@ class SeatLifecycleTests(unittest.TestCase):
         self.assertEqual(int(rows[0][1]), SEAT_DEF_VERSION)
         self.assertEqual(rows[0][2], "DRAFT")
 
+    def test_daily_limit_from_seat_before_any_spend(self) -> None:
+        self.ensure_seats()
+        items = self.client.get("/api/console/seats", headers=self.login("platform_admin")).json()["items"]
+        seat = next(s for s in items if s["name"] == SEAT)
+        detail = self.get_seat()
+        self.assertEqual(seat["spend_today_usd"], 0)
+        self.assertGreater(seat["daily_limit_usd"], 0)
+        self.assertEqual(seat["daily_limit_usd"], detail["limits"]["daily_cost_usd"])
+
     def test_configure_pass_to_configured(self) -> None:
         body = self.configure("platform_admin")
         self.assertEqual(body["state"], "CONFIGURED")

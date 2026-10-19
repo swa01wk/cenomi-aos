@@ -14,5 +14,34 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testMatch: /sign-in-routing\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "stop-01",
+      testMatch: /stop-01-publish\.spec\.ts/,
+      fullyParallel: false,
+      retries: 0,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "stop-02",
+      testMatch: /stop-02-seat-tests\.spec\.ts/,
+      dependencies: ["stop-01"],
+      fullyParallel: false,
+      retries: 0,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "stop-03",
+      testMatch: /stop-03-seat-activate\.spec\.ts/,
+      dependencies: ["stop-02"],
+      fullyParallel: false,
+      retries: 0,
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
 });
