@@ -32,7 +32,10 @@ jobs:
       - name: Install
         run: python -m pip install -e 'backend[dev,runtime]'
       - name: Tests (contracts, reference DDL, pack-neutral, kernel, API, connectors, worker)
-        run: make test
+        run: |
+          set -o pipefail
+          # Failures also become annotations, readable on the PR without the job log.
+          make test 2>&1 | tee test.log || { python scripts/unittest-annotations.py test.log; exit 1; }
       - name: Validate the pack
         run: make validate
 
