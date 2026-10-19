@@ -1,14 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { client } from "../api/client";
 import type { Problem } from "../api/problems";
 import { ApiProblemError } from "../api/problems";
 import type { components } from "../api/schema";
-import { ConflictNotice, ErrorBanner, Skeleton, StatusPill } from "../components";
+import {
+  Button,
+  DataTable,
+  ErrorBanner,
+  PageHeader,
+  Panel,
+  ProblemNotice,
+  Skeleton,
+  StatusPill,
+} from "../components";
+import { newClientTurnId } from "../components/clientTurnId";
 import { shortHash, when } from "../lib/ui";
+import { PublishRequestPanel } from "./PublishRequestPanel";
+import { useOrgPeople } from "./useOrgPeople";
 
 type ValidationReport = components["schemas"]["ValidationReport"];
+type StoredPackVersion = NonNullable<
+  NonNullable<components["schemas"]["PackListing"]["packs"][number]["versions"]>[number]
+>;
+type PublishRequest = components["schemas"]["PublishRequest"];
 
 const COUNT_ORDER = [
   "Role",
@@ -45,33 +61,99 @@ export function ReportView({ report }: { report: ValidationReport }) {
           ))}
       </div>
       {issues.length > 0 && (
-        <div className="scroll-x">
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>Severity</th>
-                <th>Code</th>
-                <th>Where</th>
-                <th>Problem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issues.map((i, n) => (
-                <tr key={n}>
-                  <td>
-                    <span className={`pill ${i.severity === "error" ? "bad" : "warn"}`}>{i.severity}</span>
-                  </td>
-                  <td className="mono">{i.code}</td>
-                  <td className="mono">
-                    {i.file}
-                    {i.path && `:${i.path}`}
-                  </td>
-                  <td>{i.message}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          caption="Validation issues"
+          rows={issues.map((issue, idx) => ({ issue, idx }))}
+          getRowKey={(r) => `${r.issue.code}-${r.idx}`}
+          columns={[
+            {
+              id: "severity",
+              header: "Severity",
+              render: (r) => (
+                <span className={`pill ${r.issue.severity === "error" ? "bad" : "warn"}`}>{r.issue.severity}</span>
+              ),
+            },
+            { id: "code", header: "Code", render: (r) => <span className="mono">{r.issue.code}</span> },
+            {
+              id: "where",
+              header: "Where",
+              render: (r) => (
+                <span className="mono">
+                  {r.issue.file}
+                  {r.issue.path && `:${r.issue.path}`}
+                </span>
+              ),
+            },
+            { id: "message", header: "Problem", render: (r) => r.issue.message },
+          ]}
+        />
+      )}
+    </div>
+  );
+}
+
+function VersionBlock({
+  version,
+  packName,
+  requests,
+  personName,
+  onRequestPublish,
+  onApprove,
+  onReject,
+  publishBusy,
+}: {
+  version: StoredPackVersion;
+  packName: string;
+  requests?: PublishRequest[];
+  personName: (id: string) => string;
+  onRequestPublish: (versionId: string) => Promise<void>;
+  onApprove: (requestId: string, part: PublishRequest["parts"][number]["part"]) => Promise<void>;
+  onReject: (requestId: string, reason: string) => Promise<void>;
+  publishBusy: string | null;
+}) {
+  const canRequest = version.status === "validated";
+  const busyKey = `publish:${version.id}`;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 0", borderTop: "1px solid var(--line)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+        <Link to={`/console/versions/${version.id}`} className="mono">
+          v{version.version}
+        </Link>
+        <StatusPill state={version.status ?? ""} />
+        <span className="mono muted">{shortHash(version.digest ?? "")}</span>
+        <span className="muted">
+          {version.errors} errors · {version.warnings} warnings
+        </span>
+        <span>{version.source}</span>
+        <span>{personName(version.created_by ?? "")}</span>
+        <span className="muted">{when(version.created_at ?? "")}</span>
+        {canRequest && (
+          <Button
+            variant="primary"
+            disabledReason={publishBusy !== null ? "Another action is in progress" : undefined}
+            onClick={() => void onRequestPublish(version.id!)}
+          >
+            {publishBusy === busyKey ? "Requesting…" : "Request publish"}
+          </Button>
+        )}
+      </div>
+      {(requests ?? []).map((request) => (
+        <PublishRequestPanel
+          key={request.id}
+          request={request}
+          packVersionLabel={`${packName} v${version.version}`}
+          personName={personName}
+          showImmutableNote={version.status === "published" || request.status === "approved"}
+          onApprove={(part) => onApprove(request.id, part)}
+          onReject={(reason) => onReject(request.id, reason)}
+        />
+      ))}
+      {version.status === "published" && !(requests?.length) && (
+        <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+          Published versions are immutable. A change becomes the next version; running work stays on the version it
+          started with.
+        </p>
       )}
     </div>
   );
@@ -80,6 +162,9 @@ export function ReportView({ report }: { report: ValidationReport }) {
 export default function PacksPage() {
   const { canSync } = useOutletContext<{ canSync: boolean }>();
   const queryClient = useQueryClient();
+  const { personName } = useOrgPeople();
+  const idempotencyKeys = useRef<Map<string, string>>(new Map());
+
   const { data, error, isPending } = useQuery({
     queryKey: ["packs"],
     queryFn: async () => {
@@ -87,12 +172,33 @@ export default function PacksPage() {
       return listing!;
     },
   });
+
+  const publishRequestsQuery = useQuery({
+    queryKey: ["publishRequests"],
+    queryFn: async () => {
+      const { data: listing } = await client.GET("/console/publish-requests");
+      return listing!.items;
+    },
+  });
+
+  const requestsByVersion = new Map<string, PublishRequest[]>();
+  if (publishRequestsQuery.data) {
+    for (const req of publishRequestsQuery.data) {
+      const list = requestsByVersion.get(req.pack_version_id) ?? [];
+      list.push(req);
+      requestsByVersion.set(req.pack_version_id, list);
+    }
+  }
+
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ name: string; report: ValidationReport; note?: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<Problem | null>(null);
+  const [actionProblem, setActionProblem] = useState<Problem | null>(null);
 
-  const invalidatePacks = () => queryClient.invalidateQueries({ queryKey: ["packs"] });
+  const invalidateAll = () => {
+    void queryClient.invalidateQueries({ queryKey: ["packs"] });
+    void queryClient.invalidateQueries({ queryKey: ["publishRequests"] });
+  };
 
   const runValidate = useMutation({
     mutationFn: async (name: string) => {
@@ -102,17 +208,9 @@ export default function PacksPage() {
     onSuccess: ({ name, report }) => {
       setResult({ name, report });
       setFailure(null);
+      setActionProblem(null);
     },
-    onError: (e: Error) => {
-      if (e instanceof ApiProblemError && e.problem.status === 409) {
-        setConflict(e.problem);
-        setFailure(null);
-        invalidatePacks();
-        return;
-      }
-      setConflict(null);
-      setFailure(e.message);
-    },
+    onError: (e: Error) => handleMutationError(e),
   });
 
   const runSync = useMutation({
@@ -132,19 +230,22 @@ export default function PacksPage() {
           : `Already stored: ${r.pack} v${r.version}, same digest.`,
       });
       setFailure(null);
-      invalidatePacks();
+      setActionProblem(null);
+      invalidateAll();
     },
-    onError: (e: Error) => {
-      if (e instanceof ApiProblemError && e.problem.status === 409) {
-        setConflict(e.problem);
-        setFailure(null);
-        invalidatePacks();
-        return;
-      }
-      setConflict(null);
-      setFailure(e.message);
-    },
+    onError: (e: Error) => handleMutationError(e),
   });
+
+  const handleMutationError = (e: Error) => {
+    if (e instanceof ApiProblemError) {
+      setActionProblem(e.problem);
+      setFailure(null);
+      if (e.problem.status === 409) invalidateAll();
+      return;
+    }
+    setActionProblem(null);
+    setFailure(e.message);
+  };
 
   const act = async (name: string, kind: "validate" | "sync") => {
     setBusy(`${kind}:${name}`);
@@ -156,30 +257,74 @@ export default function PacksPage() {
     }
   };
 
+  const requestPublish = async (versionId: string) => {
+    setBusy(`publish:${versionId}`);
+    setActionProblem(null);
+    if (!idempotencyKeys.current.has(versionId)) {
+      idempotencyKeys.current.set(versionId, newClientTurnId());
+    }
+    const key = idempotencyKeys.current.get(versionId)!;
+    try {
+      await client.POST("/console/pack-versions/{version_id}/publish-requests", {
+        params: { path: { version_id: versionId }, header: { "Idempotency-Key": key } },
+      });
+      idempotencyKeys.current.delete(versionId);
+      invalidateAll();
+    } catch (e) {
+      if (e instanceof ApiProblemError) setActionProblem(e.problem);
+      else setFailure((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const approvePart = async (requestId: string, part: PublishRequest["parts"][number]["part"]) => {
+    setActionProblem(null);
+    try {
+      await client.POST("/console/publish-requests/{id}/approve", {
+        params: { path: { id: requestId } },
+        body: { part },
+      });
+      invalidateAll();
+    } catch (e) {
+      if (e instanceof ApiProblemError) setActionProblem(e.problem);
+      throw e;
+    }
+  };
+
+  const rejectRequest = async (requestId: string, reason: string) => {
+    setActionProblem(null);
+    try {
+      await client.POST("/console/publish-requests/{id}/reject", {
+        params: { path: { id: requestId } },
+        body: { reason },
+      });
+      invalidateAll();
+    } catch (e) {
+      if (e instanceof ApiProblemError) setActionProblem(e.problem);
+      throw e;
+    }
+  };
+
   if (error) return <ErrorBanner title="We couldn't load packs" detail={(error as Error).message} />;
   if (isPending || !data) return <Skeleton />;
   const stored = new Map(data.packs.map((p) => [p.name, p]));
 
   return (
     <>
-      <header style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span className="eyebrow">Define · Domain packs</span>
-        <h1>Domain packs</h1>
-        <span className="sub">
-          A pack is the YAML that defines a digital worker: its Seat, Skills, verifiers, connectors, policies and
-          workflow. Sync stores a version; publishing (with Risk and owner approval) arrives in M1.
-        </span>
-      </header>
+      <PageHeader
+        eyebrow="Define · Domain packs"
+        title="Domain packs"
+        subtitle="A pack is the YAML that defines a digital worker: its Seat, Skills, verifiers, connectors, policies and workflow. Sync stores a version; publishing needs Risk and the pack owner to approve."
+      />
 
-      {conflict && (
-        <ConflictNotice
-          title={conflict.title}
-          detail={conflict.detail}
+      {actionProblem && (
+        <ProblemNotice
+          problem={actionProblem}
           onReload={() => {
-            setConflict(null);
-            void invalidatePacks();
+            setActionProblem(null);
+            invalidateAll();
           }}
-          reloadLabel="Reload"
         />
       )}
       {failure && <ErrorBanner title="Request failed" detail={failure} />}
@@ -188,76 +333,59 @@ export default function PacksPage() {
         {data.available.map((name) => {
           const p = stored.get(name);
           return (
-            <div key={name} className="panel">
-              <div className="panel-head">
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <h2 className="mono" style={{ fontSize: 15 }}>
-                    {name}
-                  </h2>
-                  <span className="muted">
-                    packs/{name} {p?.owner && `· owner ${p.owner.replace(/_/g, " ")}`}
-                  </span>
-                </div>
+            <Panel
+              key={name}
+              title={name}
+              header={
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="btn" onClick={() => act(name, "validate")} disabled={busy !== null}>
+                  <Button type="button" onClick={() => act(name, "validate")} disabledReason={busy !== null ? "Another action is in progress" : undefined}>
                     {busy === `validate:${name}` ? "Validating…" : "Validate"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn primary"
+                  </Button>
+                  <Button
+                    variant="primary"
                     onClick={() => act(name, "sync")}
-                    disabled={busy !== null || !canSync}
-                    title={canSync ? "Validate and store this pack as a version" : "Needs platform admin, process owner or Seat owner"}
+                    disabledReason={
+                      busy !== null
+                        ? "Another action is in progress"
+                        : !canSync
+                          ? "Needs platform admin, process owner or Seat owner"
+                          : undefined
+                    }
                   >
                     {busy === `sync:${name}` ? "Syncing…" : "Sync from folder"}
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              }
+            >
+              <span className="muted">packs/{name}{p?.owner ? ` · owner ${personName(p.owner)}` : ""}</span>
               {result?.name === name && (
-                <div className="panel-body" style={{ borderBottom: "1px solid var(--line)" }}>
+                <div style={{ marginTop: 16 }}>
                   {result.note && <p style={{ marginTop: 0 }}>{result.note}</p>}
                   <ReportView report={result.report} />
                 </div>
               )}
-              {p && (p.versions?.length ?? 0) > 0 ? (
-                <div className="scroll-x">
-                  <table className="grid">
-                    <thead>
-                      <tr>
-                        <th>Version</th>
-                        <th>Status</th>
-                        <th>Digest</th>
-                        <th>Checks</th>
-                        <th>Source</th>
-                        <th>Stored by</th>
-                        <th>When</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(p.versions ?? []).map((v) => (
-                        <tr key={v.id}>
-                          <td>
-                            <Link to={`/console/versions/${v.id}`}>v{v.version}</Link>
-                          </td>
-                          <td>
-                            <StatusPill state={v.status ?? ""} />
-                          </td>
-                          <td className="mono">{shortHash(v.digest ?? "")}</td>
-                          <td>
-                            {v.errors} errors · {v.warnings} warnings
-                          </td>
-                          <td>{v.source}</td>
-                          <td>{(v.created_by ?? "").replace(/_/g, " ")}</td>
-                          <td className="muted">{when(v.created_at ?? "")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {(p?.versions?.length ?? 0) > 0 ? (
+                <div style={{ marginTop: 16 }}>
+                  {(p!.versions ?? []).map((v) => (
+                    <VersionBlock
+                      key={v.id}
+                      version={v}
+                      packName={name}
+                      requests={requestsByVersion.get(v.id!)}
+                      personName={personName}
+                      onRequestPublish={requestPublish}
+                      onApprove={approvePart}
+                      onReject={rejectRequest}
+                      publishBusy={busy}
+                    />
+                  ))}
                 </div>
               ) : (
-                <div className="panel-body muted">Not stored yet. Sync it to create version 1.</div>
+                <p className="muted" style={{ marginTop: 16 }}>
+                  Not stored yet. Sync it to create version 1.
+                </p>
               )}
-            </div>
+            </Panel>
           );
         })}
       </section>

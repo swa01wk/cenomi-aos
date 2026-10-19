@@ -8,7 +8,7 @@ type NavItem = { label: string; to?: string; end?: boolean; soon?: string; roles
 const DEFINE: NavItem[] = [
   { label: "Organization", to: "/console/org", end: true },
   { label: "Domain packs", to: "/console/packs", end: true },
-  { label: "Seats", soon: "M1" },
+  { label: "Seats", to: "/console/seats", end: true },
   { label: "Workflows", soon: "M2" },
   { label: "Policies", soon: "M3" },
   { label: "Tools and connectors", soon: "M3" },

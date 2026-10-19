@@ -3,9 +3,16 @@
   padding: 0;
   list-style: none;
   display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--space-8);
-  font-size: 12px;
 }
 
 .step {
