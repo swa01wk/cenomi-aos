@@ -40,11 +40,17 @@ def _current_content(
     return {}
 
 
+def _blank(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def merge_draft_content(current: dict[str, Any] | None, update: dict[str, Any]) -> dict[str, Any]:
-    """A save is an update: fields the model sends replace the current ones, fields it leaves out are kept, and null
-    clears a field. When the current content isn't fully visible, the update is saved as it is."""
-    merged = {**(current or {}), **update}
-    return {k: v for k, v in merged.items() if v is not None}
+    """A save is an update: fields the model sends with a value replace the current ones; fields it leaves out, or
+    sends as null or empty, keep their current value. Models often send every field and null the ones they aren't
+    touching, so a blank never clears. When the current content isn't fully visible, the update is saved as it is."""
+    merged = dict(current or {})
+    merged.update({k: v for k, v in update.items() if not _blank(v)})
+    return {k: v for k, v in merged.items() if not _blank(v)}
 
 
 def build_save_draft_body(

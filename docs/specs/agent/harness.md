@@ -90,8 +90,8 @@ Versioned in the worker (`worker/prompts/task_v1.jinja`, `assist_v1.jinja`); the
 6. Remaining budget, so the model can stop early.
 
 Kernel commands reach the model with descriptions. `save_draft` is an update: the worker merges the model's fields
-onto the draft's current content (fields left out are kept, `null` clears one), unless the envelope redacted fields of
-that type, when the content is saved as sent. `ask_question` ends the reply.
+onto the draft's current content (fields left out, or sent null or empty, keep their value: models often null every
+field they aren't touching), unless the envelope redacted fields of that type, when the content is saved as sent. `ask_question` ends the reply.
 
 ## Model registry
 

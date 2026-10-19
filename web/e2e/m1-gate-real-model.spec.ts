@@ -98,7 +98,12 @@ const text = (value: unknown) => (value == null ? "" : typeof value === "string"
 const empty = (value: unknown) => value == null || (typeof value === "string" && value.trim() === "");
 
 /** The brief: what Faisal said lands in the right fields, nothing is invented, the budget stays internal. */
-function checkBrief(check: (name: string, ok: boolean, detail?: string) => void, first: Brief, last: Brief) {
+function checkBrief(
+  check: (name: string, ok: boolean, detail?: string) => void,
+  first: Brief,
+  last: Brief,
+  history: Brief[],
+) {
   check(
     "first draft doesn't invent a delivery date",
     empty(first.delivery_date),
@@ -113,7 +118,8 @@ function checkBrief(check: (name: string, ok: boolean, detail?: string) => void,
   check(
     "category is the ERP's janitorial category",
     /CAT-JAN-EQ|janitorial/i.test(text(last.category)),
-    `category=${text(last.category)}`,
+    // Every version's category, to tell "never set" from "set, then lost".
+    history.map((b, i) => `v${i + 1}=${text(b.category) || "∅"}`).join(", "),
   );
   check("delivery date is 15 Nov 2026", text(last.delivery_date) === "2026-11-15", `delivery_date=${text(last.delivery_date)}`);
   check("delivery site is Mall A", /mall a/i.test(text(last.delivery_site)), `delivery_site=${text(last.delivery_site)}`);
@@ -231,7 +237,9 @@ test("M1 gate: Faisal chats on the real model; replies stream; brief v1 and v2 a
   if (brief) {
     const version = (v: number) =>
       apiGet<{ content: Brief }>(page, `/artifacts/${brief.artifact_id}/versions/${v}`).then((r) => r.content);
-    checkBrief(check, await version(firstVersion), await version(finalVersion));
+    const history: Brief[] = [];
+    for (let v = 1; v <= finalVersion; v++) history.push(await version(v));
+    checkBrief(check, history[firstVersion - 1], history[finalVersion - 1], history);
   }
 
   // How the agent got there, from the execution events.

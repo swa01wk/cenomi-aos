@@ -123,9 +123,9 @@ def enrich_command_schema(
     if name == "save_draft":
         entry["input_schema"] = save_draft_command_schema(contract, defs)
         entry["description"] = (
-            "Save a new draft version of the job's output. Send the fields you have learned; fields you leave out keep "
-            "their current values, and null clears a field. The requester sees the draft next to the chat, so don't "
-            "repeat it in your reply."
+            "Save a new draft version of the job's output. Send the fields you have learned; fields you leave out, or "
+            "send empty, keep their current values. The requester sees the draft next to the chat, so don't repeat it "
+            "in your reply."
         )
         return entry
     if name == "ask_question":

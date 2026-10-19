@@ -16,10 +16,11 @@ def _envelope(content: dict | None, redactions: list | None = None) -> dict:
 
 
 class DraftMergeTests(unittest.TestCase):
-    def test_fields_left_out_are_kept_and_null_clears(self) -> None:
+    def test_fields_left_out_or_blank_are_kept(self) -> None:
+        # A model filling every schema field sends null or "" for the ones it isn't touching; those keep their value.
         self.assertEqual(
-            merge_draft_content({"a": 1, "b": "x", "c": True}, {"b": "y", "c": None, "d": 2}),
-            {"a": 1, "b": "y", "d": 2},
+            merge_draft_content({"a": 1, "b": "x", "c": True, "cat": "C1"}, {"b": "y", "c": None, "cat": " ", "d": 2}),
+            {"a": 1, "b": "y", "c": True, "cat": "C1", "d": 2},
         )
 
     def test_first_save_is_the_content_as_sent(self) -> None:
