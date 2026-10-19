@@ -131,6 +131,11 @@ export function reduceJobStreamEvent(
         by: string;
       };
       effects.push({ kind: "invalidate_artifact", artifactId: data.artifact_id, version: data.version });
+      if (!next.artifacts.some((a) => a.artifact_id === data.artifact_id)) {
+        // A new artifact: the event has no name or view, so take them from a fresh snapshot.
+        effects.push({ kind: "refetch_snapshot" });
+        break;
+      }
       next = {
         ...next,
         artifacts: next.artifacts.map((a) =>

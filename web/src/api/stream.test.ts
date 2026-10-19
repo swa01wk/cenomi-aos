@@ -8,6 +8,7 @@ import {
   recordDeltaSeq,
   shouldApplyDelta,
   shouldApplyOutboxEvent,
+  routeStreamEvent,
   snapshotRequiredPolicy,
 } from "./stream";
 
@@ -167,5 +168,37 @@ describe("reconnect cursor", () => {
       'id: instance:z:3\ndata: {"id":"instance:z:3","type":"turn.created","at":"t","data":{}}\n\n',
     );
     expect(state.lastSseId).toBe("instance:z:3");
+  });
+});
+
+describe("routeStreamEvent", () => {
+  const at = "2026-01-01T00:00:00Z";
+  const state = { lastAppliedSeq: 5, lastSseId: "instance:j:5" as string | undefined };
+
+  it("applies an outbox event past the cursor and moves the cursor (regression: it used to be dropped)", () => {
+    // Fed through the parser exactly as the kernel sends it: SSE id line + payload with the same id.
+    let route: ReturnType<typeof routeStreamEvent> | undefined;
+    const parser = createSseParser(({ payload }) => {
+      route = routeStreamEvent(payload, state);
+    });
+    parser.feed('id: instance:j:6\ndata: {"id":"instance:j:6","type":"turn.created","at":"t","data":{}}\n\n');
+    expect(route).toEqual({ kind: "apply", next: { lastAppliedSeq: 6, lastSseId: "instance:j:6" } });
+  });
+
+  it("skips an outbox event at or before the cursor", () => {
+    expect(routeStreamEvent({ id: "instance:j:5", type: "turn.created", at, data: {} }, state)).toEqual({ kind: "skip" });
+    expect(routeStreamEvent({ id: "instance:j:4", type: "turn.created", at, data: {} }, state)).toEqual({ kind: "skip" });
+  });
+
+  it("lets snapshot.required through whatever its seq", () => {
+    expect(routeStreamEvent({ id: "instance:j:3", type: "snapshot.required", at, data: { reason: "gap" } }, state)).toEqual({
+      kind: "snapshot_required",
+    });
+  });
+
+  it("routes deltas without touching the cursor", () => {
+    expect(
+      routeStreamEvent({ id: "instance:j:d:t1:0", type: "agent.message.delta", at, data: { turn_id: "t1", seq: 0 } }, state),
+    ).toEqual({ kind: "delta" });
   });
 });

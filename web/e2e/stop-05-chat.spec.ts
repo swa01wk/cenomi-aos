@@ -11,27 +11,34 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   await expect(page).toHaveURL(/\/workspace\/jobs\/.+/, { timeout: 60_000 });
 
   const conversation = page.getByRole("region", { name: "Conversation" });
-  await expect(conversation.getByText(need)).toBeVisible();
+  await expect(conversation.getByText(need, { exact: true })).toBeVisible();
 
-  await expect(conversation.getByText(/Delivery date|budget|quality/i)).toBeVisible({ timeout: 120_000 });
+  // Attempt 1 (fake script): saves the first draft, then asks three questions. They arrive over the stream,
+  // without a reload.
+  await expect(conversation.getByText(/Delivery date/).first()).toBeVisible({ timeout: 120_000 });
 
   const workPanel = page.getByRole("complementary", { name: "Work in progress" });
-  await expect(workPanel.getByRole("tab").first()).toBeVisible({ timeout: 120_000 });
-  await expect(workPanel.getByText(/v1/i)).toBeVisible();
+  const docTab = workPanel.getByRole("tab", { selected: true });
+  await expect(docTab).toContainText("v1", { timeout: 120_000 });
 
   const reply =
     "Delivery is 1 Nov to the north warehouse. Budget guidance is internal at 15000. Facilities manager signs off on quality.";
   await conversation.getByLabel("Message").fill(reply);
   await conversation.getByRole("button", { name: "Send" }).click();
-  await expect(conversation.getByText(reply)).toBeVisible();
+  await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
 
-  await expect(conversation.getByText(/updated|Thanks/i)).toBeVisible({ timeout: 120_000 });
-  await expect(workPanel.getByText(/v2/i)).toBeVisible({ timeout: 120_000 });
+  // Attempt 2: saves v2 and streams its reply; the completed turn replaces the streamed text.
+  await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible({
+    timeout: 120_000,
+  });
+  await expect(docTab).toContainText("v2", { timeout: 120_000 });
+  await expect(workPanel.getByRole("combobox", { name: "Version" }).locator("option")).toHaveCount(2);
 
   const url = page.url();
   await page.reload();
   await expect(page).toHaveURL(url);
-  await expect(conversation.getByText(need)).toBeVisible();
-  await expect(conversation.getByText(reply)).toBeVisible();
-  await expect(workPanel.getByText(/v2/i)).toBeVisible();
+  await expect(conversation.getByText(need, { exact: true })).toBeVisible();
+  await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
+  await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible();
+  await expect(docTab).toContainText("v2");
 });

@@ -83,6 +83,11 @@ export function Conversation({
             {toolActivity && <ToolActivity activity={toolActivity} />}
           </div>
         )}
+        {!streamingTurnId && toolActivity && (
+          <div className={styles.agentStream}>
+            <ToolActivity activity={toolActivity} />
+          </div>
+        )}
       </div>
 
       {seatNotice && (

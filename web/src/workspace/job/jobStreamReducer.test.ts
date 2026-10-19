@@ -117,4 +117,16 @@ describe("reduceJobStreamEvent", () => {
     });
     expect(r.effects).toEqual([{ kind: "refetch_snapshot" }]);
   });
+
+  it("refetches the snapshot for an artifact it doesn't know yet", () => {
+    const snap = baseSnapshot();
+    const r = reduceJobStreamEvent(snap, emptyJobStreamAux("instance:inst-1:0"), {
+      id: "instance:inst-1:3",
+      type: "artifact.version_created",
+      at: "t",
+      data: { instance_id: "inst-1", artifact_id: "art-new", artifact_type: "doc", version: 1, status: "draft", by: "a1" },
+    });
+    expect(r.effects).toContainEqual({ kind: "refetch_snapshot" });
+    expect(r.snapshot.artifacts).toEqual([]);
+  });
 });

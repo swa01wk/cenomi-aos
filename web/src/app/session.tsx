@@ -49,6 +49,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const endSession = useCallback(() => {
     sessionEndedRef.current = true;
+    hadMeRef.current = false;
+    cachedMeRef.current = null;
     navigate("/", { replace: true, state: { signedOut: true } });
     clearToken();
     bumpToken();
@@ -63,6 +65,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signInAgain = useCallback(() => {
     const from = location.pathname + location.search;
     sessionEndedRef.current = false;
+    hadMeRef.current = false;
+    cachedMeRef.current = null;
     clearToken();
     bumpToken();
     setSessionExpired(false);

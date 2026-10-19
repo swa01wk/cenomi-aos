@@ -146,6 +146,25 @@ export function shouldApplyOutboxEvent(
   };
 }
 
+export type StreamRoute =
+  | { kind: "delta" }
+  | { kind: "snapshot_required" }
+  | { kind: "apply"; next: StreamCursorState }
+  | { kind: "skip" };
+
+/**
+ * Decide what to do with one dispatched SSE event.
+ * - deltas never touch the cursor (their id is ephemeral);
+ * - snapshot.required always goes through, whatever its seq (a gap reports an older seq);
+ * - outbox events apply only when their seq is past the last applied one, and then move the cursor.
+ */
+export function routeStreamEvent(event: UiEvent, state: StreamCursorState): StreamRoute {
+  if (isDeltaEventType(event.type)) return { kind: "delta" };
+  if (event.type === "snapshot.required") return { kind: "snapshot_required" };
+  const { apply, next } = shouldApplyOutboxEvent(event, state);
+  return apply ? { kind: "apply", next } : { kind: "skip" };
+}
+
 export function applySseIdToCursor(sseId: string | undefined, state: StreamCursorState): StreamCursorState {
   if (!sseId) return state;
   const seq = parseStreamSeq(sseId);
@@ -250,13 +269,11 @@ export function useEventStream({
       return;
     }
 
-    cursorStateRef.current = applySseIdToCursor(sseId, cursorStateRef.current);
-    const { apply, next } = shouldApplyOutboxEvent(payload, cursorStateRef.current);
-    if (!apply) return;
-    cursorStateRef.current = next;
-    if (sseId) cursorStateRef.current = applySseIdToCursor(sseId, cursorStateRef.current);
+    void sseId; // the payload id is the same cursor the SSE id: line carries
+    const route = routeStreamEvent(payload, cursorStateRef.current);
+    if (route.kind === "skip") return;
 
-    if (payload.type === "snapshot.required") {
+    if (route.kind === "snapshot_required") {
       void (async () => {
         const cur = cursor ?? "";
         const pol = snapshotRequiredPolicy({
@@ -277,6 +294,7 @@ export function useEventStream({
       return;
     }
 
+    if (route.kind === "apply") cursorStateRef.current = route.next;
     if (disconnectedRef.current) pendingUpdatesRef.current += 1;
     onEventRef.current(payload);
   }, [cursor]);

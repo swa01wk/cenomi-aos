@@ -34,6 +34,8 @@ export function useJobPage(instanceId: string) {
   const snapshotQuery = useQuery({
     queryKey: workspaceKeys.instance(instanceId),
     enabled: !sessionExpired,
+    // The event stream keeps the snapshot current; a focus refetch would only race it.
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data, error } = await client.GET("/instances/{id}", {
         params: { path: { id: instanceId } },

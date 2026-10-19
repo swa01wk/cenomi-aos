@@ -20,5 +20,8 @@ test("stop 4: Faisal starts a job and lands on the job page", async ({ page }) =
 
   await expect(page).toHaveURL(/\/workspace\/jobs\/.+/, { timeout: 60_000 });
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByText(need)).toBeVisible({ timeout: 30_000 });
+  // The need also titles the job (heading and rail), so check the person's turn in the conversation.
+  await expect(page.getByRole("region", { name: "Conversation" }).getByText(need, { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 });

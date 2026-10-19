@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { client } from "../../api/client";
-import { Skeleton, StatusPill } from "../../components";
+import { Skeleton, StatusPill, Tabs } from "../../components";
 import { workspaceKeys } from "../useWorkspaceQueries";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import { artifactViewComponent } from "./views";
@@ -64,54 +64,48 @@ export function WorkPanel({
 
   const View = summary ? artifactViewComponent(summary.view.type) : null;
 
+  const body = summary ? (
+    <>
+      <div className={styles.workMeta}>
+        <StatusPill state={summary.status} />
+        <span className="muted" style={{ fontSize: 12 }}>
+          v{version}
+          {detail.data?.versions?.length ? (
+            <>
+              {" "}
+              ·{" "}
+              <select aria-label="Version" value={version} onChange={(e) => setViewVersion(Number(e.target.value))}>
+                {(detail.data.versions ?? summary.versions ?? []).map((v) => (
+                  <option key={v.version} value={v.version}>
+                    v{v.version} · {v.by} · {new Date(v.at).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
+        </span>
+      </div>
+      {content.isLoading && <Skeleton />}
+      {View && content.data && <View view={summary.view} version={content.data} />}
+    </>
+  ) : null;
+
   return (
     <aside aria-label="Work in progress" className={styles.workPanel}>
-      <div role="tablist" aria-label="Artifacts" className={styles.workTabs}>
-        {artifacts.map((a) => (
-          <button
-            key={a.artifact_id}
-            type="button"
-            role="tab"
-            aria-selected={a.artifact_id === activeId}
-            className={styles.workTab}
-            onClick={() => {
-              onSelectArtifact(a.artifact_id);
-              setViewVersion(a.latest_version);
-            }}
-          >
-            {a.name} v{a.latest_version}
-          </button>
-        ))}
-      </div>
-      {summary && (
-        <div className={styles.workMeta}>
-          <StatusPill state={summary.status} />
-          <span className="muted" style={{ fontSize: 12 }}>
-            v{version}
-            {detail.data?.versions?.length ? (
-              <>
-                {" "}
-                ·{" "}
-                <select
-                  aria-label="Version"
-                  value={version}
-                  onChange={(e) => setViewVersion(Number(e.target.value))}
-                >
-                  {(detail.data.versions ?? summary.versions ?? []).map((v) => (
-                    <option key={v.version} value={v.version}>
-                      v{v.version} · {v.by} · {new Date(v.at).toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </>
-            ) : null}
-          </span>
-        </div>
-      )}
-      {content.isLoading && <Skeleton />}
-      {View && content.data && summary && (
-        <View view={summary.view} version={content.data} />
-      )}
+      <Tabs
+        label="Documents"
+        activeId={activeId}
+        onChange={(id) => {
+          onSelectArtifact(id);
+          const a = artifacts.find((x) => x.artifact_id === id);
+          if (a) setViewVersion(a.latest_version);
+        }}
+        tabs={artifacts.map((a) => ({
+          id: a.artifact_id,
+          label: `${a.name} v${a.latest_version}`,
+          panel: a.artifact_id === activeId ? body : null,
+        }))}
+      />
     </aside>
   );
 }
