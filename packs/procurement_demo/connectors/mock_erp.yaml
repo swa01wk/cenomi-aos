@@ -7,6 +7,9 @@ spec:
   endpoint: ${MCP_MOCK_ERP_URL}
   tools:
     browse_categories:
+      description: >-
+        List ERP purchasing categories (id and name). An empty query lists them all; otherwise it returns the
+        categories whose name contains the query. Category names are broad (e.g. equipment, services), not items.
       resource: erp_supplier
       action: read
       class: read
@@ -16,6 +19,7 @@ spec:
           query: {type: string}
         additionalProperties: false
     search_suppliers:
+      description: Active suppliers mapped to an ERP category id.
       resource: erp_supplier
       action: read
       class: read
@@ -26,6 +30,7 @@ spec:
           category_id: {type: string}
         additionalProperties: false
     get_supplier_history:
+      description: Past purchase orders for a supplier, with on-time delivery.
       resource: erp_supplier
       action: read
       class: read
@@ -36,6 +41,7 @@ spec:
           supplier_id: {type: string}
         additionalProperties: false
     find_po:
+      description: Find a purchase order by its reference.
       resource: erp_po
       action: read
       class: read

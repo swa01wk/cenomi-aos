@@ -196,6 +196,9 @@ class CallToolTests(WorkerHarness):
             json={"reason": "tool_result"},
         )
         self.assertEqual(ctx.status_code, 200, ctx.text)
+        # Connector tools reach the model with the pack's description, so it knows an empty query lists all.
+        browse = next(c for c in ctx.json()["commands"] if c["name"] == "browse_categories")
+        self.assertIn("empty query lists them all", browse["description"])
         obs = ctx.json().get("tool_observations") or []
         self.assertGreaterEqual(len(obs), 1)
         self.assertTrue(obs[-1]["untrusted"])
@@ -215,6 +218,41 @@ class CallToolTests(WorkerHarness):
         self.assertEqual(r.status_code, 429, r.text)
         self.assertEqual(r.json()["code"], "budget_exhausted")
         self.assertEqual(CallToolTests._invoke_calls, 0)
+
+    def _post_tool_requested(self, attempt_id: str, fencing: int, tool: str):
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt_id}/events",
+            headers={**self.worker_auth(), "X-AOS-Fencing-Token": str(fencing)},
+            json={"events": [{"event_type": "ToolRequested", "redacted_summary": f"Tool {tool} requested.",
+                              "attributes": {"tool": tool, "args_sha256": "0" * 64}}]},
+        )
+        self.assertEqual(r.status_code, 202, r.text)
+
+    def _used_actions(self, attempt_id: str) -> int:
+        out = _pg.admin_sql(
+            self.db, f"select coalesce((usage->>'actions')::int, 0) from work.attempts where id = '{attempt_id}';"
+        ).stdout.strip()
+        return int(out or 0)
+
+    def test_gateway_call_counts_one_action_with_its_request_event(self) -> None:
+        # The worker posts ToolRequested before every tool. A gateway tool is counted when the gateway authorizes
+        # it, so its request event must not count again; a kernel tool (save_draft) counts on its request.
+        self._start_job()
+        attempt_id, fencing = self._claimed()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.tasks set contract = jsonb_set(contract, '{{budget,actions}}', '2'::jsonb, true)
+            where id = (select task_id from work.attempts where id = '{attempt_id}');
+            """,
+        )
+        for _ in range(2):
+            self._post_tool_requested(attempt_id, fencing, "browse_categories")
+            r = self._call_tool(attempt_id, "browse_categories", {"query": "janitorial"}, token=fencing)
+            self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(self._used_actions(attempt_id), 2)
+        self._post_tool_requested(attempt_id, fencing, "save_draft")
+        self.assertEqual(self._used_actions(attempt_id), 3)
 
     def test_concurrent_calls_with_one_action_budget(self) -> None:
         self._start_job()

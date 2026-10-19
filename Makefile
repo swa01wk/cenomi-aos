@@ -80,11 +80,12 @@ logs: ## follow logs
 ps:
 	$(COMPOSE) ps
 
-diag: ## why didn't the worker reply? worker log and the latest model calls and failures
+diag: ## why didn't the worker reply? worker log, then the latest model calls, tool requests and failures
 	$(COMPOSE) logs worker --tail=150
-	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select event_type, attributes->>'failure_category' as class, \
-		redacted_summary from evidence.execution_events where event_type in ('TaskFailed','ModelInvoked') \
-		order by aggregate_seq desc limit 5"
+	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select event_type, \
+		coalesce(attributes->>'tool', attributes->>'failure_category', attributes->>'model') as detail, redacted_summary \
+		from evidence.execution_events where event_type in ('TaskFailed','ModelInvoked','ToolRequested','ToolDenied') \
+		order by occurred_at desc, aggregate_seq desc limit 12"
 
 dev-api: ## kernel API with reload against AOS_DATABASE_URL (default: local Postgres, db aos)
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m uvicorn aos.api.main:app --reload --port 8000
