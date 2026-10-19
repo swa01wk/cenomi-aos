@@ -37,8 +37,14 @@ def _parse_tool_result(result: Any) -> Any:
     if not result.content:
         return None
     text = result.content[0].text
-    if text and text[0] in "[{n\"":
-        return json.loads(text)
+    # Structured results come back as JSON text; anything else (e.g. "No matching categories") is plain text.
+    # Only parse what looks like JSON, and keep the text when it doesn't parse.
+    stripped = (text or "").strip()
+    if stripped[:1] in ("[", "{", '"') or stripped in ("null", "true", "false"):
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            return text
     return text
 
 

@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate check smoke-real db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -35,6 +35,10 @@ validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
 
 check: test validate ## everything a story must keep green before it is done
+
+smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and both prices in .env, and `make db`)
+	cd backend && AOS_REAL_MODEL=1 PYTHONPATH=$(PYPATH) $(PY) -m unittest -v \
+		tests.test_worker_models.RealModelSmokeTests tests.test_request_intake_assist.RequestIntakeRealModelSmoke
 
 db: ## start only Postgres (for make test and make dev-api on a laptop)
 	$(COMPOSE) up -d --wait postgres
