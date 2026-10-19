@@ -56,7 +56,7 @@ person to sign in; there are no passwords in the POC.
 | --- | --- | --- |
 | The brief is never confirmed and the job stays in *Intake*. | Decisions and workflow transitions are M2. | M2-BE-01, M2-BE-04 |
 | The agent sometimes leaves the brief's category empty (2 of 10 runs). It invented a category id once (`CAT-0000` in a first draft, fixed in its second). | Model judgement on one field. | The brief verifier and confirm decision (M2-AG-03, M2-BE-04) catch a missing or unknown category before anything goes out. |
-| A job takes at most 3 agent replies; a 4th message is refused with "No attempts left". | Admission counts attempts per assist task, which spans the whole job, not per message. | Give each message its own attempt budget (M2; the fake scripts index by attempt number, so it needs care). |
+| A job takes at most 3 agent replies; a 4th message is refused with "No attempts left". | Admission counts attempts per assist task, which spans the whole job, not per message. | M2-BE-07: each message gets its own attempt budget (ADR 015); the fake scripts index attempts per job, so that index stays separate. |
 | Only the intake step runs (`request_intake`). No supplier search, RFQs or quotes. | Task Skills and the task lane come with the workflow. | M2 (supplier_lookup, rfq_draft), M3 (send, quotes, PO) |
 | No policy engine, approvals or external effects; the ERP and mailbox are mocks. | | M3 |
 | Buttons the kernel would refuse are not disabled in advance; the refusal shows after the click. | The UI has no per-action "can act" flags yet. | Follow-up (kernel to provide the flags) |
@@ -164,8 +164,11 @@ Earlier, while building the Workspace and Console, review and Playwright caught:
 
 ## Carried into M2
 
-- Each message gets its own attempt budget (the 3-replies-per-job limit).
-- The brief verifier and confirm decision catch a missing or unknown category.
+- Each message gets its own attempt budget (the 3-replies-per-job limit): M2-BE-07.
+- The chat follows the job's state, answers "where are we?" and reports progress with decision cards (ADR 015): M2-BE-07,
+  M2-AG-04, M2-FE-02.
+- The brief verifier and confirm decision catch a missing or unknown category: M2-AG-03 (`brief_schema` checks the id
+  came from the ERP), M2-BE-04.
 - Per-action "can act" flags from the kernel, so the UI can disable what would be refused.
 - The per-user event stream and the Decision card.
 
