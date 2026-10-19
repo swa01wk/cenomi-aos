@@ -53,7 +53,9 @@ describe("artifact views", () => {
         })}
       />,
     );
-    expect(screen.getByRole("heading", { name: "North site restock" })).toBeInTheDocument();
+    expect(screen.getByText("Title")).toBeInTheDocument();
+    expect(screen.getByText("North site restock")).toBeInTheDocument();
+    expect(screen.getByText(new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(400))).toBeInTheDocument();
     expect(screen.getByText("Item code")).toBeInTheDocument();
     expect(screen.getByText("WX-9")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
@@ -69,6 +71,8 @@ describe("artifact views", () => {
     );
     expect(screen.getByText("Units")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
+    // A bare number in a money field gets no invented currency.
+    expect(screen.getByText(new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(10))).toBeInTheDocument();
   });
 
   it("shows hidden-fields note", () => {

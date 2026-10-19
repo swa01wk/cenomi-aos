@@ -10,26 +10,26 @@ export function formatFieldValue(
 
   switch (field.type) {
     case "money": {
+      // The contract carries no currency on the field, so only a {amount, currency} value shows one.
+      if (typeof value === "object" && value !== null && "amount" in value) {
+        const { amount, currency } = value as { amount?: unknown; currency?: unknown };
+        const n = Number(amount);
+        if (!Number.isFinite(n)) return { text: String(amount) };
+        if (typeof currency === "string" && currency) {
+          try {
+            return {
+              text: new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n),
+              alignRight: true,
+            };
+          } catch {
+            return { text: `${currency} ${n.toFixed(2)}`, alignRight: true };
+          }
+        }
+        return { text: new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(n), alignRight: true };
+      }
       const n = typeof value === "number" ? value : Number(value);
       if (!Number.isFinite(n)) return { text: String(value) };
-      const currency =
-        typeof value === "object" && value !== null && "currency" in value
-          ? String((value as { currency?: string }).currency ?? "")
-          : "";
-      const amount =
-        typeof value === "object" && value !== null && "amount" in value
-          ? Number((value as { amount?: number }).amount)
-          : n;
-      try {
-        return {
-          text: new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: currency || "USD",
-          }).format(amount),
-        };
-      } catch {
-        return { text: String(amount) };
-      }
+      return { text: new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(n), alignRight: true };
     }
     case "date": {
       const d = new Date(String(value));
