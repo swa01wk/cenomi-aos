@@ -83,6 +83,6 @@ describe("problemNotice", () => {
   it("unknown code falls back to error banner", () => {
     render(<ProblemNotice problem={p({ status: 404, code: "not_found", title: "Missing", trace_id: "t1" })} onRetry={vi.fn()} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Missing");
-    expect(screen.getByText("t1")).toBeInTheDocument();
+    expect(screen.getByText("404 · trace t1")).toBeInTheDocument();
   });
 });

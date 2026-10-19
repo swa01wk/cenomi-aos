@@ -9,24 +9,27 @@
   flex-wrap: wrap;
   gap: var(--space-6);
   margin: 0;
-  padding: 0;
+  padding: var(--space-12) var(--space-16) 0;
   list-style: none;
+  border-bottom: 1px solid var(--line);
 }
 
 .tab {
-  padding: 3px var(--space-10);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line);
-  background: var(--panel);
+  padding: var(--space-10) var(--space-12);
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+  color: var(--ink-2);
   cursor: pointer;
 }
 
 .tab[aria-selected="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  font-weight: 500;
+  color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 .tab:focus-visible {

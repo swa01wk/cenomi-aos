@@ -54,6 +54,7 @@ export function ProblemNotice({
         <ErrorBanner
           title={d.props.title}
           detail={d.props.detail}
+          status={problem.status}
           traceId={d.props.traceId}
           onRetry={d.props.retryable ? onRetry : undefined}
         />

@@ -16,29 +16,44 @@
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: var(--space-8);
 }
 
-.status {
-  font: var(--font-mono-id);
-  font-weight: 600;
+.icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
 }
 
-.pass {
+.iconPass {
   color: var(--ok);
 }
 
-.fail {
+.iconFail {
   color: var(--bad);
 }
 
-.pending {
-  color: var(--ink-2);
+.iconPending {
+  color: var(--ink-3);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .detail {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-2);
   margin: 0;
+  padding-left: calc(16px + var(--space-8));
 }

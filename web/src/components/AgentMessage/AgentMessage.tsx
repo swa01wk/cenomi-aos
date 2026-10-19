@@ -1,9 +1,16 @@
+import { type ReactNode } from "react";
 import { initials } from "../../lib/ui";
 import { ArtifactChip } from "../ArtifactChip/ArtifactChip";
 import { RefusalNotice } from "../RefusalNotice/RefusalNotice";
 import { SourceChip } from "../SourceChip/SourceChip";
 import type { Block, Turn } from "../types";
 import styles from "./AgentMessage.module.css";
+
+type ChipBlockData = Extract<Block, { kind: "artifact_chip" }> | Extract<Block, { kind: "source_chip" }>;
+
+function isChipBlock(block: Block): block is ChipBlockData {
+  return block.kind === "artifact_chip" || block.kind === "source_chip";
+}
 
 export function AgentMessage({
   turn,
@@ -16,24 +23,63 @@ export function AgentMessage({
   onOpenSource?: (sourceRef: string) => void;
   decisionHref?: (decisionId: string) => string | undefined;
 }) {
+  const body: ReactNode[] = [];
+  let chipRun: ChipBlockData[] = [];
+
+  const flushChips = () => {
+    if (!chipRun.length) return;
+    const run = chipRun;
+    chipRun = [];
+    body.push(
+      <div key={`chips-${body.length}`} className={styles.chips}>
+        {run.map((block, j) => (
+          <ChipBlock key={j} block={block} onOpenArtifact={onOpenArtifact} onOpenSource={onOpenSource} />
+        ))}
+      </div>,
+    );
+  };
+
+  turn.blocks.forEach((block, i) => {
+    if (isChipBlock(block)) {
+      chipRun.push(block);
+      return;
+    }
+    flushChips();
+    body.push(
+      <BlockView
+        key={i}
+        block={block}
+        onOpenArtifact={onOpenArtifact}
+        onOpenSource={onOpenSource}
+        decisionHref={decisionHref}
+      />,
+    );
+  });
+  flushChips();
+
   return (
     <div className={styles.row}>
       <span className={styles.avatar} aria-hidden="true">
         {initials(turn.author.name)}
       </span>
-      <div className={styles.body}>
-        {turn.blocks.map((block, i) => (
-          <BlockView
-            key={i}
-            block={block}
-            onOpenArtifact={onOpenArtifact}
-            onOpenSource={onOpenSource}
-            decisionHref={decisionHref}
-          />
-        ))}
-      </div>
+      <div className={styles.body}>{body}</div>
     </div>
   );
+}
+
+function ChipBlock({
+  block,
+  onOpenArtifact,
+  onOpenSource,
+}: {
+  block: ChipBlockData;
+  onOpenArtifact?: (artifactId: string, version: number) => void;
+  onOpenSource?: (sourceRef: string) => void;
+}) {
+  if ("artifact_id" in block) {
+    return <ArtifactChip block={block} onOpen={onOpenArtifact} />;
+  }
+  return <SourceChip block={block} onOpen={onOpenSource} />;
 }
 
 function BlockView({
@@ -57,17 +103,9 @@ function BlockView({
       return <p className={`${styles.notice} ${toneClass}`}>{block.text}</p>;
     }
     case "artifact_chip":
-      return (
-        <div className={styles.chips}>
-          <ArtifactChip block={block} onOpen={onOpenArtifact} />
-        </div>
-      );
+      return <ArtifactChip block={block} onOpen={onOpenArtifact} />;
     case "source_chip":
-      return (
-        <div className={styles.chips}>
-          <SourceChip block={block} onOpen={onOpenSource} />
-        </div>
-      );
+      return <SourceChip block={block} onOpen={onOpenSource} />;
     case "pending_ref":
       // M2 renders the pending item (DecisionCard) here.
       return (

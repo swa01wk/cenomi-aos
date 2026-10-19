@@ -19,8 +19,12 @@
   margin: 0;
 }
 
-.trace {
+.meta {
   font: var(--font-mono-id);
   color: var(--ink-2);
   margin: 0;
+}
+
+.action {
+  align-self: flex-start;
 }

@@ -149,13 +149,33 @@ export default function ComponentsGalleryPage() {
       <section className={styles.grid}>
         <Panel title="States">
           <Skeleton lines={3} />
-          <EmptyState title="No jobs yet" nextStep="Start one from New job when a worker is active." />
-          <ErrorBanner title="We couldn't load this job" detail="The kernel didn't answer in time." traceId="503 · trace ab12" onRetry={() => {}} />
+          <EmptyState
+            title="No jobs yet"
+            nextStep="Start one from New job when a worker is active."
+            action={<Button variant="dark">New job</Button>}
+          />
+          <ErrorBanner
+            title="We couldn't load this job"
+            detail="The kernel didn't answer in time."
+            status={503}
+            traceId="ab12"
+            onRetry={() => {}}
+          />
           <RefusalNotice title="Not shared with your role" detail="Ask the assigned operator." rule="visibility_rule" decisionId="d_01" />
           <ConflictNotice title="This record changed" detail="Reload to see the latest version." onReload={() => {}} />
-          <label htmlFor="gal-qty">Quantity</label>
-          <input id="gal-qty" aria-describedby="gal-qty-err" aria-invalid="true" />
-          <FieldError id="gal-qty-err" message="Enter a whole number, for example 40." />
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="gal-qty">
+              Quantity
+            </label>
+            <input
+              id="gal-qty"
+              className={styles.fieldInputInvalid}
+              aria-describedby="gal-qty-err"
+              aria-invalid="true"
+              defaultValue="forty"
+            />
+            <FieldError id="gal-qty-err" message="Enter a whole number, for example 40." />
+          </div>
           <ConnectionBanner mode="reconnecting" />
           <ConnectionBanner mode="synced" updateCount={3} />
           <SeatNotice code="seat_not_active" title="Digital worker paused" detail="Nothing new runs until it is restarted." />

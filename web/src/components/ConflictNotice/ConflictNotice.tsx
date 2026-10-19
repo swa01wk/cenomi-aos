@@ -17,7 +17,7 @@ export function ConflictNotice({
       <p className={styles.title}>{title}</p>
       {detail && <p className={styles.detail}>{detail}</p>}
       {onReload && (
-        <Button variant="secondary" onClick={onReload}>
+        <Button variant="secondary" className={styles.action} onClick={onReload}>
           {reloadLabel}
         </Button>
       )}
