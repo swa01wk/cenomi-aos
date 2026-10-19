@@ -28,6 +28,8 @@ export default defineConfig({
       testMatch: /stop-01-publish\.spec\.ts/,
       fullyParallel: false,
       retries: 0,
+      // Whole walkthrough steps (evals, agent turns); the default 30 s per test is too short in CI.
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -36,6 +38,8 @@ export default defineConfig({
       dependencies: ["stop-01"],
       fullyParallel: false,
       retries: 0,
+      // Whole walkthrough steps (evals, agent turns); the default 30 s per test is too short in CI.
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -44,6 +48,8 @@ export default defineConfig({
       dependencies: ["stop-02"],
       fullyParallel: false,
       retries: 0,
+      // Whole walkthrough steps (evals, agent turns); the default 30 s per test is too short in CI.
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -52,6 +58,8 @@ export default defineConfig({
       dependencies: ["stop-03"],
       fullyParallel: false,
       retries: 0,
+      // Whole walkthrough steps (evals, agent turns); the default 30 s per test is too short in CI.
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -60,6 +68,8 @@ export default defineConfig({
       dependencies: ["stop-04"],
       fullyParallel: false,
       retries: 0,
+      // Whole walkthrough steps (evals, agent turns); the default 30 s per test is too short in CI.
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"] },
     },
   ],
