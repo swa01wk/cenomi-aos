@@ -36,7 +36,7 @@ validate: ## aos validate the demo pack against the seeded organization
 
 check: test validate ## everything a story must keep green before it is done
 
-model-real: ## switch the Compose worker to the real model (asks for the key, model and prices when missing)
+model-real: ## switch the Compose worker to the real model (asks only for a missing key; MODEL= PRICE_IN= PRICE_OUT= override)
 	@bash scripts/dev-model.sh real
 
 model-fake: ## switch the Compose worker back to the scripted model
