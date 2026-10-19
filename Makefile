@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check smoke-real db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate check smoke-real model-real model-fake gate db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -35,6 +35,22 @@ validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
 
 check: test validate ## everything a story must keep green before it is done
+
+model-real: ## switch the Compose worker to the real model (asks for the key, model and prices when missing)
+	@bash scripts/dev-model.sh real
+
+model-fake: ## switch the Compose worker back to the scripted model
+	@bash scripts/dev-model.sh fake
+
+gate: ## M1 exit gate setup: real model, fresh stack, publish and activate the Seat (e2e stops 1-3)
+	@bash scripts/dev-model.sh real
+	@$(MAKE) --no-print-directory down V=1
+	@$(MAKE) --no-print-directory up
+	cd web && npm run e2e -- --project=stop-01 --project=stop-02 --project=stop-03
+	@echo ""
+	@echo "Seat active on the real model. Now, at http://localhost:8080 as Faisal: New job -> Quick Quote,"
+	@echo "describe a need, answer the agent's questions; expect streamed replies and brief v1 then v2."
+	@echo "Worker log: docker compose -f deploy/docker-compose.yml logs -f worker. Back to scripted: make model-fake && make up"
 
 smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and both prices in .env, and `make db`)
 	cd backend && AOS_REAL_MODEL=1 PYTHONPATH=$(PYPATH) $(PY) -m unittest -v \
