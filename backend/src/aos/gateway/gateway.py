@@ -48,6 +48,13 @@ def _parse_tool_result(result: Any) -> Any:
     return text
 
 
+def _root_message(exc: BaseException) -> str:
+    """The MCP client fails inside task groups; report the first underlying error, not "unhandled errors"."""
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+
+
 class ToolGateway:
     """Calls connector read tools. Tests may replace ``invoke_hook`` with an in-memory MCP client."""
 
@@ -88,7 +95,7 @@ class ToolGateway:
             return InvokeFailure("Connector call timed out.", timed_out=True, duration_ms=elapsed)
         except Exception as exc:  # noqa: BLE001 — mapped to connector_failed at the kernel
             elapsed = int((time.monotonic() - started) * 1000)
-            return InvokeFailure(str(exc), timed_out=False, duration_ms=elapsed)
+            return InvokeFailure(_root_message(exc), timed_out=False, duration_ms=elapsed)
         elapsed = int((time.monotonic() - started) * 1000)
         try:
             content = _parse_tool_result(raw)
@@ -101,7 +108,8 @@ class ToolGateway:
         if not url:
             raise KeyError(f"no MCP URL configured for connector {connector!r}")
         async with streamable_http_client(url) as streams:
-            read, write, _ = streams
+            # mcp 2.x yields (read, write); 1.x added a session-id getter as a third item.
+            read, write = streams[0], streams[1]
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 return await session.call_tool(tool, arguments)

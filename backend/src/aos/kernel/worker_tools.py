@@ -428,7 +428,7 @@ async def complete_tool_call(
 
     if isinstance(invoke, InvokeFailure):
         detail = "Connector call timed out." if invoke.timed_out else invoke.message
-        await _tool_completed("failed", None, f"{authorized.tool} failed.")
+        await _tool_completed("failed", None, f"{authorized.tool} failed: {detail[:160]}")
         return CommittedConnectorFailure(detail=detail, timed_out=invoke.timed_out)
 
     receipt_ref = await _store_payload(conn, org_id=org_id, body=invoke.content)
