@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check db up down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate check db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -39,9 +39,17 @@ check: test validate ## everything a story must keep green before it is done
 db: ## start only Postgres (for make test and make dev-api on a laptop)
 	$(COMPOSE) up -d --wait postgres
 
-up: ## build and start the M0 stack; waits until every service is healthy
+up: ## build and start the stack (mints a worker token into .env if missing); waits until healthy
+	@bash scripts/dev-worker-token.sh --if-missing
+	@# A fresh make reads the .env the script may just have written.
+	@$(MAKE) --no-print-directory compose-up
+
+compose-up:
 	$(COMPOSE) up -d --build --wait
 	@echo "Web http://localhost:8080 · API http://localhost:8000/docs · mock ERP :8101 · mock mail :8102"
+
+worker-token: ## mint a new development worker token into .env (AOS_WORKER_TOKEN)
+	@bash scripts/dev-worker-token.sh
 
 down: ## stop the stack (keeps data; add V=1 to drop volumes)
 	$(COMPOSE) down $(if $(V),-v,)

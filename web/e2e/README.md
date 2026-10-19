@@ -11,13 +11,13 @@ Most specs run against a stack started with `make up` (Postgres, API, nginx serv
 Stops **1–5** change kernel state (publish, Seat lifecycle, job start, chat). They assume a **fresh** database and a **worker** with the intake fake script:
 
 ```bash
-# In repo-root .env (loaded by make):
-AOS_WORKER_TOKEN=<from: docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id e2e-worker>
-AOS_FAKE_SCRIPT=request_intake.happy.yaml
-
-make down V=1 && make up
-cd web && npm run e2e -- --project=stop-01 --project=stop-02 --project=stop-03 --project=stop-04 --project=stop-05
+make down V=1 && make up      # make up mints AOS_WORKER_TOKEN into .env if missing and sets AOS_FAKE_SCRIPT
+cd web && npm run e2e
 ```
+
+`make up` runs `scripts/dev-worker-token.sh --if-missing`, which writes a worker token to `.env` (and
+`AOS_FAKE_SCRIPT=request_intake.happy.yaml` when unset). `make worker-token` mints a new one, e.g. after changing
+`AOS_SESSION_SECRET`.
 
 Playwright runs stop projects in order (`dependencies`, serial mode, no retries). Do not run these projects in parallel with each other or against a dirty stack.
 
