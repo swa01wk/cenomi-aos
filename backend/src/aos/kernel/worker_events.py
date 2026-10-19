@@ -217,6 +217,18 @@ async def post_attempt_events(
                 from_state=from_state,
                 to_state="EXCEPTION",
             )
+        if gate.kind == "assist":
+            from .reply_failure import post_reply_failed
+
+            await post_reply_failed(
+                conn,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                seat=gate.seat,
+                seat_version=gate.seat_version,
+                attempt_id=attempt_id,
+                failure_class="budget_exhausted",
+            )
         await write_execution_event(
             conn,
             ExecutionEventWrite(

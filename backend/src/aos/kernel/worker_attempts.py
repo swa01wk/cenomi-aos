@@ -477,6 +477,18 @@ async def fail_attempt(
             "update work.tasks set state = 'EXCEPTION', updated_at = now() where id = %s",
             (gate.task_id,),
         )
+        if gate.kind == "assist":
+            from .reply_failure import post_reply_failed
+
+            await post_reply_failed(
+                conn,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                seat=gate.seat,
+                seat_version=gate.seat_version,
+                attempt_id=attempt_id,
+                failure_class=failure_class,
+            )
     return end
 
 
@@ -577,6 +589,18 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
     )
 
     if task_state != "RUNNING" or int(attempts_used) >= int(max_attempts):
+        if task_kind == "assist" and task_state == "RUNNING":
+            from .reply_failure import post_reply_failed
+
+            await post_reply_failed(
+                conn,
+                org_id=org_id,
+                instance_id=instance_id,
+                seat=seat_name,
+                seat_version=int(seat_version),
+                attempt_id=attempt_id,
+                failure_class="expired",
+            )
         return ExpireOutcome(expired=True)
 
     if task_kind == "assist":

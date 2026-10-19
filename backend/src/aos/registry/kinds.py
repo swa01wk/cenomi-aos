@@ -113,6 +113,7 @@ class FieldSpec(Strict):
     required: bool = False
     classification: Literal["shareable", "internal", "restricted"] | None = None
     label: str | None = None  # display label; the UI falls back to the field name, humanized
+    description: str = ""  # what the field holds and where it comes from; shown to the model with save_draft
 
 
 class ViewSpec(Strict):

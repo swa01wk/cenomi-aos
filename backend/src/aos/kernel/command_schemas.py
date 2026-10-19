@@ -26,11 +26,21 @@ def _field_json_type(field: FieldSpec) -> dict[str, Any]:
     return {"type": "string"}
 
 
+def _field_schema(field: FieldSpec) -> dict[str, Any]:
+    schema = _field_json_type(field)
+    notes = [field.description.strip()] if field.description.strip() else []
+    if field.required:
+        notes.append("Required before the output can be confirmed.")
+    if notes:
+        schema["description"] = " ".join(notes)
+    return schema
+
+
 def artifact_content_schema(type_spec: ArtifactTypeSpec) -> dict[str, Any]:
-    """Field types only — no required list (partial drafts; completeness is verifier-owned)."""
+    """Field types and descriptions; no required list (partial drafts; completeness is verifier-owned)."""
     properties: dict[str, Any] = {}
     for name, field in type_spec.fields.items():
-        properties[name] = _field_json_type(field)
+        properties[name] = _field_schema(field)
     schema: dict[str, Any] = {
         "type": "object",
         "properties": properties,
@@ -122,8 +132,17 @@ def enrich_command_schema(
         return entry
     if name == "save_draft":
         entry["input_schema"] = save_draft_command_schema(contract, defs)
+        entry["description"] = (
+            "Save a new draft version of the job's output. Send the fields you have learned; fields you leave out, or "
+            "send empty, keep their current values. The requester sees the draft next to the chat, so don't repeat it "
+            "in your reply."
+        )
         return entry
     if name == "ask_question":
         entry["input_schema"] = ask_question_command_schema()
+        entry["description"] = (
+            "Ask the requester up to three questions and end this reply; their answer starts your next one. "
+            "preamble is one short sentence shown before the questions."
+        )
         return entry
     return entry
