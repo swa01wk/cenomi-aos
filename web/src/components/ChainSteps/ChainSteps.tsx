@@ -8,17 +8,6 @@ const PART_LABEL: Record<PublishRequestPart["part"], string> = {
   seats_and_workflows: "Seats and workflows",
 };
 
-function partSummary(p: PublishRequestPart): string {
-  const label = PART_LABEL[p.part];
-  const bits = [`${label}`, p.role, p.status];
-  if (p.status === "approved" && p.by && p.at) {
-    bits.push(`by ${p.by}`, when(p.at));
-  } else if (p.status === "rejected" && p.by && p.at) {
-    bits.push(`by ${p.by}`, when(p.at));
-  }
-  return bits.join(" · ");
-}
-
 export function ChainSteps({
   parts,
   renderPartActions,
@@ -29,17 +18,10 @@ export function ChainSteps({
   formatPerson?: (personId: string) => string;
 }) {
   const displayPart = (p: PublishRequestPart) => {
-    const label = PART_LABEL[p.part];
-    const role = p.role;
-    const status = p.status;
-    const byName = p.by ? (formatPerson ? formatPerson(p.by) : p.by) : null;
-    if (p.status === "approved" && byName && p.at) {
-      return `${label} · ${role} · ${status} · ${byName} · ${when(p.at)}`;
-    }
-    if (p.status === "rejected" && byName && p.at) {
-      return `${label} · ${role} · ${status} · ${byName} · ${when(p.at)}`;
-    }
-    return partSummary(p);
+    const bits: string[] = [PART_LABEL[p.part], p.role, p.status];
+    if (p.status !== "open" && p.by) bits.push(formatPerson ? formatPerson(p.by) : p.by);
+    if (p.status !== "open" && p.at) bits.push(when(p.at));
+    return bits.join(" · ");
   };
 
   return (

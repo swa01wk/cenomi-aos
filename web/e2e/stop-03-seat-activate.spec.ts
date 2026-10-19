@@ -4,13 +4,13 @@ import { people, signInAs } from "./helpers";
 test("stop 3: Seat owner activates to ACTIVE and AVAILABLE", async ({ page }) => {
   await signInAs(page, people.headOfProcurement);
   await page.getByRole("link", { name: "Seats", exact: true }).click();
+  await page.locator("table tbody tr").first().getByRole("link").first().click();
 
-  const seatLink = page.locator("table tbody tr").first().getByRole("link").first();
-  const displayName = await seatLink.locator("span").first().innerText();
-  await seatLink.click();
+  const seatStatus = page.getByRole("group", { name: "Seat status" });
+  await expect(seatStatus.getByText("APPROVED", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Activate" }).click();
-  await expect(page.getByText("ACTIVE")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("AVAILABLE")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: displayName })).toBeVisible();
+  await page.getByRole("button", { name: "Activate", exact: true }).click();
+  await expect(seatStatus.getByText("ACTIVE", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(seatStatus.getByText("AVAILABLE", { exact: true })).toBeVisible();
+  await expect(page.getByRole("note")).toHaveCount(0);
 });

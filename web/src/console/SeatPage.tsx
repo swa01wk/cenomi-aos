@@ -138,7 +138,7 @@ export default function SeatPage() {
       <PageHeader
         title={seat.display_name}
         actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <div role="group" aria-label="Seat status" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <StatusPill state={seat.state} />
             <StatusPill state={seat.availability} />
             <span className="mono pill">v{seat.version}</span>

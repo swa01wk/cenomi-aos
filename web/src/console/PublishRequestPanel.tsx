@@ -51,9 +51,7 @@ export function PublishRequestPanel({
       if (e instanceof ApiProblemError && e.problem.status === 422) {
         const errs = fieldErrorsFromProblem(e.problem);
         setFieldError(errs.get("reason") ?? e.problem.detail ?? e.problem.title);
-        return;
       }
-      throw e;
     } finally {
       setBusyPart(null);
     }

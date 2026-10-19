@@ -288,7 +288,7 @@ export default function PacksPage() {
       invalidateAll();
     } catch (e) {
       if (e instanceof ApiProblemError) setActionProblem(e.problem);
-      throw e;
+      else setFailure((e as Error).message);
     }
   };
 
@@ -301,8 +301,9 @@ export default function PacksPage() {
       });
       invalidateAll();
     } catch (e) {
+      if (e instanceof ApiProblemError && e.problem.status === 422) throw e;
       if (e instanceof ApiProblemError) setActionProblem(e.problem);
-      throw e;
+      else setFailure((e as Error).message);
     }
   };
 
