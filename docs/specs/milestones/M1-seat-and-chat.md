@@ -3,12 +3,15 @@
 **Goal:** Faisal chats with an active Sourcing Agent, and his brief is saved as draft versions.
 
 **Exit gate**
-- [ ] The procurement_demo pack is published through a publish request approved by Risk and the Head of Procurement.
-- [ ] The platform admin configures and tests the Seat; their activation is refused (`segregation_of_duties`) and audited.
-- [ ] The Head of Procurement activates it; the Sourcing Agent appears in Faisal's Workspace.
-- [ ] Faisal starts a Quick Quote and chats on the real model; replies stream; brief v1 and v2 are saved as drafts.
-- [ ] A reloaded job page rebuilds the conversation from snapshot + cursor (C10). A stalled worker is fenced.
-- [ ] `make test` green, including the new API and worker tests; contract tests green.
+- [x] The procurement_demo pack is published through a publish request approved by Risk and the Head of Procurement.
+- [x] The platform admin configures and tests the Seat; their activation is refused (`segregation_of_duties`) and audited.
+- [x] The Head of Procurement activates it; the Sourcing Agent appears in Faisal's Workspace.
+- [x] Faisal starts a Quick Quote and chats on the real model; replies stream; brief v1 and v2 are saved as drafts.
+- [x] A reloaded job page rebuilds the conversation from snapshot + cursor (C10). A stalled worker is fenced.
+- [x] `make test` green, including the new API and worker tests; contract tests green.
+
+Passed 2026-10-19: `make gate` (stops 1–3, then `e2e/m1-gate-real-model.spec.ts` on gpt-5.4-mini): brief v1 → v2,
+2 agent replies, both streamed, spend today USD 0.0061. Fencing: `test_stalled_worker_is_fenced_and_cannot_commit`.
 
 **Walkthrough stops made real:** 1 (publish), 2, 3, 4, 5 (chat and drafts; the confirm decision comes in M2).
 

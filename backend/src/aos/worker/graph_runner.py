@@ -52,6 +52,7 @@ async def run_assist_graph(
     initial: AssistGraphState = {
         "ids": {"turn_id": str(attempt.get("turn_id") or "")},
         "worker_notes": [],
+        "actions_this_reply": [],
         "draft_422_counts": {},
         "stream_seq": 0,
         "saved_in_attempt": {},

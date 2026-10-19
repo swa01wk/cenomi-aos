@@ -219,6 +219,7 @@ class ToolSpec(Strict):
     tool_class: Literal["read", "compute", "staged_write", "committed_effect"] = Field(alias="class")
     reconcile_with: Name | None = None
     implementation: str | None = None
+    description: str = ""  # shown to the model with the tool
     input_schema: dict[str, Any] | None = None
 
 

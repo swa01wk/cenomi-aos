@@ -12,7 +12,7 @@ import {
   Skeleton,
   StatusPill,
 } from "../components";
-import { initials, teamLabel } from "../lib/ui";
+import { initials, teamLabel, usdAmount } from "../lib/ui";
 import { useOrgPeople } from "./useOrgPeople";
 
 type Seat = components["schemas"]["Seat"];
@@ -113,7 +113,7 @@ export default function SeatsPage() {
             header: "Today's spend",
             render: (s) => (
               <MeterBar
-                label={`USD ${(s.spend_today_usd ?? 0).toFixed(2)} of ${(s.daily_limit_usd ?? 0).toFixed(2)}`}
+                label={`USD ${usdAmount(s.spend_today_usd ?? 0)} of ${usdAmount(s.daily_limit_usd ?? 0)}`}
                 value={s.spend_today_usd ?? 0}
                 limit={s.daily_limit_usd ?? 0}
               showValues={false} />

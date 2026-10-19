@@ -9,6 +9,12 @@ export function initials(name: string): string {
     .join("");
 }
 
+/** USD amount with cents; a spend above zero but under a cent reads "< 0.01", not "0.00". */
+export function usdAmount(n: number): string {
+  if (n > 0 && n < 0.005) return "< 0.01";
+  return n.toFixed(2);
+}
+
 export function shortHash(h: string, n = 10): string {
   return h.slice(0, n);
 }

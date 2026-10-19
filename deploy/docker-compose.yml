@@ -66,9 +66,18 @@ services:
     environment:
       AOS_API_URL: http://api:8000/api
       AOS_WORKER_TOKEN: ${AOS_WORKER_TOKEN:?set AOS_WORKER_TOKEN from aos worker-token on the host}
-      AOS_RUNTIME: fake
-      # Real model (optional): AOS_RUNTIME=langgraph, OPENAI_API_KEY, OPENAI_MODEL, AOS_MODEL_PRICE_IN_PER_MTOK,
-      # AOS_MODEL_PRICE_OUT_PER_MTOK; optional AOS_FAKE_SCRIPT for fake runs (default assist.stream.yaml).
+      # fake (scripted model, the default) or langgraph (the real model; needs a key, a model and both prices, or the
+      # worker refuses to start). Set these in .env; `make up` passes them through.
+      AOS_RUNTIME: ${AOS_RUNTIME:-fake}
+      AOS_MODEL_PROVIDER: ${AOS_MODEL_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      AOS_MODEL_ENTERPRISE_REASONING: ${AOS_MODEL_ENTERPRISE_REASONING:-}
+      AOS_MODEL_TEMPERATURE: ${AOS_MODEL_TEMPERATURE:-}
+      AOS_MODEL_PRICE_IN_PER_MTOK: ${AOS_MODEL_PRICE_IN_PER_MTOK:-}
+      AOS_MODEL_PRICE_OUT_PER_MTOK: ${AOS_MODEL_PRICE_OUT_PER_MTOK:-}
       AOS_CHECKPOINT_DATABASE_URL: postgresql://aos_worker:aos_worker_dev@postgres:5432/aos?options=-c%20search_path%3Dlg_checkpoints
       # Task lane returns when task Skills exist (M2); assist-only for M1.
       AOS_WORKER_LANES: assist

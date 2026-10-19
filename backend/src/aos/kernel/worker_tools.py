@@ -428,13 +428,15 @@ async def complete_tool_call(
 
     if isinstance(invoke, InvokeFailure):
         detail = "Connector call timed out." if invoke.timed_out else invoke.message
-        await _tool_completed("failed", None, f"{authorized.tool} failed.")
+        await _tool_completed("failed", None, f"{authorized.tool} failed: {detail[:160]}")
         return CommittedConnectorFailure(detail=detail, timed_out=invoke.timed_out)
 
     receipt_ref = await _store_payload(conn, org_id=org_id, body=invoke.content)
     at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     observation = {
         "tool": authorized.tool,
+        # The model sees its own earlier calls only through observations, so keep what it asked for.
+        "args": authorized.args,
         "at": at,
         "untrusted": True,
         "content": invoke.content,

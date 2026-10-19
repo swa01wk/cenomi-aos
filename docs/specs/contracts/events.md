@@ -76,6 +76,8 @@ the viewer's visibility changed, the first message is `snapshot.required` and th
    `status` and `by`); it never includes artifact content. Any block quoting artifact content passes through the
    artifact type's `visibility` for the viewer's role; fields not visible are dropped, not masked.
 3. `agent.message.delta` goes only to the participant whose turn is being answered. Others get the completed turn.
+   Its `turn_id` is that answered turn (the reply's own turn exists only once `agent.message.completed` arrives), so
+   the client shows the live text under the answered message and drops it when the completed reply arrives.
    Deltas are not stored in the outbox; the hub relays them in-process. The JSON may carry an ephemeral `id`, but SSE
    sends only `event:` and `data:` (no SSE `id:` line) so `Last-Event-ID` remains an outbox cursor.
 4. Refusals are delivered as a `refusal` block carrying the decision ID and rule, never the refused data.

@@ -20,6 +20,7 @@ from ..prompt_render import prompt_version as assist_prompt_version
 from ..protocol import AttemptContext, AttemptFailed
 from ..prompt_render import render_context_message, render_system_message
 from ..streaming import LiveStreamBatcher
+from ..untrusted import already_observed
 from ..types import AgentResult, WorkerAttempt
 from .state import AssistGraphState
 
@@ -169,7 +170,11 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     contract = bundle.get("contract") if isinstance(bundle.get("contract"), dict) else ctx.attempt["contract"]
     skill = str(bundle.get("skill_instructions") or envelope.get("skill_instructions") or "")
     system = render_system_message(contract=contract, skill_instructions=skill, envelope=envelope)
-    context = render_context_message(envelope=envelope, worker_notes=list(state.get("worker_notes") or []))
+    context = render_context_message(
+        envelope=envelope,
+        worker_notes=list(state.get("worker_notes") or []),
+        actions_this_reply=list(state.get("actions_this_reply") or []),
+    )
     messages = [SystemMessage(content=system), HumanMessage(content=context)]
     model = _chat_model(config)
     tools = envelope.get("commands") or []
@@ -229,6 +234,9 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     }
 
 
+_KERNEL_TOOLS = frozenset({"save_draft", "ask_question"})
+
+
 def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
     if state.get("pending_tool_calls"):
         return "tools"
@@ -254,8 +262,20 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     counts = dict(state.get("draft_422_counts") or {})
     saved = dict(state.get("saved_in_attempt") or {})
     pending = _order_tool_calls(list(state.get("pending_tool_calls") or []))
+    if any(str(tc.get("name") or "") not in _KERNEL_TOOLS for tc in pending) and any(
+        str(tc.get("name") or "") == "ask_question" for tc in pending
+    ):
+        # Questions written alongside a lookup were written before its result: hold them, run the lookup, and let
+        # the next step save what it learned and ask again.
+        pending = [tc for tc in pending if str(tc.get("name") or "") != "ask_question"]
+        notes.append(
+            "ask_question was held because other tools ran in the same step. Read their results, save the draft, "
+            "then ask only what is still missing."
+        )
     contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     envelope = ctx.envelope or {}
+    observed: list[dict[str, Any]] = list(envelope.get("tool_observations") or [])
+    actions: list[str] = list(state.get("actions_this_reply") or [])
     ended_needs_input = False
     for tc in pending:
         ctx.check()
@@ -263,6 +283,22 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
             break
         name = str(tc.get("name") or "")
         args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
+        if name not in _KERNEL_TOOLS:
+            # The model sees earlier calls only through observations; a repeat would spend an action for a
+            # result it already has. Answer from the note instead of calling the tool again.
+            if already_observed(observed, name, args):
+                notes.append(
+                    f"{name} was already called with {json.dumps(args, sort_keys=True)}; "
+                    "its result is in tool_observations_rendered. Use it instead of calling again."
+                )
+                continue
+            observed.append({"tool": name, "args": args})
+        args_sha = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
+        if name == "save_draft":
+            same = next((v for v in saved.values() if v.get("args_sha") == args_sha), None)
+            if same is not None:
+                notes.append(f"save_draft skipped: same content as the v{same.get('version')} you saved in this reply.")
+                continue
         await ctx.post_events(
             events=[
                 {
@@ -290,7 +326,12 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 saved[at] = {
                     "artifact_id": saved_row.get("artifact_id"),
                     "version": saved_row.get("version"),
+                    "args_sha": args_sha,
                 }
+                actions.append(
+                    f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save it "
+                    "again unless something changed. Next, ask for what is still missing or reply."
+                )
             elif name == "ask_question":
                 questions_raw = args.get("questions")
                 questions = (
@@ -306,6 +347,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 break
             else:
                 await ctx.call_tool(name, args)
+                actions.append(f"{name}({json.dumps(args, sort_keys=True)}): result in tool_observations_rendered.")
             ctx.record_tool_action()
         except ToolInvocationError as exc:
             if exc.timed_out:
@@ -332,6 +374,7 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     out: dict[str, Any] = {
         "pending_tool_calls": [],
         "worker_notes": notes,
+        "actions_this_reply": actions,
         "draft_422_counts": counts,
         "saved_in_attempt": saved,
         "assemble_reason": "tool_result",

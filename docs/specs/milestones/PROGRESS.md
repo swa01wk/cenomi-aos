@@ -25,7 +25,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M1-AG-02 Assist graph and model
 - [x] M1-AG-03 request_intake in chat
 - [x] M1-FE-04 Workspace: start and chat
-- [ ] M1 exit gate (all boxes in the milestone file)
+- [x] M1 exit gate (all boxes in the milestone file)
 
 ## M2 Workflow layer — [M2-workflow-layer.md](M2-workflow-layer.md)
 

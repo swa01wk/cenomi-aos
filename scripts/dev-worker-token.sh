@@ -11,7 +11,8 @@ cd "$(dirname "$0")/.."
 ENV_FILE=.env
 [ -f "$ENV_FILE" ] || cp .env.example "$ENV_FILE"
 
-env_value() { grep -E "^$1=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- || true; }
+# shellcheck source=env-lib.sh
+source scripts/env-lib.sh
 is_jwt() { [[ "$1" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]]; }
 
 # Worker tokens expire (8 h). True when the token's exp is more than an hour away; when python3 isn't there to
@@ -27,17 +28,6 @@ try:
 except Exception:
     sys.exit(1)
 PY
-}
-
-# Replace KEY=... in .env, or append it. Portable (no sed -i differences between macOS and Linux).
-set_value() {
-  local tmp
-  tmp=$(mktemp)
-  awk -v k="$1" -v v="$2" 'BEGIN { done = 0 }
-    index($0, k "=") == 1 { print k "=" v; done = 1; next }
-    { print }
-    END { if (!done) print k "=" v }' "$ENV_FILE" >"$tmp"
-  mv "$tmp" "$ENV_FILE"
 }
 
 if ! grep -qE '^AOS_FAKE_SCRIPT=' "$ENV_FILE"; then

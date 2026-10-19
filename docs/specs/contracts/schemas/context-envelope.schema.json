@@ -91,7 +91,7 @@
       "items": {
         "type": "object",
         "required": ["tool", "at", "untrusted", "content"],
-        "properties": {"tool": {"type": "string"}, "at": {"type": "string", "format": "date-time"}, "untrusted": {"type": "boolean"}, "content": {}, "receipt_ref": {"type": "string"}},
+        "properties": {"tool": {"type": "string"}, "args": {"type": "object", "description": "Arguments the tool was called with, so the model can tell its earlier calls apart."}, "at": {"type": "string", "format": "date-time"}, "untrusted": {"type": "boolean"}, "content": {}, "receipt_ref": {"type": "string"}},
         "additionalProperties": false
       }
     },

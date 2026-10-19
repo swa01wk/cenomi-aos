@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -36,6 +36,26 @@ validate: ## aos validate the demo pack against the seeded organization
 
 check: test validate ## everything a story must keep green before it is done
 
+model-real: ## switch the Compose worker to the real model (asks only for a missing key; MODEL= PRICE_IN= PRICE_OUT= override)
+	@bash scripts/dev-model.sh real
+
+model-fake: ## switch the Compose worker back to the scripted model
+	@bash scripts/dev-model.sh fake
+
+gate: ## M1 exit gate on the real model: fresh stack, stops 1-3, then Faisal's chat checked by Playwright
+	@bash scripts/dev-model.sh real
+	@$(MAKE) --no-print-directory down V=1
+	@$(MAKE) --no-print-directory up
+	@cd web && E2E_GATE=1 npm run e2e -- --project=gate \
+		|| { echo ""; echo "Gate failed; worker log and events follow."; $(MAKE) --no-print-directory -C .. diag; exit 1; }
+	@echo ""
+	@echo "M1 gate passed. Screenshots: web/test-results/ (report: cd web && npx playwright show-report)."
+	@echo "The stack is still on the real model. Back to scripted: make model-fake && make up"
+
+smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and both prices in .env, and `make db`)
+	cd backend && AOS_REAL_MODEL=1 PYTHONPATH=$(PYPATH) $(PY) -m unittest -v \
+		tests.test_worker_models.RealModelSmokeTests tests.test_request_intake_assist.RequestIntakeRealModelSmoke
+
 db: ## start only Postgres (for make test and make dev-api on a laptop)
 	$(COMPOSE) up -d --wait postgres
 
@@ -59,6 +79,17 @@ logs: ## follow logs
 
 ps:
 	$(COMPOSE) ps
+
+diag: ## why didn't the worker reply? worker log, then the latest model calls, tool requests and failures
+	$(COMPOSE) logs worker --tail=150
+	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select event_type, \
+		coalesce(attributes->>'tool', attributes->>'failure_category', attributes->>'model') as detail, redacted_summary \
+		from evidence.execution_events where event_type in ('TaskFailed','ModelInvoked','ToolRequested','ToolDenied', \
+		'ToolCompleted','ArtifactProduced') order by occurred_at desc, aggregate_seq desc limit 16"
+	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select o->>'tool' as tool, o->'args' as args, \
+		left((o->'content')::text, 160) as result from work.attempts a, jsonb_array_elements(a.tool_observations) o \
+		where a.id = (select id from work.attempts where jsonb_array_length(coalesce(tool_observations, '[]'::jsonb)) > 0 \
+		order by admitted_at desc limit 1)"
 
 dev-api: ## kernel API with reload against AOS_DATABASE_URL (default: local Postgres, db aos)
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m uvicorn aos.api.main:app --reload --port 8000

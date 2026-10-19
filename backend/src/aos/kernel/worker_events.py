@@ -20,7 +20,21 @@ from .worker_fence import ClaimedAttempt, CommittedFenced, require_claimed_attem
 _ALLOWED = frozenset({"AgentStarted", "ModelInvoked", "ToolRequested", "CheckpointSaved"})
 
 
-def _merge_event_usage(usage: dict[str, Any], event_type: str, attributes: dict[str, Any]) -> dict[str, Any]:
+def _gateway_tools(contract: dict[str, Any]) -> frozenset[str]:
+    """Tools the worker calls through the kernel's tool gateway, which counts them against budget.actions itself."""
+    return frozenset(
+        str(g.get("name"))
+        for g in contract.get("allowed_tools") or []
+        if isinstance(g, dict) and g.get("kind") in ("connector", "compute")
+    )
+
+
+def _merge_event_usage(
+    usage: dict[str, Any],
+    event_type: str,
+    attributes: dict[str, Any],
+    gateway_tools: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
     out = dict(usage)
     if event_type == "ModelInvoked":
         out["tokens_in"] = int(out.get("tokens_in") or 0) + int(attributes.get("tokens_in") or 0)
@@ -29,7 +43,9 @@ def _merge_event_usage(usage: dict[str, Any], event_type: str, attributes: dict[
         if raw_cost is not None:
             out["cost_usd"] = float(out.get("cost_usd") or 0) + float(raw_cost)
         out["steps"] = int(out.get("steps") or 0) + 1
-    elif event_type == "ToolRequested":
+    elif event_type == "ToolRequested" and str(attributes.get("tool") or "") not in gateway_tools:
+        # Kernel tools (save_draft, ask_question) count here. Gateway tools count when the gateway authorizes the
+        # call, so counting their request too would spend two actions per call.
         out["actions"] = int(out.get("actions") or 0) + 1
     return out
 
@@ -83,6 +99,7 @@ async def post_attempt_events(
         return gate
 
     usage = dict(gate.usage)
+    gateway_tools = _gateway_tools(gate.contract)
     budget_crossed: tuple[str, Any, Any] | None = None
     for ev in events or []:
         event_type = ev.get("event_type")
@@ -112,7 +129,7 @@ async def post_attempt_events(
                 attributes=attrs,
             ),
         )
-        usage = _merge_event_usage(usage, event_type, attrs)
+        usage = _merge_event_usage(usage, event_type, attrs, gateway_tools)
         crossed = _budget_exceeded(gate.contract, usage)
         if crossed:
             budget_crossed = crossed

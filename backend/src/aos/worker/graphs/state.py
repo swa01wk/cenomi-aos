@@ -8,6 +8,9 @@ from typing import Any, TypedDict
 class AssistGraphState(TypedDict, total=False):
     ids: dict[str, str]
     worker_notes: list[str]
+    # What this attempt has done so far (drafts saved, questions held, lookups), shown to the model every step:
+    # a step starts from the context envelope, not a chat history, so it can't otherwise see its own actions.
+    actions_this_reply: list[str]
     draft_422_counts: dict[str, int]
     stream_seq: int
     assemble_reason: str
