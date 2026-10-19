@@ -353,10 +353,28 @@ def build_artifact_view(type_spec: ArtifactTypeSpec, allowed: set[str]) -> dict[
     return out
 
 
-def _produced_by_name(org: OrgModel, kind: str, producer_id: str) -> str:
+def _produced_by_name(org: OrgModel, kind: str, producer_id: str, seat_names: dict[str, str] | None = None) -> str:
+    """A person's name, or for an attempt the display name of the Seat that ran it (falls back to the id)."""
     if kind == "person" and producer_id in org.people:
         return org.people[producer_id].name
+    if kind == "attempt" and seat_names and producer_id in seat_names:
+        return seat_names[producer_id]
     return producer_id
+
+
+async def _attempt_seat_names(conn: AsyncConnection, attempt_ids: list[str]) -> dict[str, str]:
+    """attempt id → display name of the Seat whose job it ran in."""
+    if not attempt_ids:
+        return {}
+    cur = await conn.execute(
+        "select a.id, s.display_name from work.attempts a"
+        " join work.tasks t on t.id = a.task_id"
+        " join work.instances i on i.id = t.instance_id"
+        " join registry.seats s on s.org_id = i.org_id and s.name = i.seat and s.version = i.seat_version"
+        " where a.id = any(%s)",
+        (attempt_ids,),
+    )
+    return {str(aid): str(name) for aid, name in await cur.fetchall()}
 
 
 async def _artifact_context(
@@ -425,13 +443,15 @@ async def _version_history(conn: AsyncConnection, org: OrgModel, artifact_id: st
         " from work.artifact_versions where artifact_id = %s order by version",
         (artifact_id,),
     )
+    rows = await cur.fetchall()
+    seat_names = await _attempt_seat_names(conn, [str(r[2]) for r in rows if r[1] == "attempt"])
     items: list[dict[str, Any]] = []
-    for version, kind, producer, created_at in await cur.fetchall():
+    for version, kind, producer, created_at in rows:
         at = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
         items.append(
             {
                 "version": int(version),
-                "by": _produced_by_name(org, kind, producer),
+                "by": _produced_by_name(org, kind, producer, seat_names),
                 "at": at,
             }
         )
@@ -514,7 +534,10 @@ async def get_artifact_version(
     if rec is None:
         raise ArtifactError("not_found", 404, "Version not found", f"No version {version} for artifact {aid!r}.")
     projected = project(rec, at.spec, viewer_roles, latest_version=int(_lv))
-    projected["produced_by"]["name"] = _produced_by_name(org, rec.produced_by_kind, rec.produced_by)
+    seat_names = (
+        await _attempt_seat_names(conn, [rec.produced_by]) if rec.produced_by_kind == "attempt" else {}
+    )
+    projected["produced_by"]["name"] = _produced_by_name(org, rec.produced_by_kind, rec.produced_by, seat_names)
     return projected
 
 
