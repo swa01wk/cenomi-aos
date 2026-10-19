@@ -107,7 +107,9 @@ def fencing_token(
 
 
 KernelDep = Annotated[Kernel, Depends(kernel)]
-TxDep = Annotated[AsyncConnection, Depends(tx)]
+# scope="function": the transaction commits when the route returns, before the response is sent. With the default
+# ("request") FastAPI runs the exit code after sending, so a client could see 201 and read the old state.
+TxDep = Annotated[AsyncConnection, Depends(tx, scope="function")]
 PrincipalDep = Annotated[Principal, Depends(principal)]
 WorkerDep = Annotated[WorkerPrincipal, Depends(worker_principal)]
 FencingDep = Annotated[int, Depends(fencing_token)]
