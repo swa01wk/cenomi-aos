@@ -79,10 +79,15 @@ baseline.
 
 ### Digital worker levels
 
-`digital-worker-levels.md` maps the Level 3–5 characteristics of a digital worker to AOS and proposes seven building
-blocks to add: the conversation skill (ADR 015), conversation memory, enterprise context, visible plans, watchers
-and triggers, delegation and experience measures. Some go into M2–M4 and the rest come after the POC. With them
-the POC ends at Level 3 complete and Level 4 in large part.
+`digital-worker-levels.md` maps the Level 3–5 characteristics of a digital worker to AOS. Inside the POC, M2–M4 make
+a dispatched job feel agentic (ADR 015):
+- the chat follows the job's state, for every participant;
+- the agent answers "where are we?" from kernel records;
+- it reports progress with decision cards in the chat;
+- it answers "why?" from the explain records.
+
+A conversation suite gates each of these milestones. Memory, enterprise context, plans, watchers and delegation
+come after the POC. The POC ends at Level 3 complete and Level 4 in good part.
 
 ### After the POC
 

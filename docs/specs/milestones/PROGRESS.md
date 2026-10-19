@@ -31,12 +31,14 @@ milestone. A story's details, tests and contract references are in its milestone
 
 - [ ] M2-BE-01 Workflow interpreter
 - [ ] M2-BE-04 Decisions
+- [ ] M2-BE-07 Conversation follows the job (ADR 015)
 - [ ] M2-BE-03 Participants, queue and claim
 - [ ] M2-BE-02 Parallel region and join
 - [ ] M2-BE-05 Timers, scheduler and demo clock
 - [ ] M2-AG-01 Task graph
 - [ ] M2-AG-03 Verifiers
 - [ ] M2-AG-02 supplier_lookup and rfq_draft
+- [ ] M2-AG-04 Assist Skills that keep people informed
 - [ ] M2-BE-06 Simulate and Console reads
 - [ ] M2-FE-01 Lists and live updates
 - [ ] M2-FE-02 Job page decisions and views
@@ -51,6 +53,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [ ] M3-AG-01 Interrupt and resume
 - [ ] M3-BE-04 Inbound mail and quotes
 - [ ] M3-BE-05 Verifiers and budgets
+- [ ] M3-BE-06 Progress for governed actions (ADR 015)
 - [ ] M3-AG-02 rfq_send, quote_triage, quote_comparison, po_create
 - [ ] M3-FE-01 Approvals in the Workspace
 - [ ] M3-FE-02 Console governance

@@ -1,7 +1,11 @@
 # M2 · Workflow layer (weeks 4–5)
 
 **Goal:** decisions in the Workspace drive QQ-0001 from intake to RFQ drafting, and `aos simulate` reaches `closed`
-with the fake model.
+with the fake model. Once dispatched, the job feels agentic (ADR 015):
+- the chat follows the job's state;
+- the agent reports progress and puts decisions in front of the right person;
+- it answers "where are we?" from kernel records;
+- it never moves the job itself.
 
 **Exit gate**
 - [ ] On the real model: Faisal confirms brief v2 → Noura claims from the queue → confirms 3 suppliers → RFQ drafts
@@ -9,6 +13,9 @@ with the fake model.
 - [ ] `aos simulate packs/procurement_demo --workflow quick_quote` reaches `closed` with the fake model, scripted people
       and stubbed effects, creating each Task exactly once.
 - [ ] Guidebook C01 (duplicate command), C03 (concurrent completion), C09 (stale input), C12 (pinned version) pass.
+- [ ] The conversation suite passes in `make gate` on the real model (ADR 015 verification): seven messages in one job,
+      "where are we?" after confirmation, the buyer's progress turn with the shortlist card, a topic change and resume,
+      an out-of-scope request declined. Must-checks pass in every run; quality checks in at least 80% of runs.
 
 **Walkthrough stops made real:** 4, 5 (with decision and parallel lookup), 6, 7 (drafts and REWORK; approval in M3).
 
@@ -36,6 +43,33 @@ with the fake model.
   requester's brief edits before confirmation.
 - **Tests:** C01 — the same Idempotency-Key twice gives one Decision Record; a decision on a stale version → 409.
 
+### M2-BE-07 Conversation follows the job (ADR 015)
+- **Per-message attempts:** `attempts_used` counts per person turn. A new turn starts a fresh attempt budget; retries
+  of the same turn use the rest of it. Fake scripts index attempts per job, so keep that index separate.
+- **Assist Skill per state:**
+  - The Seat's `assist_skill` is the default. A workflow state's `assist` overrides it, and intake keeps
+    `request_intake`.
+  - `postTurn` admits the current state's assist Skill, for any bound participant, with that participant's visibility.
+  - Contracts change in the same story: `Seat.assist_skill`, `WorkflowState.assist`.
+- **Where the job is:** `job_snapshot` adds:
+  - the workflow's goal (its description);
+  - each stage's status;
+  - the open decisions with who each waits on;
+  - the work in progress (Task template, state, attempt count).
+
+  Every field passes through the reader's visibility.
+- **Progress turns:**
+  - **When:** on `task.completed.*`, REWORK, EXCEPTION, and a decision opened or resolved.
+  - **What:** a Seat turn to the participants the event concerns. The text is the Task's result `summary`,
+    projected per reader. A `pending_ref` block is added when the reader must act.
+  - **Delivery:** sent as `agent.message.completed`.
+- **Tests:**
+  - a fourth and a seventh message are admitted;
+  - the chat in shortlisting runs `sourcing_assist`, not `request_intake`;
+  - the buyer receives the progress turn with the shortlist decision and the requester doesn't;
+  - a progress turn never carries a field above the reader's visibility;
+  - `job_snapshot` lists the open decision and who it waits on.
+
 ### M2-BE-05 Timers, scheduler and demo clock
 - Readiness loop, timers with `SKIP LOCKED`, demo clock (`getDemoState`, `advanceClock`) behind `AOS_DEMO=1`.
 - **Tests:** a timer fires once with two scheduler loops running; advancing the demo clock fires due timers.
@@ -52,6 +86,20 @@ with the fake model.
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
+### M2-AG-04 Assist Skills that keep people informed
+- **`sourcing_assist`:**
+  - the Seat's default assist Skill, with spec `agent/skills/sourcing_assist.md`;
+  - read-only tools: `read_artifact`, `browse_categories`, `get_supplier_history`;
+  - answers "where are we?" and "what's next?" from `job_snapshot`;
+  - points to the open decision card and who it waits on;
+  - declines out-of-scope requests in plain words, saying who can help;
+  - never says a step happened unless the records show it.
+- **Result summaries are written for people:**
+  - every Task's `summary` says what was done, what it found and what happens next, in one or two sentences;
+  - no field names or JSON;
+  - it respects the contract's classification ceiling, since it becomes a progress turn.
+- **Fake scripts:** `sourcing_assist.status` and progress summaries in the `happy` scripts.
+
 ### M2-AG-03 Verifiers
 - `brief_schema`, `sources_cited`, `leak_check` as rule code in `aos/verifiers/` (pack extensions; run by `kernel/verify.py`), each with unit tests from the Skill
   specs, and the REWORK loop with findings in the next envelope.
@@ -63,6 +111,8 @@ with the fake model.
 ### M2-FE-02 Job page decisions and views
 - `DecisionCard` (confirm brief, confirm shortlist), supplier ranking `ArtifactSheet` with selection, brief edit in the
   document view, REWORK notice from `verification.completed`.
+- Progress turns in the conversation, with `pending_ref` blocks rendered as the `DecisionCard` in place. The
+  conversation stays usable in every state, for every participant.
 ### M2-FE-03 Console
 - Workflow page (Console-Workflows), Instances (Console-Instances), instance timeline (Console-Instance without trace),
   simulate panel on the Packs page, Demo controls clock section.
