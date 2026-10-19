@@ -174,6 +174,39 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             await client.aclose()
         self.assertIn("tool_timeout", outcome)
 
+    async def test_question_beside_a_lookup_waits_for_its_result(self) -> None:
+        captured: dict[str, object] = {}
+        real_factory = chat_model_from_script
+
+        def capture_model(script):
+            model = real_factory(script)
+            captured["model"] = model
+            return model
+
+        await asyncio.to_thread(self._start_job)
+        client = await make_http_client(self, invoke_hook=mock_erp_hook)
+        _pg.require_runtime_extra()
+        handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
+        try:
+            with patch("aos.worker.fake_chat.chat_model_from_script", side_effect=capture_model):
+                runtime = FakeRuntime(checkpointer=handle, script="assist.ask_with_lookup.yaml")
+                worker = Worker("worker-test-1", client, runtime, ("assist",))
+                outcome = await asyncio.wait_for(worker.run_once(), 120)
+        finally:
+            await handle.close()
+            await client.aclose()
+        self.assertEqual(outcome, "waiting", outcome)
+        prompts = captured["model"].fake.prompts  # type: ignore[union-attr]
+        self.assertEqual(len(prompts), 2)
+        second = json.dumps(prompts[1], default=str)
+        self.assertIn("ask_question was held", second)
+        self.assertIn("Janitorial", second)  # the lookup's result reached the model before it asked
+        asked = _pg.admin_sql(
+            self.db,
+            "select count(*) from work.turns where author_kind = 'seat';",
+        ).stdout.strip()
+        self.assertEqual(asked, "1")
+
     async def test_403_tool_not_in_contract_in_next_prompt(self) -> None:
         captured: dict[str, object] = {}
         real_factory = chat_model_from_script

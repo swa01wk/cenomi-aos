@@ -258,6 +258,16 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     counts = dict(state.get("draft_422_counts") or {})
     saved = dict(state.get("saved_in_attempt") or {})
     pending = _order_tool_calls(list(state.get("pending_tool_calls") or []))
+    if any(str(tc.get("name") or "") not in _KERNEL_TOOLS for tc in pending) and any(
+        str(tc.get("name") or "") == "ask_question" for tc in pending
+    ):
+        # Questions written alongside a lookup were written before its result: hold them, run the lookup, and let
+        # the next step save what it learned and ask again.
+        pending = [tc for tc in pending if str(tc.get("name") or "") != "ask_question"]
+        notes.append(
+            "ask_question was held because other tools ran in the same step. Read their results, save the draft, "
+            "then ask only what is still missing."
+        )
     contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     envelope = ctx.envelope or {}
     observed: list[dict[str, Any]] = list(envelope.get("tool_observations") or [])

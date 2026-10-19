@@ -1,0 +1,14 @@
+# A step that looks something up and asks in the same breath; the worker holds the question until the lookup's
+# result has been seen.
+turns:
+  - tool_calls:
+      - name: browse_categories
+        id: lookup-1
+        args: {query: "janitorial"}
+      - name: ask_question
+        id: ask-1
+        args: {questions: ["When do you need it?"]}
+  - tool_calls:
+      - name: ask_question
+        id: ask-2
+        args: {preamble: "Found the category.", questions: ["When do you need it?"]}

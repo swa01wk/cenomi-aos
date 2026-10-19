@@ -84,11 +84,12 @@ diag: ## why didn't the worker reply? worker log, then the latest model calls, t
 	$(COMPOSE) logs worker --tail=150
 	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select event_type, \
 		coalesce(attributes->>'tool', attributes->>'failure_category', attributes->>'model') as detail, redacted_summary \
-		from evidence.execution_events where event_type in ('TaskFailed','ModelInvoked','ToolRequested','ToolDenied') \
-		order by occurred_at desc, aggregate_seq desc limit 12"
+		from evidence.execution_events where event_type in ('TaskFailed','ModelInvoked','ToolRequested','ToolDenied', \
+		'ToolCompleted','ArtifactProduced') order by occurred_at desc, aggregate_seq desc limit 16"
 	@$(COMPOSE) exec -T postgres psql -U aos_owner -d aos -c "select o->>'tool' as tool, o->'args' as args, \
 		left((o->'content')::text, 160) as result from work.attempts a, jsonb_array_elements(a.tool_observations) o \
-		where a.id = (select id from work.attempts order by admitted_at desc limit 1)"
+		where a.id = (select id from work.attempts where jsonb_array_length(coalesce(tool_observations, '[]'::jsonb)) > 0 \
+		order by admitted_at desc limit 1)"
 
 dev-api: ## kernel API with reload against AOS_DATABASE_URL (default: local Postgres, db aos)
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m uvicorn aos.api.main:app --reload --port 8000
