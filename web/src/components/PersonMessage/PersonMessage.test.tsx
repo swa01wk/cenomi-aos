@@ -10,7 +10,7 @@ describe("PersonMessage", () => {
           turn_id: "t1",
           seq: 1,
           author: { kind: "person", id: "p1", name: "Alex Kim" },
-          blocks: [{ text: "Hello" }],
+          blocks: [{ kind: "text", text: "Hello" }],
           at: "2026-01-01T12:00:00Z",
         }}
       />,

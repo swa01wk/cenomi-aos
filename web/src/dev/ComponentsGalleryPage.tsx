@@ -75,9 +75,9 @@ export default function ComponentsGalleryPage() {
               seq: 1,
               author: { kind: "seat", id: "s1", name: "Assistant" },
               blocks: [
-                { text: "Saved draft v2." },
-                { artifact_id: "art1", version: 2, label: "Record" },
-                { source_ref: "src1", label: "External lookup · 2026" },
+                { kind: "text", text: "Saved draft v2." },
+                { kind: "artifact_chip", artifact_id: "art1", version: 2, label: "Record" },
+                { kind: "source_chip", source_ref: "src1", label: "External lookup · 2026" },
               ],
               at: "2026-01-01T10:00:00Z",
             }}
@@ -87,7 +87,7 @@ export default function ComponentsGalleryPage() {
               turn_id: "t2",
               seq: 2,
               author: { kind: "person", id: "p1", name: "Alex Kim" },
-              blocks: [{ text: "Looks good." }],
+              blocks: [{ kind: "text", text: "Looks good." }],
               at: "2026-01-01T10:04:00Z",
             }}
           />
