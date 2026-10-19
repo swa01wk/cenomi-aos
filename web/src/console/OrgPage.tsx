@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { client } from "../api/client";
-import { ErrorNote, Loading } from "../lib/ui";
+import { ErrorBanner, Skeleton } from "../components";
 
 export default function OrgPage() {
   const { data: org, error, isPending } = useQuery({
@@ -11,8 +11,8 @@ export default function OrgPage() {
     },
   });
 
-  if (error) return <ErrorNote message={(error as Error).message} />;
-  if (isPending || !org) return <Loading what="the organization" />;
+  if (error) return <ErrorBanner title="We couldn't load the organization" detail={(error as Error).message} />;
+  if (isPending || !org) return <Skeleton />;
   const name = (id: string) => org.people.find((p) => p.id === id)?.name ?? id;
 
   return (

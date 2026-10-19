@@ -10,6 +10,11 @@ export default defineConfig({
   test: {
     // Unit tests only; Playwright's web/e2e/*.spec.ts run with `npm run e2e`.
     include: ["src/**/*.test.{ts,tsx}"],
+    css: {
+      modules: {
+        classNameStrategy: "non-scoped",
+      },
+    },
     environment: "jsdom",
     environmentOptions: {
       jsdom: { url: "http://localhost/" },

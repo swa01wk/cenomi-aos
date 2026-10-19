@@ -1,0 +1,29 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  font-size: 12px;
+}
+
+.step {
+  padding: 3px var(--space-8);
+  border-radius: 6px;
+}
+
+.open {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.approved {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.rejected {
+  background: var(--bad-soft);
+  color: var(--bad);
+}

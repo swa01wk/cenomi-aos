@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { client } from "../api/client";
-import { ErrorNote, Loading, StatusPill, shortHash, when } from "../lib/ui";
+import { ErrorBanner, Skeleton, StatusPill } from "../components";
+import { shortHash, when } from "../lib/ui";
 import { ReportView } from "./PacksPage";
 
 const ORDER = [
@@ -46,8 +47,8 @@ export default function VersionPage() {
     enabled: !!open,
   });
 
-  if (versionQuery.error) return <ErrorNote message={(versionQuery.error as Error).message} />;
-  if (versionQuery.isPending || !versionQuery.data) return <Loading what="the pack version" />;
+  if (versionQuery.error) return <ErrorBanner title="We couldn't load this version" detail={(versionQuery.error as Error).message} />;
+  if (versionQuery.isPending || !versionQuery.data) return <Skeleton />;
   const v = versionQuery.data;
   const kinds = [...new Set(v.definitions.map((d) => d.kind))].sort(
     (a, b) => ORDER.indexOf(a ?? "") - ORDER.indexOf(b ?? ""),
@@ -61,7 +62,7 @@ export default function VersionPage() {
           <h1 className="mono" style={{ fontSize: 22 }}>
             {v.pack} v{v.version}
           </h1>
-          <StatusPill status={v.status} />
+          <StatusPill state={v.status} />
         </div>
         <span className="sub">
           Digest <span className="mono">{shortHash(v.digest, 16)}</span> · source {v.source} · stored by{" "}
@@ -113,7 +114,9 @@ export default function VersionPage() {
           </div>
           <div className="panel-body">
             {!open && <span className="muted">The stored spec is shown exactly as the kernel will pin it.</span>}
-            {open && definitionQuery.error && <ErrorNote message={(definitionQuery.error as Error).message} />}
+            {open && definitionQuery.error && (
+              <ErrorBanner title="We couldn't load this definition" detail={(definitionQuery.error as Error).message} />
+            )}
             {open && definitionQuery.data && <pre className="json">{JSON.stringify(definitionQuery.data, null, 2)}</pre>}
           </div>
         </div>

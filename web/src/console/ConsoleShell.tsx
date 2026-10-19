@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
-import { initials } from "../lib/ui";
+import { ShellProvider } from "../components";
 import { useSession } from "../app/session";
+import { initials } from "../lib/ui";
 
 type NavItem = { label: string; to?: string; end?: boolean; soon?: string; roles?: string[] };
 
@@ -43,6 +44,7 @@ export default function ConsoleShell() {
   const canSync = roles.some((r) => ["platform_admin", "process_owner", "seat_owner"].includes(r));
 
   return (
+    <ShellProvider shell="console">
     <div className="shell">
       <nav className="console-nav" aria-label="Console">
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px" }}>
@@ -78,5 +80,6 @@ export default function ConsoleShell() {
         <Outlet context={{ canSync }} />
       </main>
     </div>
+    </ShellProvider>
   );
 }

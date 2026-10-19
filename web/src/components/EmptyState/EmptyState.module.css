@@ -1,0 +1,23 @@
+.root {
+  background: var(--canvas);
+  border-radius: var(--radius-sm);
+  padding: var(--space-18) var(--space-14);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  text-align: center;
+  min-height: 150px;
+  justify-content: center;
+}
+
+.title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.next {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 0;
+}

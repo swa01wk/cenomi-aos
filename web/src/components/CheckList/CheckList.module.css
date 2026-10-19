@@ -1,0 +1,44 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+.status {
+  font: var(--font-mono-id);
+  font-weight: 600;
+}
+
+.pass {
+  color: var(--ok);
+}
+
+.fail {
+  color: var(--bad);
+}
+
+.pending {
+  color: var(--ink-2);
+}
+
+.detail {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 0;
+}

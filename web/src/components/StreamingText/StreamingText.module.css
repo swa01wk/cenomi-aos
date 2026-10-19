@@ -1,0 +1,14 @@
+.text {
+  font-size: 13px;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  background: var(--ink);
+  vertical-align: -2px;
+}

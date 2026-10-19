@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { client } from "../api/client";
 import type { components } from "../api/schema";
-import { ErrorNote, Loading, initials, teamLabel } from "../lib/ui";
+import { ErrorBanner, Skeleton } from "../components";
+import { initials, teamLabel } from "../lib/ui";
 import { postSignInPath } from "./landing";
 import { useSession } from "./session";
 
@@ -48,8 +49,8 @@ export default function SignInPage() {
     onError: (e: Error) => setFailure(e.message),
   });
 
-  if (booting) return <Loading what="your session" />;
-  if (me) return <Loading what="your workspace" />;
+  if (booting) return <Skeleton />;
+  if (me) return <Skeleton />;
 
   const group = (console: boolean) => (people ?? []).filter((p) => p.console === console);
 
@@ -67,9 +68,9 @@ export default function SignInPage() {
           POC sign-in: pick a seeded person. Each one sees what their roles allow; single sign-on replaces this after
           the POC.
         </div>
-        {error && <ErrorNote message={`Can't reach the kernel: ${(error as Error).message}`} />}
-        {failure && <ErrorNote message={failure} />}
-        {!people && !error && <Loading what="people" />}
+        {error && <ErrorBanner title="Can't reach the kernel" detail={(error as Error).message} />}
+        {failure && <ErrorBanner title="Sign in failed" detail={failure} />}
+        {!people && !error && <Skeleton />}
         {people && (
           <>
             <Section title="Workspace" hint="Request, buy and approve work" people={group(false)} busy={signIn.isPending ? signIn.variables : null} onPick={(p) => signIn.mutate(p.id)} />

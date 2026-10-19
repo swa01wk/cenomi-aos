@@ -1,0 +1,95 @@
+.button {
+  box-sizing: border-box;
+  padding: 0 var(--space-18);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  text-decoration: none;
+}
+
+.workspace {
+  min-height: var(--touch-workspace);
+}
+
+.console {
+  min-height: var(--touch-console);
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.primary:hover:not([aria-disabled="true"]) {
+  background: var(--accent-ink);
+}
+
+.secondary {
+  background: var(--panel);
+  border-color: var(--border-secondary);
+  color: var(--ink);
+}
+
+.secondary:hover:not([aria-disabled="true"]) {
+  border-color: #c4c9d2;
+}
+
+.dark {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.iconOnly {
+  width: var(--touch-workspace);
+  padding: 0;
+}
+
+.iconOnly.consoleSize {
+  width: var(--touch-console);
+}
+
+[aria-disabled="true"] {
+  background: var(--canvas);
+  border-color: var(--line);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+[aria-disabled="true"].primary,
+[aria-disabled="true"].dark,
+[aria-disabled="true"].danger {
+  background: var(--canvas);
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

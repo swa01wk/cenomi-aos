@@ -22,11 +22,24 @@ function RootLayout() {
   );
 }
 
+const devRoutes = import.meta.env.DEV
+  ? [
+      {
+        path: "/dev/components",
+        lazy: async () => {
+          const { default: ComponentsGalleryPage } = await import("../dev/ComponentsGalleryPage");
+          return { Component: ComponentsGalleryPage };
+        },
+      },
+    ]
+  : [];
+
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
       { path: "/", element: <SignInPage /> },
+      ...devRoutes,
       {
         element: <RequireAuth />,
         children: [

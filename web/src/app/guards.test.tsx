@@ -54,7 +54,7 @@ describe("RequireAuth", () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(screen.getByText(/Loading your session/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
   });
 
   it("shows retry when session load fails", () => {

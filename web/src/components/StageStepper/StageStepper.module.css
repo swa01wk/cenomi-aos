@@ -1,0 +1,30 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.step {
+  padding: 3px var(--space-10);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+}
+
+.done {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.current {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.next {
+  background: #eef1f5;
+  color: var(--ink-2);
+}

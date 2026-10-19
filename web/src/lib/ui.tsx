@@ -24,19 +24,6 @@ export function teamLabel(team: string): string {
   return dept === t ? cap(dept) : `${cap(dept)} · ${cap(t)}`;
 }
 
-const STATUS_TONE: Record<string, string> = {
-  validated: "ok",
-  published: "info",
-  invalid: "bad",
-  draft: "",
-  publish_requested: "warn",
-  retired: "",
-};
-
-export function StatusPill({ status }: { status: string }) {
-  return <span className={`pill ${STATUS_TONE[status] ?? ""}`}>{status.replace("_", " ")}</span>;
-}
-
 /** Load once on mount (and on `reload()`), exposing data, error and loading. */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -55,16 +42,4 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
   }, [run]);
   useEffect(reload, [reload]);
   return { data, error, loading, reload };
-}
-
-export function Loading({ what }: { what: string }) {
-  return <p className="muted">Loading {what}…</p>;
-}
-
-export function ErrorNote({ message }: { message: string }) {
-  return (
-    <div className="banner bad" role="alert">
-      {message}
-    </div>
-  );
 }

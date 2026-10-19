@@ -1,0 +1,36 @@
+.notice {
+  display: flex;
+  gap: var(--space-10);
+  padding: var(--space-12);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--border-secondary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.detail {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.meta {
+  font: var(--font-mono-id);
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.link {
+  color: var(--accent);
+}
