@@ -5,10 +5,6 @@ import { SourceChip } from "../SourceChip/SourceChip";
 import type { Block, Turn } from "../types";
 import styles from "./AgentMessage.module.css";
 
-function isTextBlock(b: Block): b is Extract<Block, { text: string }> {
-  return "text" in b && typeof (b as { text?: string }).text === "string";
-}
-
 export function AgentMessage({
   turn,
   onOpenArtifact,
@@ -51,47 +47,44 @@ function BlockView({
   onOpenSource?: (sourceRef: string) => void;
   decisionHref?: (decisionId: string) => string | undefined;
 }) {
-  if ("text" in block && "tone" in block) {
-    const tone = block.tone ?? "info";
-    const toneClass =
-      tone === "warn" ? styles.noticeWarn : tone === "bad" ? styles.noticeBad : tone === "ok" ? styles.noticeOk : styles.noticeInfo;
-    return <p className={`${styles.notice} ${toneClass}`}>{block.text}</p>;
-  }
-  if (isTextBlock(block)) {
-    return <p className={styles.text}>{block.text}</p>;
-  }
-  if ("artifact_id" in block) {
-    return (
-      <div className={styles.chips}>
-        <ArtifactChip block={block} onOpen={onOpenArtifact} />
-      </div>
-    );
-  }
-  if ("source_ref" in block) {
-    return (
-      <div className={styles.chips}>
-        <SourceChip block={block} onOpen={onOpenSource} />
-      </div>
-    );
-  }
-  if ("pending_id" in block) {
-    return (
-      <span className={styles.pending} data-testid="pending-ref-placeholder">
-        Waiting for input…
-      </span>
-    );
-  }
-  if ("title" in block && "decision_id" in block) {
-    const href = decisionHref?.(block.decision_id);
-    return (
-      <RefusalNotice
-        title={block.title}
-        detail={block.detail}
-        rule={block.rule}
-        decisionId={block.decision_id}
-        decisionHref={href}
-      />
-    );
+  switch (block.kind) {
+    case "text":
+      return <p className={styles.text}>{block.text}</p>;
+    case "notice": {
+      const tone = block.tone ?? "info";
+      const toneClass =
+        tone === "warn" ? styles.noticeWarn : tone === "bad" ? styles.noticeBad : tone === "ok" ? styles.noticeOk : styles.noticeInfo;
+      return <p className={`${styles.notice} ${toneClass}`}>{block.text}</p>;
+    }
+    case "artifact_chip":
+      return (
+        <div className={styles.chips}>
+          <ArtifactChip block={block} onOpen={onOpenArtifact} />
+        </div>
+      );
+    case "source_chip":
+      return (
+        <div className={styles.chips}>
+          <SourceChip block={block} onOpen={onOpenSource} />
+        </div>
+      );
+    case "pending_ref":
+      // M2 renders the pending item (DecisionCard) here.
+      return (
+        <span className={styles.pending} data-testid="pending-ref-placeholder">
+          Waiting for input…
+        </span>
+      );
+    case "refusal":
+      return (
+        <RefusalNotice
+          title={block.title}
+          detail={block.detail}
+          rule={block.rule}
+          decisionId={block.decision_id}
+          decisionHref={decisionHref?.(block.decision_id)}
+        />
+      );
   }
   return null;
 }

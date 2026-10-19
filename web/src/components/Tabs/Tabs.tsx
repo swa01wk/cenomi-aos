@@ -11,7 +11,9 @@ export function Tabs({
   tabs,
   activeId,
   onChange,
+  label,
 }: {
+  label: string;
   tabs: TabDef[];
   activeId: string;
   onChange: (id: string) => void;
@@ -37,7 +39,7 @@ export function Tabs({
 
   return (
     <div className={styles.root}>
-      <div role="tablist" aria-label="Tabs" className={styles.tablist}>
+      <div role="tablist" aria-label={label} className={styles.tablist}>
         {tabs.map((tab, i) => {
           const selected = tab.id === active?.id;
           return (

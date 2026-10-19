@@ -28,7 +28,7 @@ export function SessionDialog({
           {title}
         </p>
         <p className={styles.detail}>{detail}</p>
-        <Button ref={signInRef} variant="dark" size="console" onClick={onSignIn}>
+        <Button ref={signInRef} variant="dark" onClick={onSignIn}>
           Sign in
         </Button>
       </div>

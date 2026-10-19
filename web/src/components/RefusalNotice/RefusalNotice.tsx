@@ -16,7 +16,7 @@ export function RefusalNotice({
 }) {
   return (
     <div role="note" className={styles.notice}>
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#4A5160" strokeWidth="1.6" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" className={styles.icon} strokeWidth="1.6" aria-hidden="true">
         <rect x="3.5" y="8" width="11" height="7" rx="1.5" />
         <path d="M6 8V6a3 3 0 016 0v2" />
       </svg>

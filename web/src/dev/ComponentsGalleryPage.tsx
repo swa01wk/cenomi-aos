@@ -106,6 +106,7 @@ export default function ComponentsGalleryPage() {
             empty={<span>No rows</span>}
           />
           <Tabs
+            label="Example tabs"
             activeId={tab}
             onChange={setTab}
             tabs={[

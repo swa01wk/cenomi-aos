@@ -60,6 +60,7 @@ export function Composer({
         aria-disabled={blocked ? "true" : undefined}
         readOnly={blocked}
         rows={2}
+        aria-label="Message"
         placeholder="Message"
       />
       <Button

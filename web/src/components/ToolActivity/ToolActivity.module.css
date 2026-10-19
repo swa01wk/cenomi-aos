@@ -5,3 +5,8 @@
   align-items: center;
   gap: var(--space-6);
 }
+
+.icon {
+  flex: none;
+  color: var(--accent);
+}

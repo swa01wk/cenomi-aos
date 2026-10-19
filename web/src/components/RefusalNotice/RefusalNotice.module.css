@@ -34,3 +34,8 @@
 .link {
   color: var(--accent);
 }
+
+.icon {
+  flex: none;
+  color: var(--ink-2);
+}

@@ -12,7 +12,7 @@ const STATE_WORD: Record<ToolActivityType["state"], string> = {
 export function ToolActivity({ activity }: { activity: ToolActivityType }) {
   return (
     <span className={styles.row}>
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#2B59C3" strokeWidth="1.6" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" className={styles.icon} strokeWidth="1.6" aria-hidden="true">
         <circle cx="6" cy="6" r="4" />
         <path d="M9 9l3 3" />
       </svg>

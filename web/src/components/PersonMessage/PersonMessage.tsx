@@ -4,8 +4,7 @@ import styles from "./PersonMessage.module.css";
 
 function textFromTurn(turn: Turn): string {
   return turn.blocks
-    .filter((b): b is Extract<typeof b, { text: string }> => "text" in b && typeof b.text === "string" && !("tone" in b))
-    .map((b) => b.text)
+    .flatMap((b) => (b.kind === "text" ? [b.text] : []))
     .join("\n");
 }
 

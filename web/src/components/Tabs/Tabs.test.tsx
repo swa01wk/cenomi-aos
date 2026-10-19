@@ -7,6 +7,7 @@ function Harness() {
   const [active, setActive] = useState("a");
   return (
     <Tabs
+      label="Example tabs"
       activeId={active}
       onChange={setActive}
       tabs={[
