@@ -33,6 +33,30 @@ def _base_worker_env(**overrides: str) -> dict[str, str]:
     return env
 
 
+# A developer's .env may hold real-model settings (from `make model-real` or the gate). `make` exports them to the
+# tests, and a worker subprocess that inherits them starts for real and polls forever instead of exiting.
+_REAL_MODEL_ENV = {
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "AOS_MODEL_PRICE_IN_PER_MTOK",
+    "AOS_MODEL_PRICE_OUT_PER_MTOK",
+}
+
+
+def _run_worker_script(script: str) -> subprocess.CompletedProcess[str]:
+    env = {k: v for k, v in os.environ.items() if k not in _REAL_MODEL_ENV}
+    env["AOS_MODEL_PROVIDER"] = "openai"
+    env["PYTHONPATH"] = f"{REPO / 'backend' / 'src'}:{REPO / 'backend' / '.vendor'}"
+    return subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO / "backend",
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
 class WorkerConfigTests(unittest.TestCase):
     def test_aos_runtime_is_required(self) -> None:
         env = _base_worker_env()
@@ -69,15 +93,7 @@ except SystemExit as e:
             jwt.encode({"aud": "aos-worker", "sub": "test-run"}, _DEV, algorithm="HS256"),
             _CHECKPOINT_URL,
         )
-        env = dict(os.environ)
-        env["PYTHONPATH"] = f"{REPO / 'backend' / 'src'}:{REPO / 'backend' / '.vendor'}"
-        proc = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=REPO / "backend",
-            env=env,
-            capture_output=True,
-            text=True,
-        )
+        proc = _run_worker_script(script)
         self.assertEqual(proc.returncode, 1)
         combined = (proc.stderr + proc.stdout).lower()
         self.assertTrue(
@@ -100,15 +116,7 @@ os.environ["AOS_WORKER_TOKEN"] = %r
 from aos.worker.__main__ import main
 main()
 """ % jwt.encode({"aud": "aos-worker", "sub": "w1"}, _DEV, algorithm="HS256")
-        env = dict(os.environ)
-        env["PYTHONPATH"] = f"{REPO / 'backend' / 'src'}:{REPO / 'backend' / '.vendor'}"
-        proc = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=REPO / "backend",
-            env=env,
-            capture_output=True,
-            text=True,
-        )
+        proc = _run_worker_script(script)
         self.assertEqual(proc.returncode, 1)
         combined = proc.stderr + proc.stdout
         self.assertIn("AOS_RUNTIME", combined)
