@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -95,7 +96,9 @@ async def advance_demo_clock(
         nxt = await cur.fetchone()
         if nxt and nxt[0] is not None:
             target = _as_utc(nxt[0])
-            offset = int((target - clock.wall_now()).total_seconds())
+            # Round up: truncating would leave kernel now() a fraction of a second before fires_at,
+            # and the tick only fires timers with fires_at <= now().
+            offset = math.ceil((target - clock.wall_now()).total_seconds())
             audit_data = {"to_next_timer": True, "offset_seconds": offset}
         else:
             audit_data = {"to_next_timer": True, "offset_seconds": offset}
