@@ -68,6 +68,10 @@
 - Per the Skill specs; `price_calculator` built-in tool; fake scripts `happy` and `injection`.
 - **Tests:** C06 — the injection script makes no out-of-contract call; C08 — a request for a tool not in the contract is
   denied and doesn't raise any budget.
+- **Carried from M2-BE-04 (review):** the `comparison` artifact type keys its rows by `supplier` (a name), because it
+  has no id field, so *Select the supplier* matches selections by name. Add a `supplier_id` field to `comparison`,
+  set `row_key: supplier_id`, and have `quote_comparison` fill it from the quotes. **Test:** two suppliers with
+  similar names; selecting one by `supplier_id` records exactly that supplier.
 
 ## Frontend
 
