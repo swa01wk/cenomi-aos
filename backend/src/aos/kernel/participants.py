@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from psycopg import AsyncConnection, errors as pg_errors
+from psycopg import AsyncConnection
 
 from aos.registry.kinds import Participant, WorkflowDefinition
 
@@ -201,13 +201,13 @@ async def resolve_participant(
         if not spec.rule:
             raise ParticipantError("internal", 500, "Participant misconfigured", f"Role {role!r} has no rule.")
         owner = eval_participant_rule(org, spec.rule)
-        try:
-            await conn.execute(
-                "insert into work.participants (instance_id, role, person_id, bound_by)"
-                " values (%s, %s, %s, 'rule')",
-                (instance_id, role, owner),
-            )
-        except pg_errors.UniqueViolation:
+        # ON CONFLICT, not try/except: a unique violation would abort the caller's whole transaction.
+        ins = await conn.execute(
+            "insert into work.participants (instance_id, role, person_id, bound_by)"
+            " values (%s, %s, %s, 'rule') on conflict (instance_id, role) do nothing returning person_id",
+            (instance_id, role, owner),
+        )
+        if await ins.fetchone() is None:
             return await _bound_person(conn, instance_id, role)
         await _emit_participant_bound(
             conn,
@@ -347,23 +347,20 @@ async def claim_instance(
             current_version=current_version,
         )
 
-    try:
-        await conn.execute(
-            "insert into work.participants (instance_id, role, person_id, bound_by)"
-            " values (%s, %s, %s, 'claim')",
-            (instance_id, role, person_id),
-        )
-    except pg_errors.UniqueViolation:
-        ver_cur = await conn.execute("select version from work.instances where id = %s", (instance_id,))
-        ver_row = await ver_cur.fetchone()
-        ver = int(ver_row[0]) if ver_row else current_version
+    # ON CONFLICT, not try/except: a unique violation would abort the transaction before we could answer.
+    ins = await conn.execute(
+        "insert into work.participants (instance_id, role, person_id, bound_by)"
+        " values (%s, %s, %s, 'claim') on conflict (instance_id, role) do nothing returning person_id",
+        (instance_id, role, person_id),
+    )
+    if await ins.fetchone() is None:
         raise ParticipantError(
             "already_claimed",
             409,
             "Role already claimed",
             "Someone else claimed this role first.",
-            current_version=ver,
-        ) from None
+            current_version=current_version,
+        )
 
     upd = await conn.execute(
         "update work.instances set version = version + 1 where id = %s and version = %s"
