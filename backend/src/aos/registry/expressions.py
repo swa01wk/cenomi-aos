@@ -363,6 +363,8 @@ def _tokenize(expr: str) -> list[tuple[str, Any]]:
                 while j < n and (expr[j].isdigit() or expr[j] == "."):
                     j += 1
                 num = expr[i:j]
+                if num.count(".") > 1 or num.endswith("."):
+                    raise _ParseError(f"invalid number {num!r}")
                 out.append(("LITERAL", Decimal(num) if "." in num else int(num)))
                 i = j
                 continue
@@ -379,7 +381,7 @@ def _tokenize(expr: str) -> list[tuple[str, Any]]:
                 j = i
                 while j < n and expr[j].isspace():
                     j += 1
-                if parts[0] in NAMESPACES and len(parts) == 2 and j < n and expr[j] != "(":
+                if parts[0] in NAMESPACES and len(parts) == 2 and (j >= n or expr[j] != "("):
                     out.append(("REF", (parts[0], parts[1])))
                     continue
                 out.append(("IDENT", word))
@@ -612,28 +614,17 @@ def _eval_call(node: _Call, scope: ExpressionScope) -> _Val:
             return _Val.of_bool(st.data in reached.data)
         return _Val.unk()
 
-    if base == "all":
+    if base in ("all", "any"):
+        # Same three-valued rules as && and ||: a false (all) or true (any) argument decides, wherever it is.
         if not node.args:
             return _Val.unk()
+        combine = _Tri.and_ if base == "all" else _Tri.or_
+        acc = _Tri.TRUE if base == "all" else _Tri.FALSE
         for arg in node.args:
-            t = _eval_tri(arg, scope)
-            if t is _Tri.FALSE:
-                return _Val.of_bool(False)
-            if t is _Tri.UNKNOWN:
-                return _Val.unk()
-        return _Val.of_bool(True)
-
-    if base == "any":
-        if not node.args:
+            acc = combine(acc, _eval_tri(arg, scope))
+        if acc is _Tri.UNKNOWN:
             return _Val.unk()
-        saw_unknown = False
-        for arg in node.args:
-            t = _eval_tri(arg, scope)
-            if t is _Tri.TRUE:
-                return _Val.of_bool(True)
-            if t is _Tri.UNKNOWN:
-                saw_unknown = True
-        return _Val.unk() if saw_unknown else _Val.of_bool(False)
+        return _Val.of_bool(acc is _Tri.TRUE)
 
     if base == "size":
         if len(node.args) != 1:

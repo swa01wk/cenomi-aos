@@ -54,7 +54,8 @@ def match_transition(
     """Return the first transition that matches *state* and *event*, or why none fired."""
     spec = definition.spec
     attrs = attributes or {}
-    wf_ctx = workflow_ctx or {"state": state}
+    # The state being matched is authoritative for workflow.state, whatever the caller passed.
+    wf_ctx = {**(workflow_ctx or {}), "state": state}
     scope = _build_scope(
         attributes=attrs,
         workflow_ctx=wf_ctx,

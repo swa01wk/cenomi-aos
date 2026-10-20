@@ -85,6 +85,28 @@ class EvaluateTriState(unittest.TestCase):
             evaluate("attr.a +", scope)
         with self.assertRaises(ExpressionError):
             evaluate("attr.a $ 1", scope)
+        with self.assertRaises(ExpressionError):
+            evaluate("attr.a > 1.2.3", scope)
+
+    def test_ref_at_the_end_of_the_expression(self) -> None:
+        scope = {"attr": {"a": 5, "b": 5, "flag": True}, "artifact": {"po_amount": Decimal("30000.50")}}
+        self.assertTrue(evaluate("5 == attr.a", scope))
+        self.assertTrue(evaluate("attr.a == attr.b", scope))
+        self.assertTrue(evaluate("3 <= attr.a", scope))
+        self.assertTrue(evaluate("25000 < artifact.po_amount", scope))
+        self.assertFalse(evaluate("attr.flag", scope))  # a bare ref is not a guard, even when it holds a boolean
+
+    def test_all_and_any_follow_the_three_valued_rules(self) -> None:
+        scope = {"attr": {"x": 5}}
+        # A false argument decides all(), wherever it is, as it does for &&.
+        self.assertTrue(evaluate("!all(attr.missing == 1, attr.x == 6)", scope))
+        self.assertFalse(evaluate("all(attr.missing == 1, attr.x == 6)", scope))
+        self.assertFalse(evaluate("all(attr.missing == 1, attr.x == 5)", scope))
+        self.assertFalse(evaluate("!all(attr.missing == 1, attr.x == 5)", scope))
+        # A true argument decides any(), wherever it is, as it does for ||.
+        self.assertTrue(evaluate("any(attr.missing == 1, attr.x == 5)", scope))
+        self.assertFalse(evaluate("any(attr.missing == 1, attr.x == 6)", scope))
+        self.assertFalse(evaluate("!any(attr.missing == 1, attr.x == 6)", scope))
 
 
 class PolicyConditions(unittest.TestCase):
