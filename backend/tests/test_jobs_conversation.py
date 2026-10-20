@@ -267,9 +267,7 @@ class JobsConversationTests(unittest.TestCase):
             pack_yaml.read_text().replace("name: procurement_demo", "name: procurement_alt", 1)
         )
         wf = alt / "workflows" / "quick_quote.yaml"
-        text = wf.read_text()
-        text = text.replace("skill: request_intake", "skill: alt_intake", 1)
-        wf.write_text(text)
+        wf.write_text(wf.read_text().replace("request_intake", "alt_intake"))
         shutil.copytree(
             alt / "skills" / "request_intake",
             alt / "skills" / "alt_intake",
@@ -280,7 +278,11 @@ class JobsConversationTests(unittest.TestCase):
             .replace("name: request_intake", "name: alt_intake")
         )
         seat_yaml = alt / "seats" / "seat_sourcing_poc.yaml"
-        seat_yaml.write_text(seat_yaml.read_text().replace("request_intake", "alt_intake"))
+        seat_yaml.write_text(
+            seat_yaml.read_text()
+            .replace("request_intake", "alt_intake")
+            .replace("assist_skill: sourcing_assist", "assist_skill: alt_intake")
+        )
         settings = Settings.from_env(
             database_url=_pg.kernel_url(self.db),
             packs_dir=self.packs,

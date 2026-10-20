@@ -5,7 +5,8 @@ spec:
   display_name: Sourcing Agent
   placement: procurement/sourcing
   role: sourcing_agent
-  skills: [request_intake, supplier_lookup, rfq_authoring, quote_triage, quote_comparison]
+  assist_skill: sourcing_assist
+  skills: [request_intake, sourcing_assist, supplier_lookup, rfq_authoring, quote_triage, quote_comparison]
   resources: [job_artifacts, erp_supplier, erp_po, mailbox, quotes]
   authority_profile: sourcing_supervised@1
   autonomy_mode: supervised

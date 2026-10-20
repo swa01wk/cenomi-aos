@@ -307,6 +307,27 @@ async def open_ready_decisions(
             ),
         )
         await _emit_pending_created(conn, instance_id=instance_id, person_id=person_id, pending=pending_doc)
+        from .org import load_org
+        from .progress import post_decision_opened_progress
+        from .settings import REPO
+
+        org = load_org(REPO / "seed" / "org.yaml")
+        inst_org_cur = await conn.execute(
+            "select org_id from work.instances where id = %s",
+            (instance_id,),
+        )
+        org_row = await inst_org_cur.fetchone()
+        if org_row:
+            await post_decision_opened_progress(
+                conn,
+                org=org,
+                org_id=str(org_row[0]),
+                instance_id=instance_id,
+                pending_id=pending_id,
+                label=dec.label,
+                for_person_id=person_id,
+                for_role=dec.for_,
+            )
         opened.append(pending_id)
     return opened
 
@@ -618,6 +639,19 @@ async def decide_pending(
         pending_id=pending_id,
         outcome="resolved",
         by=person_id,
+    )
+    from .org import load_org
+    from .progress import post_decision_resolved_progress
+    from .settings import REPO
+
+    org = load_org(REPO / "seed" / "org.yaml")
+    await post_decision_resolved_progress(
+        conn,
+        org=org,
+        org_id=org_id,
+        instance_id=instance_id,
+        decider_id=person_id,
+        decider_role=actor_role,
     )
 
     apply_result = await workflow.apply_event(

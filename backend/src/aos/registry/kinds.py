@@ -172,6 +172,7 @@ class SeatSpec(Strict):
     display_name: str
     placement: str = Field(pattern=r"^[a-z0-9_]+(/[a-z0-9_]+)*$")
     role: Name
+    assist_skill: Name
     skills: list[Name] = Field(min_length=1)
     resources: list[Name] = Field(min_length=1)
     authority_profile: str = Field(pattern=r"^[a-z][a-z0-9_]+@\d+$")
@@ -328,6 +329,7 @@ class TaskTemplate(Strict):
 class StateSpec(Strict):
     label: str
     view: Name | None = None
+    assist: Name | None = None
     final: bool = False
     tasks: list[TaskTemplate] = []
     on_event: dict[str, TaskTemplate] = {}

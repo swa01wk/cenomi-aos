@@ -23,6 +23,7 @@ spec:
   states:
     intake:
       label: Intake
+      assist: request_intake
       view: brief
       tasks:
         - {template: request_intake, skill: request_intake, work_type: analysis, verifier: brief_schema, on_behalf_of: requester}

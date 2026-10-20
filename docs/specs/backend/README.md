@@ -98,7 +98,7 @@ Until M3 (`gov.policy_decisions`, M3-BE-01), admission refusals are recorded as 
 | 2 | Seat version is ACTIVE (not PAUSED, KILLED, RETIRED) | `seat_not_active` |
 | 3 | Instance pinned to a published pack version | `conflict` |
 | 4 | Caller may act: for `startInstance`, org roles intersect a start participant's `org_roles`; on an existing job, caller is a bound participant (or the Task is kernel-scheduled) | `not_permitted` |
-| 5 | Task has no live attempt and attempts remain | `conflict` |
+| 5 | Task has no live attempt and attempts remain. Assist turns count attempts per person turn (`turn_id`); a new message starts a fresh budget. Workflow tasks use `tasks.attempts_used`. | `conflict` |
 | 6 | Inputs current: `dependency_versions` match the instance | `stale_version` |
 | 7 | Budget: attempt reservation fits the Seat's remaining daily limit | `budget_exhausted` |
 | 8 | Concurrency: at most 4 live attempts per Seat in the POC | `unavailable` (retry later) |

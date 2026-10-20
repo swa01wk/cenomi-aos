@@ -402,4 +402,19 @@ async def submit_result(
     )
     if isinstance(finished, CommittedFenced):
         return finished
+    if gate.kind != "assist" and task_to == "COMPLETED":
+        from .org import load_org
+        from .progress import post_task_outcome_progress
+        from .settings import REPO
+
+        org = load_org(REPO / "seed" / "org.yaml")
+        await post_task_outcome_progress(
+            conn,
+            org=org,
+            org_id=gate.org_id,
+            instance_id=gate.instance_id,
+            task_id=gate.task_id,
+            summary=result.get("summary") if isinstance(result.get("summary"), str) else None,
+            attempt_id=attempt_id,
+        )
     return accepted_response

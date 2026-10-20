@@ -311,7 +311,13 @@ async def claim_next_attempt(
             redacted_summary=f"Attempt {attempt_id} claimed by worker.",
             task_id=task_id,
             attempt_id=attempt_id,
-            attributes={"attempt_id": attempt_id, "n": int(n), "fencing_token": int(fencing_token)},
+            contract_version=int(contract.get("contract_version") or 1),
+            attributes={
+                "attempt_id": attempt_id,
+                "n": int(n),
+                "fencing_token": int(fencing_token),
+                "contract_hash": str(contract.get("contract_hash") or ""),
+            },
         ),
     )
     started_audience = await _instance_participant_audience(conn, instance_id)
@@ -489,6 +495,21 @@ async def fail_attempt(
                 attempt_id=attempt_id,
                 failure_class=failure_class,
             )
+        else:
+            from .org import load_org
+            from .progress import post_task_outcome_progress
+            from .settings import REPO
+
+            org = load_org(REPO / "seed" / "org.yaml")
+            await post_task_outcome_progress(
+                conn,
+                org=org,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                task_id=gate.task_id,
+                summary=None,
+                attempt_id=attempt_id,
+            )
     return end
 
 
@@ -588,7 +609,13 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
         ],
     )
 
-    if task_state != "RUNNING" or int(attempts_used) >= int(max_attempts):
+    turn_budget_exhausted = False
+    if task_kind == "assist" and turn_id:
+        turn_count = await task_ops.count_attempts_for_turn(conn, task_id, turn_id)
+        turn_budget_exhausted = turn_count >= int(max_attempts)
+    if task_state != "RUNNING" or (
+        turn_budget_exhausted if task_kind == "assist" else int(attempts_used) >= int(max_attempts)
+    ):
         if task_kind == "assist" and task_state == "RUNNING":
             from .reply_failure import post_reply_failed
 
@@ -656,7 +683,10 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
     workflow_name, pack_version_id, attributes = inst[0], str(inst[1]), inst[2]
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
-    if task_state != "RUNNING" or int(attempts_used) >= int(max_attempts):
+    turn_count = 0
+    if lease.turn_id:
+        turn_count = await task_ops.count_attempts_for_turn(conn, lease.task_id, lease.turn_id)
+    if task_state != "RUNNING" or turn_count >= int(max_attempts):
         return
 
     pack_name, _, _, pack_status = await _pack_meta(conn, lease.org_id, pack_version_id)
@@ -676,6 +706,7 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
         task_id=lease.task_id,
         attempts_used=int(attempts_used),
         max_attempts=int(max_attempts),
+        turn_attempts_used=turn_count,
         has_live_attempt=has_live,
         dependency_versions=attributes,
         contract_dependency_versions=contract.get("dependency_versions") or {},

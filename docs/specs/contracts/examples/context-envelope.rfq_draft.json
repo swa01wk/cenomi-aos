@@ -29,6 +29,7 @@
     "job_snapshot": {
       "title": "40 cleaning trolleys for Mall A",
       "state": "rfq_drafting",
+      "goal": "Find suppliers, collect quotes and raise a purchase order for a defined item.",
       "participants": [
         {
           "role": "requester",
@@ -45,7 +46,16 @@
         "quote_count": 0,
         "invited_count": 0,
         "po_amount": null
-      }
+      },
+      "stages": [
+        {"state": "intake", "label": "Intake", "status": "done"},
+        {"state": "shortlisting", "label": "Shortlisting", "status": "done"},
+        {"state": "rfq_drafting", "label": "RFQ drafting", "status": "current"}
+      ],
+      "open_decisions": [],
+      "work_in_progress": [
+        {"template": "rfq_draft", "state": "RUNNING", "attempts_used": 1}
+      ]
     }
   },
   "artifacts": [

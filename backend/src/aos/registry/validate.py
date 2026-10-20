@@ -247,6 +247,15 @@ class _Checker:
             s = seat.spec
             role = self.roles.get(s.role)
             self.ref("Seat", name, "spec.role", "Role", s.role, self.roles)
+            if self.ref("Seat", name, "spec.assist_skill", "Skill", s.assist_skill, self.skills):
+                if s.assist_skill not in s.skills:
+                    self.err(
+                        "E_ASSIST_SKILL",
+                        "Seat",
+                        name,
+                        "spec.assist_skill",
+                        f"assist_skill {s.assist_skill!r} must be listed in spec.skills",
+                    )
             for i, sk in enumerate(s.skills):
                 if self.ref("Seat", name, f"spec.skills[{i}]", "Skill", sk, self.skills) and role:
                     extra = set(self.skills[sk].spec.work_types) - set(role.spec.work_types)
@@ -364,6 +373,25 @@ class _Checker:
                 base = f"spec.states.{sname}"
                 if st.view:
                     self.ref(K, wname, f"{base}.view", "ArtifactType", st.view, self.artifacts)
+                if st.assist:
+                    if not seats_for_role:
+                        self.err(
+                            "E_STATE_ASSIST",
+                            K,
+                            wname,
+                            f"{base}.assist",
+                            "no Seat has the workflow's role to validate assist",
+                        )
+                    elif not any(st.assist in seat.spec.skills for seat in seats_for_role):
+                        self.err(
+                            "E_STATE_ASSIST",
+                            K,
+                            wname,
+                            f"{base}.assist",
+                            f"assist skill {st.assist!r} is not on any Seat with role {w.seat_role!r}",
+                        )
+                    else:
+                        self.ref(K, wname, f"{base}.assist", "Skill", st.assist, self.skills)
                 if st.final and (st.tasks or st.on_event):
                     self.err("E_FINAL", K, wname, base, "a final state cannot create Tasks")
                 names = set()

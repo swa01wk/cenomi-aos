@@ -48,7 +48,7 @@ class DemoPackPasses(unittest.TestCase):
         self.assertTrue(report.ok, "\n".join(map(str, report.issues)))
         self.assertEqual(report.warnings, [])
         self.assertEqual(report.counts["WorkflowDefinition"], 1)
-        self.assertEqual(report.counts["Skill"], 5)
+        self.assertEqual(report.counts["Skill"], 6)
 
     def test_cli_exit_codes(self) -> None:
         self.assertEqual(cli_main(["validate", str(PACK), "--org", str(REPO / "seed" / "org.yaml")]), 0)
@@ -179,6 +179,25 @@ class BrokenPacksFail(PackCase):
             d["spec"]["decisions"]["brief_confirmed"]["for"] = "buyer"
         self.edit("workflows/quick_quote.yaml", fn)
         self.assertFailsWith("E_DECISION")
+
+    def test_assist_skill_must_be_on_seat(self) -> None:
+        def fn(d):
+            d["spec"]["assist_skill"] = "quote_triage"
+            d["spec"]["skills"] = [s for s in d["spec"]["skills"] if s != "quote_triage"]
+
+        self.edit("seats/seat_sourcing_poc.yaml", fn)
+        self.assertFailsWith("E_ASSIST_SKILL")
+
+    def test_state_assist_must_be_on_seat(self) -> None:
+        def fn(d):
+            d["spec"]["states"]["intake"]["assist"] = "quote_triage"
+            seat_path = self.pack / "seats" / "seat_sourcing_poc.yaml"
+            seat = parse_yaml(seat_path.read_text())
+            seat["spec"]["skills"] = [s for s in seat["spec"]["skills"] if s != "quote_triage"]
+            seat_path.write_text(yaml.safe_dump(seat, sort_keys=False))
+
+        self.edit("workflows/quick_quote.yaml", fn)
+        self.assertFailsWith("E_STATE_ASSIST")
 
 
 if __name__ == "__main__":

@@ -41,12 +41,40 @@
       "properties": {
         "job_snapshot": {
           "type": "object",
-          "required": ["title", "state", "participants", "attributes"],
+          "required": ["title", "state", "participants", "attributes", "goal", "stages", "open_decisions", "work_in_progress"],
           "properties": {
             "title": {"type": "string"},
             "state": {"type": "string"},
+            "goal": {"type": "string"},
             "participants": {"type": "array", "items": {"type": "object", "required": ["role", "name"], "properties": {"role": {"type": "string"}, "name": {"type": "string"}}, "additionalProperties": false}},
-            "attributes": {"type": "object", "additionalProperties": {"type": ["integer", "number", "string", "null"]}}
+            "attributes": {"type": "object", "additionalProperties": {"type": ["integer", "number", "string", "null"]}},
+            "stages": {
+              "type": "array",
+              "items": {"type": "object", "required": ["state", "label", "status"], "properties": {"state": {"type": "string"}, "label": {"type": "string"}, "status": {"enum": ["done", "current", "next"]}}, "additionalProperties": false}
+            },
+            "open_decisions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["pending_id", "label", "for_role", "waiting_on"],
+                "properties": {
+                  "pending_id": {"type": "string"},
+                  "label": {"type": "string"},
+                  "for_role": {"type": "string"},
+                  "waiting_on": {"type": "object", "required": ["role", "name"], "properties": {"role": {"type": "string"}, "name": {"type": "string"}}, "additionalProperties": false}
+                },
+                "additionalProperties": false
+              }
+            },
+            "work_in_progress": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["template", "state", "attempts_used"],
+                "properties": {"template": {"type": "string"}, "state": {"type": "string"}, "attempts_used": {"type": "integer"}},
+                "additionalProperties": false
+              }
+            }
           },
           "additionalProperties": false
         },
