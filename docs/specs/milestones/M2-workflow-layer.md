@@ -100,6 +100,11 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
     `on_behalf_of` role. M2-BE-01 uses a placeholder (the Seat's highest grant), harmless only while no Task runs.
   - **Tests:** a template without `on_behalf_of` fails validation; the `supplier_lookup` contract's ceiling is
     `shareable` and `request_intake`'s is `internal`.
+- **Carried from M2-BE-06 (review):** `aos simulate` completes Tasks with a stub executor (placeholder artifacts by
+  field type, verifiers skipped, only on `-SIM-` jobs) because the Task graphs don't exist yet. Once they do, run
+  the simulation's Tasks and intake through the real graphs with `FakeRuntime` and the pack's `happy` scripts, so
+  the exit gate's "with the fake model" is literally true; keep the stub only as a fallback for Skills without a
+  script. **Test:** the dry run reaches `closed` through FakeRuntime with verifiers running.
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
