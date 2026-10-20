@@ -108,6 +108,34 @@ async def outbox_row_exists(conn: AsyncConnection, stream: str, seq: int) -> boo
     return await cur.fetchone() is not None
 
 
+async def validate_user_cursor(
+    conn: AsyncConnection,
+    *,
+    person_id: str,
+    cursor: str | None,
+) -> CursorValidation:
+    stream = ids.stream_user(person_id)
+    if not cursor or not cursor.strip():
+        return CursorValidation(ok=False, stream=stream, reason="cursor_unknown")
+
+    try:
+        parsed_stream, seq = ids.parse_ui_event_cursor(cursor.strip())
+    except ValueError:
+        return CursorValidation(ok=False, stream=stream, reason="cursor_unknown")
+
+    if parsed_stream != stream:
+        return CursorValidation(ok=False, stream=stream, seq=seq, reason="cursor_unknown")
+
+    head = await stream_head(conn, stream)
+    if seq > head:
+        return CursorValidation(ok=False, stream=stream, seq=seq, reason="cursor_unknown")
+
+    if seq > 0 and not await outbox_row_exists(conn, stream, seq):
+        return CursorValidation(ok=False, stream=stream, seq=seq, reason="gap")
+
+    return CursorValidation(ok=True, stream=stream, seq=seq)
+
+
 async def validate_instance_cursor(
     conn: AsyncConnection,
     *,

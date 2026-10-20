@@ -20,6 +20,9 @@ Name = Annotated[str, Field(pattern=NAME_RE)]
 WORK_TYPES = ("analysis", "document_draft", "outbound_communication", "record_update", "reconciliation")
 WorkType = Literal["analysis", "document_draft", "outbound_communication", "record_update", "reconciliation"]
 
+# Work types whose Tasks may run committed-effect tools (Console graph hint; pack-neutral).
+EFFECT_COMMIT_WORK_TYPES: frozenset[WorkType] = frozenset({"outbound_communication", "record_update"})
+
 # The Workspace's catalogue views (gap 8). Custom views are deferred.
 VIEW_TYPES = (
     "document", "sheet", "form", "comparison", "message_composer", "rubric",

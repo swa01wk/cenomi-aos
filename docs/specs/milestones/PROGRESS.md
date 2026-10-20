@@ -39,7 +39,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [ ] M2-AG-03 Verifiers
 - [ ] M2-AG-02 supplier_lookup and rfq_draft
 - [ ] M2-AG-04 Assist Skills that keep people informed
-- [ ] M2-BE-06 Simulate and Console reads
+- [x] M2-BE-06 Simulate and Console reads
 - [ ] M2-FE-01 Lists and live updates
 - [ ] M2-FE-02 Job page decisions and views
 - [ ] M2-FE-03 Console
