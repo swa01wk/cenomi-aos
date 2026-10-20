@@ -559,18 +559,29 @@ async def decide_pending(
             "Selection required",
             "Choose one or more items before confirming.",
         )
-    if dec.selection and isinstance(selection, list) and artifact_ref is not None and bound_content is not None:
+    if dec.selection and isinstance(selection, list):
+        # Fail closed: a selection is only accepted when it can be checked against the bound rows.
         view_name = definition.spec.states[dec.state].view
-        if view_name:
-            raw_at = defs.get("ArtifactType", {}).get(view_name)
-            if raw_at is not None:
-                at = ArtifactType.model_validate(raw_at)
-                if at.spec.row_based and at.spec.row_key:
-                    _validate_selection(
-                        [str(s) for s in selection],
-                        row_key=at.spec.row_key,
-                        content=bound_content,
-                    )
+        raw_at = defs.get("ArtifactType", {}).get(view_name) if view_name else None
+        at = ArtifactType.model_validate(raw_at) if raw_at is not None else None
+        if (
+            artifact_ref is None
+            or bound_content is None
+            or at is None
+            or not at.spec.row_based
+            or not at.spec.row_key
+        ):
+            raise DecisionError(
+                "validation_failed",
+                422,
+                "Invalid selection",
+                "There are no rows to select from for this decision.",
+            )
+        _validate_selection(
+            [str(s) for s in selection],
+            row_key=at.spec.row_key,
+            content=bound_content,
+        )
 
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     new_attributes = _apply_sets(
