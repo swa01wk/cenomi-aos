@@ -988,6 +988,7 @@ async def post_attempt_events_route(
             events=body.events,
             stream=body.stream,
             hub=hub,
+            org=request.app.state.kernel.org,
         )
     except worker_attempts.WorkerError as exc:
         _raise_worker_error(exc)

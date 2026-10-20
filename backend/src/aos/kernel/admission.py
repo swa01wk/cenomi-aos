@@ -91,101 +91,110 @@ async def _record_admission_denied(
     return CommittedRefusal(code, status, title, detail, decision_id, rule=rule)
 
 
-async def check_admission(conn: AsyncConnection, ctx: AdmissionContext) -> CommittedRefusal | None:
-    """Run gates 1–8 in order. Returns a committed refusal or None if all pass."""
+@dataclass(frozen=True)
+class AdmissionFailure:
+    code: str
+    rule: str
+    title: str
+    detail: str
+    status: int = 403
+
+
+async def evaluate_admission(conn: AsyncConnection, ctx: AdmissionContext) -> AdmissionFailure | None:
+    """Run gates 1–8 without writing refusal records."""
     # Gate 1: kill switch — table arrives in M4 (docs/specs/backend/ddl/0006_m4_govern.sql).
-    # Stub: always pass until gov.kill_switches exists.
-
     if ctx.seat_state != "ACTIVE":
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="seat_not_active",
-            rule=_rule(2, "seat_not_active"),
-            title="This agent is not available",
-            detail="The seat must be active before starting or continuing work.",
+        return AdmissionFailure(
+            "seat_not_active",
+            _rule(2, "seat_not_active"),
+            "This agent is not available",
+            "The seat must be active before starting or continuing work.",
         )
-
     if not ctx.pack_published:
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="conflict",
-            rule=_rule(3, "pack_not_published"),
-            title="Pack version is not published",
-            detail="This job's pack version is not published.",
+        return AdmissionFailure(
+            "conflict",
+            _rule(3, "pack_not_published"),
+            "Pack version is not published",
+            "This job's pack version is not published.",
             status=409,
         )
-
     if not ctx.participant_ok:
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="not_permitted",
-            rule=_rule(4, "not_permitted"),
-            title="You may not do that here",
-            detail="You are not allowed to act on this job.",
+        return AdmissionFailure(
+            "not_permitted",
+            _rule(4, "not_permitted"),
+            "You may not do that here",
+            "You are not allowed to act on this job.",
         )
-
     if ctx.has_live_attempt:
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="conflict",
-            rule=_rule(5, "live_attempt"),
-            title="An attempt is already running",
-            detail="Wait for the current attempt to finish before starting another.",
+        return AdmissionFailure(
+            "conflict",
+            _rule(5, "live_attempt"),
+            "An attempt is already running",
+            "Wait for the current attempt to finish before starting another.",
             status=409,
         )
-
     budget_used = (
         ctx.turn_attempts_used
         if ctx.turn_attempts_used is not None
         else ctx.attempts_used
     )
     if budget_used >= ctx.max_attempts:
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="conflict",
-            rule=_rule(5, "attempts_exhausted"),
-            title="No attempts left",
-            detail="This task has used all allowed attempts.",
+        return AdmissionFailure(
+            "conflict",
+            _rule(5, "attempts_exhausted"),
+            "No attempts left",
+            "This task has used all allowed attempts.",
             status=409,
         )
-
     if not _dependency_versions_match(ctx.contract_dependency_versions, ctx.dependency_versions):
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="stale_version",
-            rule=_rule(6, "stale_version"),
-            title="Inputs changed",
-            detail="Reload the job and try again.",
+        return AdmissionFailure(
+            "stale_version",
+            _rule(6, "stale_version"),
+            "Inputs changed",
+            "Reload the job and try again.",
             status=409,
         )
-
     if not await _budget_fits(conn, ctx.org_id, ctx.seat_name, ctx.reservation_usd):
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="budget_exhausted",
-            rule=_rule(7, "budget_exhausted"),
-            title="Daily budget reached",
-            detail="This seat has no budget left for new attempts today.",
+        return AdmissionFailure(
+            "budget_exhausted",
+            _rule(7, "budget_exhausted"),
+            "Daily budget reached",
+            "This seat has no budget left for new attempts today.",
         )
-
     if ctx.live_seat_attempts >= MAX_LIVE_ATTEMPTS_PER_SEAT:
-        return await _record_admission_denied(
-            conn,
-            ctx,
-            code="unavailable",
-            rule=_rule(8, "unavailable"),
-            title="Seat is busy",
-            detail="Too many attempts are running on this seat. Try again shortly.",
+        return AdmissionFailure(
+            "unavailable",
+            _rule(8, "unavailable"),
+            "Seat is busy",
+            "Too many attempts are running on this seat. Try again shortly.",
             status=503,
         )
     return None
+
+
+async def check_admission(
+    conn: AsyncConnection,
+    ctx: AdmissionContext,
+    *,
+    record_denial: bool = True,
+) -> CommittedRefusal | None:
+    """Run gates 1–8 in order. Returns a committed refusal or None if all pass."""
+    fail = await evaluate_admission(conn, ctx)
+    if fail is None:
+        return None
+    if not record_denial:
+        return CommittedRefusal(
+            fail.code, fail.status, fail.title, fail.detail, "", rule=fail.rule
+        )
+    return await _record_admission_denied(
+        conn,
+        ctx,
+        code=fail.code,
+        rule=fail.rule,
+        title=fail.title,
+        detail=fail.detail,
+        status=fail.status,
+    )
 
 
 async def _budget_fits(conn: AsyncConnection, org_id: str, seat: str, reservation_usd: float) -> bool:

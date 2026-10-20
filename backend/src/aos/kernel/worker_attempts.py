@@ -500,21 +500,26 @@ async def fail_attempt(
                 failure_class=failure_class,
             )
         else:
-            from .progress import post_task_outcome_progress
+            from .task_retry import finalize_workflow_task_exception
 
-            await post_task_outcome_progress(
+            await finalize_workflow_task_exception(
                 conn,
                 org=org,
                 org_id=gate.org_id,
                 instance_id=gate.instance_id,
                 task_id=gate.task_id,
-                summary=None,
                 attempt_id=attempt_id,
+                summary=None,
             )
     return end
 
 
-async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = None) -> ExpireOutcome:
+async def expire_one_attempt(
+    conn: AsyncConnection,
+    *,
+    attempt_id: str | None = None,
+    org: "OrgModel | None" = None,
+) -> ExpireOutcome:
     """End one expired lease. Re-admission runs in a separate transaction (see scheduler)."""
     if attempt_id is None:
         pick = await conn.execute(
@@ -650,24 +655,40 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
                     attributes={"failure_category": "expired"},
                 ),
             )
+            if org is not None:
+                from .task_retry import finalize_workflow_task_exception
+
+                await finalize_workflow_task_exception(
+                    conn,
+                    org=org,
+                    org_id=org_id,
+                    instance_id=instance_id,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    summary=None,
+                )
         return ExpireOutcome(expired=True)
 
     if task_kind == "assist":
-        # Assist jobs get another attempt via postTurn when readmit is refused here.
-        pass
-    # Workflow task readmission after expiry: revisit in M2 (kernel-scheduled READY tasks).
+        return ExpireOutcome(
+            expired=True,
+            readmit=ExpiredLease(
+                org_id=org_id,
+                seat_name=seat_name,
+                seat_version=int(seat_version),
+                instance_id=instance_id,
+                task_id=task_id,
+                turn_id=turn_id,
+            ),
+        )
+    if task_kind == "task" and task_state == "RUNNING":
+        await conn.execute(
+            "update work.tasks set state = 'READY', updated_at = now() where id = %s",
+            (task_id,),
+        )
+        return ExpireOutcome(expired=True)
 
-    return ExpireOutcome(
-        expired=True,
-        readmit=ExpiredLease(
-            org_id=org_id,
-            seat_name=seat_name,
-            seat_version=int(seat_version),
-            instance_id=instance_id,
-            task_id=task_id,
-            turn_id=turn_id,
-        ),
-    )
+    return ExpireOutcome(expired=True)
 
 
 async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease) -> None:

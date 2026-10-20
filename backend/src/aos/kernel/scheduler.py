@@ -15,7 +15,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from pathlib import Path
 
-from . import clock, timers
+from . import clock, readiness, timers
 from .org import OrgModel
 from .worker_attempts import expire_one_attempt, readmit_after_expiry_lease
 
@@ -24,7 +24,12 @@ log = logging.getLogger("aos.scheduler")
 ADVISORY_LOCK_KEY = 8070501
 
 
-async def run_lease_expiry_tick(pool: AsyncConnectionPool, *, database_url: str) -> int:
+async def run_lease_expiry_tick(
+    pool: AsyncConnectionPool,
+    *,
+    database_url: str,
+    org: OrgModel | None = None,
+) -> int:
     """Expire due leases; expiry and re-admission each commit in their own transaction."""
     lock_conn = await psycopg.AsyncConnection.connect(database_url)
     acquired = False
@@ -38,7 +43,7 @@ async def run_lease_expiry_tick(pool: AsyncConnectionPool, *, database_url: str)
         while True:
             async with pool.connection() as conn:
                 async with conn.transaction():
-                    outcome = await expire_one_attempt(conn)
+                    outcome = await expire_one_attempt(conn, org=org)
             if not outcome.expired:
                 break
             expired_count += 1
@@ -79,12 +84,15 @@ async def scheduler_loop(
 ) -> None:
     while not stop.is_set():
         try:
-            n = await run_lease_expiry_tick(pool, database_url=database_url)
+            n = await run_lease_expiry_tick(pool, database_url=database_url, org=org)
             if n:
                 log.debug("expired %s worker lease(s)", n)
             t = await run_timer_tick(pool, org=org, packs_dir=packs_dir)
             if t:
                 log.debug("fired %s timer(s)", t)
+            r = await readiness.run_readiness_tick(pool, org=org, packs_dir=packs_dir)
+            if any(x.outcome == "admitted" for x in r):
+                log.debug("readiness admitted %s task(s)", sum(1 for x in r if x.outcome == "admitted"))
         except Exception:  # noqa: BLE001 - loop keeps running
             log.exception("scheduler tick failed")
         try:

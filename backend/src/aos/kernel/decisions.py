@@ -553,6 +553,20 @@ async def decide_pending(
             "Only the participant this item waits on may answer it.",
         )
 
+    if str(event) == "task.retry":
+        from .task_retry import decide_task_retry
+
+        return await decide_task_retry(
+            conn,
+            org,
+            org_id,
+            pending_id,
+            person_id,
+            body,
+            idempotency_key=idempotency_key,
+            packs_dir=packs_dir,
+        )
+
     expected = body.get("expected_version")
     if expected is None or int(expected) != int(inst_version):
         raise DecisionError(
