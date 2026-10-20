@@ -42,6 +42,7 @@ Names follow reference architecture v1.2 §29. The worker may **propose** only t
 | BudgetExceeded | An attempt crosses a limit | kernel | `limit`, `used` |
 | StateTransitioned | A workflow transition fires | kernel | `from_state`, `to_state`, `event`, `guard`, `decision_id`, `instance_version` |
 | WorkflowEventIgnored | An event did not match any transition | kernel | `state`, `event`, `reason` (`no_match`, `wrong_role`, `guard_failed`, `not_running`) |
+| WorkflowEventRaised | A domain event from `spec.events` fired | kernel | `event`, `trigger` |
 
 ## UiEvent types
 

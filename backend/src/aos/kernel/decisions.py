@@ -670,6 +670,7 @@ async def decide_pending(
         artifact_version=int(body_artifact_version) if body_artifact_version is not None else None,
         selection=selection if isinstance(selection, list) else None,
     )
+    changed_attrs = {k for k in dec.sets if attributes.get(k) != new_attributes.get(k)}
 
     value = str(body.get("value") or "confirm")
     ts = clock.now()
@@ -710,6 +711,16 @@ async def decide_pending(
         actor={"kind": "person", "id": person_id},
     )
     resulting_state = apply_result.to_state if apply_result.applied else from_state
+
+    from . import events as workflow_events
+
+    await workflow_events.evaluate_attribute_triggers(
+        conn,
+        org,
+        instance_id,
+        changed=changed_attrs,
+        packs_dir=packs_dir,
+    )
 
     from .progress import post_decision_resolved_progress
 

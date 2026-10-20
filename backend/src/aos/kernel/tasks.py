@@ -66,12 +66,13 @@ async def insert_workflow_task(
     verifier: str | None,
     contract: dict[str, Any],
     max_attempts: int,
+    region: str | None = None,
 ) -> None:
     await conn.execute(
         "insert into work.tasks ("
-        " id, instance_id, kind, template, skill, work_type, verifier, state, contract, contract_hash,"
+        " id, instance_id, kind, template, skill, work_type, verifier, region, state, contract, contract_hash,"
         " max_attempts"
-        ") values (%s, %s, 'task', %s, %s, %s, %s, 'CREATED', %s, %s, %s)",
+        ") values (%s, %s, 'task', %s, %s, %s, %s, %s, 'CREATED', %s, %s, %s)",
         (
             task_id,
             instance_id,
@@ -79,6 +80,7 @@ async def insert_workflow_task(
             skill,
             work_type,
             verifier,
+            region,
             Jsonb(contract),
             contract["contract_hash"],
             max_attempts,

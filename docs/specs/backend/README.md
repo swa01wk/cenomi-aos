@@ -156,8 +156,13 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
   (`artifact_version`, `selection_count`), from task completion and kernel-raised `event.*` handlers in later stories,
   and from artifact saves where the spec says so. The interpreter evaluates guards over `attr.*` only after the kernel
   has committed those writes.
-- **Domain events the kernel raises** are listed in `spec.events` (for example `event.intent_identified`,
-  `event.all_quotes_received`); handlers are pack-specific and run in the same transaction as the triggering change.
+- **Domain events the kernel raises** are declared in `spec.events` as a map from event name to a trigger:
+  `on_artifact` (an artifact type) or `on_attributes` (declared attribute names), a `when` expression checked at
+  publish time, and `once` (default true). After each new artifact version the kernel evaluates `on_artifact` triggers
+  for that type over the version's full content; after attribute writes it evaluates `on_attributes` triggers that
+  name a changed attribute. A firing event is recorded in `work.instances.raised_events` when `once` is true, emitted
+  as `WorkflowEventRaised`, starts every parallel region whose `on` is `event.<name>`, then runs `apply_event` for
+  that event in the same transaction as the change that caused it.
 - **Decisions** are declared under `spec.decisions` (label, `state`, `for` participant, optional `selection`, optional
   `sets`). The kernel opens a pending item when the job is in that `state`, every Task template listed on the state is
   `COMPLETED`, every parallel region with `join_at` equal to that state is done, the `for` participant is bound, and no

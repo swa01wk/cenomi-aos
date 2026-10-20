@@ -397,6 +397,21 @@ class WorkflowDecisionSpec(Strict):
     sets: dict[Name, DecisionSetter] = {}
 
 
+class WorkflowEventTrigger(Strict):
+    on_artifact: Name | None = None
+    on_attributes: list[Name] | None = None
+    when: str
+    once: bool = True
+
+    @model_validator(mode="after")
+    def _exactly_one_trigger(self) -> WorkflowEventTrigger:
+        has_art = self.on_artifact is not None
+        has_attrs = self.on_attributes is not None and len(self.on_attributes) > 0
+        if has_art == has_attrs:
+            raise ValueError("specify exactly one of on_artifact or on_attributes")
+        return self
+
+
 class WorkflowSpec(Strict):
     title: str
     description: str = ""
@@ -420,7 +435,7 @@ class WorkflowSpec(Strict):
             else:
                 out[key] = val
         return out
-    events: list[Name] = []
+    events: dict[Name, WorkflowEventTrigger] = {}
     states: dict[Name, StateSpec] = Field(min_length=2)
     parallel: list[ParallelRegion] = []
     transitions: list[Transition] = Field(min_length=1)

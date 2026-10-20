@@ -19,7 +19,15 @@ spec:
     quote_count: int
     invited_count: int
     po_amount: {type: decimal, classification: restricted}
-  events: [intent_identified, all_quotes_received]
+  events:
+    intent_identified:
+      on_artifact: brief
+      when: "size(artifact.category) > 0"
+      once: true
+    all_quotes_received:
+      on_attributes: [quote_count, invited_count]
+      when: "attr.invited_count > 0 && attr.quote_count >= attr.invited_count"
+      once: true
   states:
     intake:
       label: Intake

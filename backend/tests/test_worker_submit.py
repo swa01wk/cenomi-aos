@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 import psycopg
 
 from aos.kernel import worker_submit
+from aos.kernel.settings import REPO
 
 from . import _pg
 from .test_worker_api import ORG, WorkerHarness
@@ -314,6 +315,7 @@ class WorkerSubmitTests(WorkerHarness):
                             worker_id="worker-test-1",
                             fencing_token=attempt["fencing_token"],
                             result=body,
+                            packs_dir=REPO / "packs",
                         )
                         started.set()
                         await asyncio.sleep(1.5)

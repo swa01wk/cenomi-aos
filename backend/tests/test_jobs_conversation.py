@@ -146,6 +146,10 @@ class JobsConversationTests(unittest.TestCase):
             delete from work.turns;
             delete from work.attempts;
             delete from work.tasks;
+            delete from work.pending_items;
+            delete from work.instance_transitions;
+            delete from work.regions;
+            delete from work.timers;
             delete from work.participants;
             delete from work.instances;
             delete from gov.budget_ledger;

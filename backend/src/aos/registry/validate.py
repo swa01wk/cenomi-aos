@@ -177,12 +177,22 @@ class _Checker:
                         self.warn("W_VERIFIER_SCOPE", "Skill", name, f"spec.verifiers[{i}]",
                                   f"verifier {v!r} checks none of the artifacts this skill produces")
 
-    def _check_expr(self, kind: str, name: str, path: str, expr: str, attrs: set[str],
-                    states: set[str] | None) -> None:
+    def _check_expr(
+        self,
+        kind: str,
+        name: str,
+        path: str,
+        expr: str,
+        attrs: set[str],
+        states: set[str] | None,
+        *,
+        artifact_fields: set[str] | None = None,
+    ) -> None:
         problem = ex.syntax_problem(expr)
         if problem:
             self.err("E_EXPRESSION", kind, name, path, f"{problem}: {expr!r}")
             return
+        allowed_art = self.artifact_fields if artifact_fields is None else artifact_fields
         for r in ex.references(expr):
             head = r.path.split(".")[0]
             if r.namespace == "attr" and head not in attrs:
@@ -196,7 +206,7 @@ class _Checker:
                     parts = r.path.split(".")
                     if len(parts) < 2 or parts[1] not in self.verifiers:
                         self.err("E_ATTRIBUTE", kind, name, path, f"artifact.{r.path}: no such verifier")
-                elif head not in self.artifact_fields and head not in ("version", "digest", "classification"):
+                elif head not in allowed_art and head not in ("version", "digest", "classification"):
                     self.err("E_ATTRIBUTE", kind, name, path, f"no artifact type declares field {head!r}")
         for c in ex.calls(expr):
             fn = c.function.split(".")[-1]
@@ -442,6 +452,43 @@ class _Checker:
                     self.err("E_DUPLICATE", K, wname, base, f"template names reused: {sorted(dup)}")
                 all_templates |= names
                 templates_by_state[sname] = names
+            for ename, etrig in w.events.items():
+                base = f"spec.events.{ename}"
+                if etrig.on_artifact is not None:
+                    if not self.ref(K, wname, f"{base}.on_artifact", "ArtifactType", etrig.on_artifact, self.artifacts):
+                        continue
+                    at = self.artifacts[etrig.on_artifact]
+                    art_fields = set(at.spec.fields.keys())
+                    self._check_expr(
+                        K,
+                        wname,
+                        f"{base}.when",
+                        etrig.when,
+                        attrs,
+                        states,
+                        artifact_fields=art_fields,
+                    )
+                else:
+                    assert etrig.on_attributes is not None
+                    for j, aname in enumerate(etrig.on_attributes):
+                        if aname not in attrs:
+                            self.err(
+                                "E_ATTRIBUTE",
+                                K,
+                                wname,
+                                f"{base}.on_attributes[{j}]",
+                                f"undeclared attribute {aname!r}",
+                            )
+                    self._check_expr(
+                        K,
+                        wname,
+                        f"{base}.when",
+                        etrig.when,
+                        attrs,
+                        states,
+                        artifact_fields=set(),
+                    )
+
             for i, region in enumerate(w.parallel):
                 base = f"spec.parallel[{i}]"
                 self._check_event(wname, f"{base}.on", region.on, w, None, set())
@@ -568,7 +615,7 @@ class _Checker:
             if rest not in {tm.emits for tm in w.timers.values()}:
                 self.err("E_EVENT", K, wname, path, f"{ev!r}: no timer emits {rest!r}")
         elif prefix == "event":
-            if rest not in w.events:
+            if rest not in w.events.keys():
                 self.err("E_EVENT", K, wname, path, f"{ev!r}: {rest!r} is not declared in spec.events")
         else:
             self.err("E_EVENT", K, wname, path,

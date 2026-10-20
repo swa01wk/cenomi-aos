@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -236,6 +237,7 @@ async def submit_result(
     worker_id: str,
     fencing_token: int,
     result: dict[str, Any],
+    packs_dir: Path,
 ) -> dict[str, Any] | CommittedFenced:
     request_hash = agent_result_request_hash(result)
     replay = await check_submit_idempotency(
@@ -456,6 +458,16 @@ async def submit_result(
     )
     if isinstance(finished, CommittedFenced):
         return finished
+    if gate.kind != "assist" and task_to == "COMPLETED":
+        from . import events as workflow_events
+
+        await workflow_events.on_workflow_task_completed(
+            conn,
+            org,
+            instance_id=gate.instance_id,
+            task_id=gate.task_id,
+            packs_dir=packs_dir,
+        )
     if gate.kind != "assist" and task_to in ("COMPLETED", "READY", "EXCEPTION"):
         from .progress import post_task_outcome_progress
 

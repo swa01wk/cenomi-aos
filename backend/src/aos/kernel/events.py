@@ -1,0 +1,456 @@
+"""Pack-declared domain events and parallel region lifecycle (M2-BE-02)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
+
+if TYPE_CHECKING:
+    from .org import OrgModel
+
+from psycopg import AsyncConnection
+from psycopg.types.json import Jsonb
+
+from aos.registry.expressions import ExpressionScope, evaluate
+from aos.registry.kinds import TaskTemplate, WorkflowDefinition, WorkflowEventTrigger
+
+from . import contracts, ids, tasks as task_ops
+from . import workflow
+from .outbox import ExecutionEventWrite, write_execution_event
+
+
+class WorkflowEventError(Exception):
+    """A domain event could not be raised."""
+
+
+async def _load_instance_workflow(
+    conn: AsyncConnection, instance_id: str
+) -> tuple[
+    str,
+    str,
+    str,
+    str,
+    int,
+    str,
+    int,
+    str,
+    dict[str, Any],
+    list[str],
+    WorkflowDefinition,
+    dict[str, dict[str, dict]],
+    str,
+    int,
+    str,
+]:
+    cur = await conn.execute(
+        "select org_id, workflow, pack_version_id, seat, seat_version, state, version, status,"
+        " attributes, correlation_id, raised_events"
+        " from work.instances where id = %s for update",
+        (instance_id,),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        raise WorkflowEventError(f"instance {instance_id!r} not found")
+    (
+        org_id,
+        workflow_name,
+        pack_version_id,
+        seat_name,
+        seat_version,
+        _state,
+        version,
+        inst_status,
+        attributes_raw,
+        correlation_id,
+        raised_raw,
+    ) = row
+    attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
+    raised = raised_raw if isinstance(raised_raw, list) else json.loads(raised_raw or "[]")
+    raised_events = [str(x) for x in raised]
+
+    pack_cur = await conn.execute(
+        "select pack_name, version, digest from registry.pack_versions where id = %s",
+        (str(pack_version_id),),
+    )
+    pack_row = await pack_cur.fetchone()
+    if pack_row is None:
+        raise WorkflowEventError(f"pack version {pack_version_id!r} not found")
+    pack_name, pack_ver, pack_digest = pack_row[0], int(pack_row[1]), pack_row[2]
+    graph_revision = f"{pack_name}@{pack_ver}"
+
+    defs = await workflow._load_definitions(conn, str(pack_version_id))
+    wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name)
+    if wdoc is None:
+        raise WorkflowEventError(f"workflow {workflow_name!r} missing on pinned pack")
+    definition = WorkflowDefinition.model_validate(wdoc)
+    seat_doc = defs.get("Seat", {}).get(seat_name) or {}
+    return (
+        org_id,
+        workflow_name,
+        str(pack_version_id),
+        seat_name,
+        int(seat_version),
+        inst_status,
+        int(version),
+        correlation_id,
+        attributes,
+        raised_events,
+        definition,
+        defs,
+        pack_name,
+        pack_ver,
+        pack_digest,
+        graph_revision,
+        seat_doc,
+    )
+
+
+def _trigger_label(spec: WorkflowEventTrigger) -> str:
+    if spec.on_artifact is not None:
+        return f"on_artifact:{spec.on_artifact}"
+    assert spec.on_attributes is not None
+    return "on_attributes:" + ",".join(spec.on_attributes)
+
+
+async def _start_parallel_region(
+    conn: AsyncConnection,
+    *,
+    packs_dir: Path,
+    org_id: str,
+    instance_id: str,
+    seat_name: str,
+    seat_version: int,
+    workflow_name: str,
+    pack_name: str,
+    pack_version: int,
+    pack_digest: str,
+    defs: dict[str, dict[str, dict]],
+    seat_doc: dict[str, Any],
+    seat_limits: dict[str, Any],
+    participants: list[tuple[str, str]],
+    region_on: str,
+    definition: WorkflowDefinition,
+) -> None:
+    for region in definition.spec.parallel:
+        if region.on != region_on:
+            continue
+        cur = await conn.execute(
+            "select 1 from work.regions where instance_id = %s and name = %s",
+            (instance_id, region.region),
+        )
+        if await cur.fetchone() is not None:
+            continue
+        await conn.execute(
+            "insert into work.regions ("
+            " instance_id, name, state, started_on, join_at, join_guard, started_with"
+            ") values (%s, %s, 'running', %s, %s, %s, '{}'::jsonb)",
+            (instance_id, region.region, region.on, region.join_at, region.join_guard),
+        )
+        tpl = TaskTemplate.model_validate(region.start.model_dump(by_alias=True))
+        await _create_region_task(
+            conn,
+            packs_dir=packs_dir,
+            org_id=org_id,
+            instance_id=instance_id,
+            seat_name=seat_name,
+            seat_version=seat_version,
+            workflow_name=workflow_name,
+            pack_name=pack_name,
+            pack_version=pack_version,
+            pack_digest=pack_digest,
+            defs=defs,
+            seat_doc=seat_doc,
+            seat_limits=seat_limits,
+            tpl=tpl,
+            region_name=region.region,
+            participants=participants,
+        )
+
+
+async def _create_region_task(
+    conn: AsyncConnection,
+    *,
+    packs_dir: Path,
+    org_id: str,
+    instance_id: str,
+    seat_name: str,
+    seat_version: int,
+    workflow_name: str,
+    pack_name: str,
+    pack_version: int,
+    pack_digest: str,
+    defs: dict[str, dict[str, dict]],
+    seat_doc: dict[str, Any],
+    seat_limits: dict[str, Any],
+    tpl: TaskTemplate,
+    region_name: str,
+    participants: list[tuple[str, str]],
+) -> None:
+    if tpl.on_behalf_of is None:
+        raise WorkflowEventError(f"template {tpl.template!r} is missing on_behalf_of")
+    role = tpl.on_behalf_of
+    person_id = next((p for r, p in participants if r == role), None)
+    task_id = ids.new_task_id()
+    contract = contracts.build_task_contract(
+        packs_dir=packs_dir,
+        pack_name=pack_name,
+        pack_version=pack_version,
+        pack_digest=pack_digest,
+        defs=defs,
+        org_id=org_id,
+        instance_id=instance_id,
+        task_id=task_id,
+        seat_name=seat_name,
+        seat_version=seat_version,
+        seat_doc=seat_doc,
+        workflow_name=workflow_name,
+        template=tpl.model_dump(by_alias=True),
+        participant_role=role,
+        person_id=person_id,
+        seat_limits=seat_limits,
+    )
+    await task_ops.insert_workflow_task(
+        conn,
+        task_id=task_id,
+        instance_id=instance_id,
+        template=tpl.template,
+        skill=tpl.skill,
+        work_type=tpl.work_type,
+        verifier=tpl.verifier,
+        contract=contract,
+        max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
+        region=region_name,
+    )
+
+
+async def raise_event(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    name: str,
+    *,
+    packs_dir: Path,
+    trigger: str,
+    cause: UUID | None = None,
+) -> bool:
+    """Raise a declared domain event. Returns True if the event fired; False if skipped (once, or not running)."""
+    (
+        org_id,
+        _workflow_name,
+        _pack_version_id,
+        seat_name,
+        seat_version,
+        inst_status,
+        _version,
+        correlation_id,
+        _attributes,
+        raised_events,
+        definition,
+        defs,
+        pack_name,
+        pack_ver,
+        pack_digest,
+        graph_revision,
+        seat_doc,
+    ) = await _load_instance_workflow(conn, instance_id)
+
+    if name not in definition.spec.events:
+        raise WorkflowEventError(f"event {name!r} is not declared in spec.events")
+
+    spec = definition.spec.events[name]
+    if inst_status != "running":
+        return False
+    if spec.once and name in raised_events:
+        return False
+
+    if spec.once:
+        raised_events = [*raised_events, name]
+        await conn.execute(
+            "update work.instances set raised_events = %s where id = %s",
+            (Jsonb(raised_events), instance_id),
+        )
+
+    await write_execution_event(
+        conn,
+        ExecutionEventWrite(
+            org_id=org_id,
+            run_id=instance_id,
+            event_type="WorkflowEventRaised",
+            actor_kind="kernel",
+            actor_id="kernel",
+            correlation_id=correlation_id,
+            causation_id=cause,
+            redacted_summary=f"Raised event {name}.",
+            graph_revision=graph_revision,
+            attributes={"event": name, "trigger": trigger},
+        ),
+    )
+
+    participants = await workflow._participants(conn, instance_id)
+    seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
+    event_full = f"event.{name}"
+    await _start_parallel_region(
+        conn,
+        packs_dir=packs_dir,
+        org_id=org_id,
+        instance_id=instance_id,
+        seat_name=seat_name,
+        seat_version=seat_version,
+        workflow_name=_workflow_name,
+        pack_name=pack_name,
+        pack_version=pack_ver,
+        pack_digest=pack_digest,
+        defs=defs,
+        seat_doc=seat_doc,
+        seat_limits=seat_limits,
+        participants=participants,
+        region_on=event_full,
+        definition=definition,
+    )
+
+    await workflow.apply_event(
+        conn,
+        instance_id,
+        event_full,
+        by_role=None,
+        packs_dir=packs_dir,
+        org=org,
+        actor={"kind": "kernel", "id": "kernel"},
+    )
+    return True
+
+
+def _artifact_scope(content: dict[str, Any], attributes: dict[str, Any]) -> ExpressionScope:
+    return {"artifact": dict(content), "attr": dict(attributes)}
+
+
+def _attribute_scope(attributes: dict[str, Any]) -> ExpressionScope:
+    return {"attr": dict(attributes)}
+
+
+async def evaluate_artifact_triggers(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    *,
+    artifact_type: str,
+    content: dict[str, Any],
+    packs_dir: Path,
+    cause: UUID | None = None,
+) -> None:
+    (
+        _org_id,
+        _wf,
+        _pv,
+        _seat,
+        _sv,
+        inst_status,
+        _ver,
+        _corr,
+        attributes,
+        _raised,
+        definition,
+        _defs,
+        _pn,
+        _pver,
+        _pd,
+        _gr,
+        _sd,
+    ) = await _load_instance_workflow(conn, instance_id)
+    if inst_status != "running":
+        return
+    scope = _artifact_scope(content, attributes)
+    for ename, etrig in definition.spec.events.items():
+        if etrig.on_artifact != artifact_type:
+            continue
+        if evaluate(etrig.when, scope):
+            await raise_event(
+                conn,
+                org,
+                instance_id,
+                ename,
+                packs_dir=packs_dir,
+                trigger=_trigger_label(etrig),
+                cause=cause,
+            )
+
+
+async def evaluate_attribute_triggers(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    *,
+    changed: set[str],
+    packs_dir: Path,
+    cause: UUID | None = None,
+) -> None:
+    if not changed:
+        return
+    (
+        _org_id,
+        _wf,
+        _pv,
+        _seat,
+        _sv,
+        inst_status,
+        _ver,
+        _corr,
+        attributes,
+        _raised,
+        definition,
+        _defs,
+        _pn,
+        _pver,
+        _pd,
+        _gr,
+        _sd,
+    ) = await _load_instance_workflow(conn, instance_id)
+    if inst_status != "running":
+        return
+    scope = _attribute_scope(attributes)
+    for ename, etrig in definition.spec.events.items():
+        if etrig.on_attributes is None:
+            continue
+        if not changed.intersection(etrig.on_attributes):
+            continue
+        if evaluate(etrig.when, scope):
+            await raise_event(
+                conn,
+                org,
+                instance_id,
+                ename,
+                packs_dir=packs_dir,
+                trigger=_trigger_label(etrig),
+                cause=cause,
+            )
+
+
+async def on_workflow_task_completed(
+    conn: AsyncConnection,
+    org: OrgModel,
+    *,
+    instance_id: str,
+    task_id: str,
+    packs_dir: Path,
+) -> None:
+    cur = await conn.execute(
+        "select region from work.tasks where id = %s and instance_id = %s",
+        (task_id, instance_id),
+    )
+    row = await cur.fetchone()
+    if row is None or not row[0]:
+        return
+    region_name = str(row[0])
+    await conn.execute(
+        "select id from work.instances where id = %s for update",
+        (instance_id,),
+    )
+    await conn.execute(
+        "update work.regions set state = 'done' where instance_id = %s and name = %s and state = 'running'",
+        (instance_id, region_name),
+    )
+    from . import decisions as decision_ops
+
+    await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
