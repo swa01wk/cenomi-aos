@@ -17,7 +17,7 @@ from .report import Issue, ValidationReport
 WORKFLOW_FIELDS = {"state", "status", "version", "definition", "reached"}
 SUBJECT_FIELDS = {"role", "participant_roles", "id"}
 EFFECT_KEYS = {"start_timer", "cancel_timers", "lock", "handover", "outcome_record", "bind"}
-GUARD_FUNCTIONS = {"same", "reached", "workflow.reached", "all", "any", "size"}
+GUARD_FUNCTIONS = set(ex.GUARD_FUNCTIONS)
 
 
 class _Checker:
