@@ -14,7 +14,6 @@ from tests import _pg
 DDL = Path(__file__).resolve().parents[2] / "docs" / "specs" / "backend" / "ddl"
 
 TABLES = {
-    "0004": ["work.instance_transitions", "work.regions", "work.timers", "work.demo_clock", "work.notifications"],
     "0005": ["gov.policy_decisions", "gov.approvals", "gov.approval_steps", "work.action_executions",
              "work.inbound_messages"],
     "0006": ["gov.kill_switches", "gov.credential_revocations", "evidence.outcome_records"],

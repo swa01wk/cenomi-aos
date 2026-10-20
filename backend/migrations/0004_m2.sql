@@ -1,4 +1,4 @@
--- M2 reference DDL: workflow layer (transitions, parallel regions, timers, demo clock, notifications).
+-- M2: workflow layer (transitions, parallel regions, timers, demo clock, notifications).
 
 create table work.instance_transitions (
   id bigserial primary key,
@@ -37,8 +37,6 @@ create table work.timers (
   fired_at timestamptz,
   unique (instance_id, name, generation)
 );
--- The scheduler claims due timers with FOR UPDATE SKIP LOCKED and flips status in the same transaction,
--- so a timer fires exactly once even with two schedulers.
 create index timers_due on work.timers (fires_at) where status = 'scheduled';
 
 create table work.demo_clock (

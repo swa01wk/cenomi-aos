@@ -12,7 +12,7 @@
       "enum": [
         "RunCreated", "TaskDispatched", "AgentStarted", "ModelInvoked", "ToolRequested", "ToolAuthorized", "ToolDenied", "ToolCompleted",
         "ArtifactProduced", "ApprovalRequested", "CheckpointSaved", "TaskResultProposed", "TaskAccepted", "TaskRejected", "TaskFailed",
-        "TaskCancelled", "AttemptFenced", "BudgetExceeded"
+        "TaskCancelled", "AttemptFenced", "BudgetExceeded", "StateTransitioned", "WorkflowEventIgnored"
       ]
     },
     "occurred_at": {"type": "string", "format": "date-time"},

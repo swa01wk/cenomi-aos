@@ -70,6 +70,7 @@ class SchemaTests(unittest.TestCase):
             "context-envelope.rfq_draft.json": "context-envelope.schema.json",
             "agent-result.rfq_draft.json": "agent-result.schema.json",
             "execution-event.tool_denied.json": "execution-event.schema.json",
+            "execution-event.state_transitioned.json": "execution-event.schema.json",
             "problem.stale_version.json": "problem.schema.json",
         }
         for example, schema_name in pairs.items():

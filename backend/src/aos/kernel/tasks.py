@@ -31,6 +31,37 @@ async def insert_assist_task(
     )
 
 
+async def insert_workflow_task(
+    conn: AsyncConnection,
+    *,
+    task_id: str,
+    instance_id: str,
+    template: str,
+    skill: str,
+    work_type: str,
+    verifier: str | None,
+    contract: dict[str, Any],
+    max_attempts: int,
+) -> None:
+    await conn.execute(
+        "insert into work.tasks ("
+        " id, instance_id, kind, template, skill, work_type, verifier, state, contract, contract_hash,"
+        " max_attempts"
+        ") values (%s, %s, 'task', %s, %s, %s, %s, 'CREATED', %s, %s, %s)",
+        (
+            task_id,
+            instance_id,
+            template,
+            skill,
+            work_type,
+            verifier,
+            Jsonb(contract),
+            contract["contract_hash"],
+            max_attempts,
+        ),
+    )
+
+
 async def admit_attempt(
     conn: AsyncConnection,
     *,

@@ -222,7 +222,8 @@ async def request_publish(version_id: str, p: PackEditor, conn: TxDep, response:
 async def list_publish_requests(
     p: ConsoleDep,
     conn: TxDep,
-    status: Annotated[str | None, Query(enum=["open", "approved", "rejected"])] = None,
+    # A Literal gives the same enum in the OpenAPI schema; Query(enum=...) is rejected by current FastAPI.
+    status: Annotated[Literal["open", "approved", "rejected"] | None, Query()] = None,
 ) -> dict:
     return {"items": await publish.list_publish_requests(conn, org_id=p.org_id, status=status)}
 

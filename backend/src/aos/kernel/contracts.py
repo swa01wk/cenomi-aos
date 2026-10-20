@@ -10,7 +10,7 @@ from typing import Any
 
 from ..registry.kinds import NATIVE_TOOLS
 from ..registry.loader import load_pack
-from . import ids
+from . import clock, ids
 
 
 class PackMaterialError(Exception):
@@ -254,6 +254,104 @@ def build_assist_contract(
         },
         "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
+    contract["contract_hash"] = contract_hash(contract)
+    return contract
+
+
+def build_task_contract(
+    *,
+    packs_dir: Path,
+    pack_name: str,
+    pack_version: int,
+    pack_digest: str,
+    defs: dict[str, dict[str, dict]],
+    org_id: str,
+    instance_id: str,
+    task_id: str,
+    seat_name: str,
+    seat_version: int,
+    seat_doc: dict[str, Any],
+    workflow_name: str,
+    template: dict[str, Any],
+    participant_role: str,
+    person_id: str | None,
+    seat_limits: dict[str, Any],
+) -> dict[str, Any]:
+    skill_name = str(template["skill"])
+    skill_doc = defs.get("Skill", {}).get(skill_name)
+    if skill_doc is None:
+        raise ValueError(f"Skill {skill_name!r} missing from pinned pack")
+    seat_spec = seat_doc.get("spec") or {}
+    skill_spec = skill_doc.get("spec") or {}
+    tools_idx = _tool_index(defs)
+    allowed: list[dict[str, Any]] = []
+    for native in NATIVE_TOOLS:
+        if native in ("save_draft", "ask_question"):
+            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
+    for tname in skill_spec.get("may_request") or []:
+        if tname in _KERNEL_TOOL_NAMES:
+            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
+        elif tname in tools_idx:
+            prov, tool = tools_idx[tname]
+            allowed.append(_tool_grant(tname, tool, prov))
+    resources = list(seat_spec.get("resources") or [])
+    prof_ref = seat_spec.get("authority_profile") or ""
+    prof_name = prof_ref.split("@")[0]
+    prof = defs.get("Policy", {}).get(prof_name) or {}
+    ceiling = "internal"
+    if prof.get("spec", {}).get("type") == "authority_profile":
+        for grant in prof.get("spec", {}).get("grants") or []:
+            if grant.get("resource") in resources:
+                c = grant.get("classification") or "internal"
+                if _class_rank(c) > _class_rank(ceiling):
+                    ceiling = c
+    budget = seat_budget_block(seat_limits)
+    outputs = [
+        {
+            "artifact_type": at,
+            "cardinality": "one",
+            "schema_ref": f"ArtifactType/{at}",
+        }
+        for at in skill_spec.get("produces") or []
+    ]
+    tpl_name = str(template["template"])
+    contract: dict[str, Any] = {
+        "schema_version": "aos.task_contract/1",
+        "contract_id": ids.new_contract_id(),
+        "contract_version": 1,
+        "org_id": org_id,
+        "instance_id": instance_id,
+        "task_id": task_id,
+        "kind": "task",
+        "template": tpl_name,
+        "pack": {"name": pack_name, "version": pack_version, "digest": pack_digest},
+        "seat": {"name": seat_name, "version": seat_version},
+        "skill": {
+            "name": skill_name,
+            "version": int(skill_doc.get("metadata", {}).get("version", 1)),
+            "instructions_sha256": _instructions_sha256(packs_dir, pack_name, skill_doc),
+        },
+        "work_type": template["work_type"],
+        "objective": f"Run workflow template {tpl_name}.",
+        "on_behalf_of": {"role": participant_role, "person_id": person_id},
+        "immutable_input_refs": [],
+        "dependency_versions": {},
+        "allowed_tools": allowed,
+        "permission_scope": {"resources": resources, "classification_ceiling": ceiling},
+        "budget": budget,
+        "expected_outputs": outputs,
+        "acceptance_checks": [],
+        "approval_policy": {"policy": _gate_policy_ref(defs, workflow_name), "rules": []},
+        "idempotency_key": f"{instance_id}:{tpl_name}:1",
+        "provenance_requirements": {"cite_sources": False, "record_input_hashes": True},
+        "model": {
+            "alias": (seat_spec.get("runtime") or {}).get("model_alias", "enterprise_reasoning"),
+            "max_output_tokens": 4000,
+        },
+        "created_at": clock.now().replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+    }
+    if template.get("verifier"):
+        contract["verifier"] = template["verifier"]
     contract["contract_hash"] = contract_hash(contract)
     return contract
 
