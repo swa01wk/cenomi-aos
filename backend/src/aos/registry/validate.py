@@ -131,6 +131,15 @@ class _Checker:
                 )
         self._check_decision_row_keys()
 
+    def _decision_sets_artifact_version(self, wf: WorkflowDefinition, attr_name: str) -> bool:
+        for dec in wf.spec.decisions.values():
+            if dec.sets.get(attr_name) != "artifact_version":
+                continue
+            st = wf.spec.states.get(dec.state)
+            if st is not None and st.view:
+                return True
+        return False
+
     def _check_decision_row_keys(self) -> None:
         for wname, wf in self.workflows.items():
             for dname, dec in wf.spec.decisions.items():
@@ -496,6 +505,17 @@ class _Checker:
                 self._check_template(wname, f"{base}.start", region.start, role, seats_for_role, participants)
                 if region.join_guard:
                     self._check_expr(K, wname, f"{base}.join_guard", region.join_guard, attrs, states)
+                    for c in ex.calls(region.join_guard):
+                        if c.function.split(".")[-1] != "same" or not c.argument:
+                            continue
+                        if not self._decision_sets_artifact_version(wf, c.argument):
+                            self.err(
+                                "E_EXPRESSION",
+                                K,
+                                wname,
+                                f"{base}.join_guard",
+                                f"same({c.argument!r}) needs a decision that sets it via artifact_version",
+                            )
                 all_templates.add(region.start.template)
 
             graph: dict[str, set[str]] = {s: set() for s in states}

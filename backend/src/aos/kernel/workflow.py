@@ -19,7 +19,7 @@ from . import clock, contracts, ids
 from . import tasks as task_ops
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 
-TransitionReason = Literal["no_match", "wrong_role", "guard_failed", "not_running"]
+TransitionReason = Literal["no_match", "wrong_role", "guard_failed", "not_running", "join_pending"]
 
 _ALLOWED_ACTOR_KINDS = frozenset({"seat", "person", "kernel", "connector", "demo"})
 
@@ -441,6 +441,28 @@ async def apply_event(
         )
         return ApplyEventResult(False, from_state, from_state, int(version), reason)
 
+    from . import regions as region_ops
+
+    if region_ops.is_join_state(definition, from_state):
+        if not await region_ops.join_ready(
+            conn, instance_id, from_state, definition, attributes
+        ):
+            await write_execution_event(
+                conn,
+                ExecutionEventWrite(
+                    org_id=org_id,
+                    run_id=instance_id,
+                    event_type="WorkflowEventIgnored",
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    correlation_id=correlation_id,
+                    redacted_summary=f"Event {event} ignored (join_pending) in {from_state}",
+                    graph_revision=graph_revision,
+                    attributes={"state": from_state, "event": event, "reason": "join_pending"},
+                ),
+            )
+            return ApplyEventResult(False, from_state, from_state, int(version), "join_pending")
+
     tr = match.transition
     to_state = tr.to
     new_version = int(version) + 1
@@ -500,6 +522,30 @@ async def apply_event(
         decision_id=decision_id,
         participants=participants,
     )
+    if region_ops.is_join_state(definition, from_state):
+        await region_ops.mark_regions_joined(
+            conn, instance_id, from_state, at=ts
+        )
+    if region_ops.is_join_state(definition, to_state):
+        await region_ops.rerun_stale_regions(
+            conn,
+            instance_id,
+            to_state,
+            definition,
+            attributes,
+            packs_dir=packs_dir,
+            org_id=org_id,
+            seat_name=seat_name,
+            seat_version=int(seat_version),
+            workflow_name=workflow_name,
+            pack_name=pack_name,
+            pack_version=pack_ver,
+            pack_digest=pack_digest,
+            defs=defs,
+            seat_doc=seat_doc,
+            seat_limits=seat_limits,
+            participants=participants,
+        )
     guard_attr = tr.guard if tr.guard is not None else ""
     await write_execution_event(
         conn,

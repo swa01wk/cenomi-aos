@@ -78,6 +78,11 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
   because it has no `org`. Give the scheduler the kernel's `org` and post the Task's EXCEPTION progress turn
   there too. **Test:** a workflow Task whose leases keep expiring ends in EXCEPTION with one progress turn to its
   `on_behalf_of` person.
+- **Carried from M2-BE-02 (review):** if a parallel region's Task ends in EXCEPTION, the region never becomes done,
+  so its join never opens (no shortlist card) and nothing lets anyone retry. Decide the way forward here, with the
+  readiness loop: for example, a decision for the Task's `on_behalf_of` person to retry the region (new Task, as a
+  re-run does), or to continue without it where the workflow allows. **Test:** a region Task in EXCEPTION
+  leaves the job with a visible way forward for that person, never stuck silently.
 
 ### M2-BE-06 Simulate and Console reads
 - `simulatePackVersion` and the `aos simulate` CLI (shared code); `listWorkflows`, `getWorkflowGraph`,

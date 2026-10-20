@@ -145,8 +145,16 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
 - Effects run in the same transaction: `start_timer`, `lock` (artifact status `locked`), `handover` (notification +
   turn for the requester), `outcome_record`, `cancel_timers`.
 - **Parallel region**: on its start event create the region and its Task; at `join_at`, a transition out is allowed
-  only when every required region is `done` and its join guard holds (`same(brief_version)` compares the region's
-  `started_with` to the current attributes). This is the all-required join (ADR 002).
+  only when every required region is `done` and its join guard holds. `same(x)` is true when the version of the
+  artifact behind attribute `x` that the region's Task worked on equals `attr.x`. The artifact behind `x` is the view
+  artifact of the decision whose `sets` maps `x` to `artifact_version` (for example `brief_version` → the brief).
+  Publish-time validation requires such a decision for every `same(x)` in a join guard. `started_with[x]` is recorded
+  when the region's latest Task has an attempt admitted: for each `x` in the join guard's `same(...)` calls, set
+  `started_with[x]` to the latest version of that artifact at admission time (each new attempt on that Task
+  overwrites; attempts on an older Task after a re-run do not write). If the guard fails while the job is at
+  `join_at`, the region goes back to `running` with `started_with` cleared and a new start Task is created (the
+  previous Task stays `COMPLETED`). When a transition leaves a `join_at` state, regions for that join become
+  `joined` and are not re-run. This is the all-required join (ADR 002).
 - **Readiness**: a Task is READY when its state is current and its inputs exist. Dispatch identity is
   `(task_id, attempts_used)`, so two concurrent completions admit one attempt (guidebook C03).
 - **Timers**: the scheduler claims due timers with `FOR UPDATE SKIP LOCKED`, flips them to `fired` and raises the event

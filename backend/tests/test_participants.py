@@ -144,14 +144,22 @@ async def _insert_supplier_list(conn, instance_id: str, *, sids: tuple[str, ...]
     await _isl(conn, instance_id, sids=sids)
 
 
-async def _region_done(conn, instance_id: str) -> None:
+async def _region_done(conn, instance_id: str, *, brief_version: int = 1) -> None:
     await conn.execute(
         """
         insert into work.regions (
           instance_id, name, state, started_on, join_at, join_guard, started_with
-        ) values (%s, 'discovery', 'done', 'event.intent_identified', 'shortlisting', 'same(brief_version)', '{}')
+        ) values (%s, 'discovery', 'done', 'event.intent_identified', 'shortlisting', 'same(brief_version)', %s)
         """,
-        (instance_id,),
+        (instance_id, json.dumps({"brief_version": brief_version})),
+    )
+    cur = await conn.execute("select attributes from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    attrs = row[0] if isinstance(row[0], dict) else json.loads(row[0] or "{}")
+    attrs["brief_version"] = brief_version
+    await conn.execute(
+        "update work.instances set attributes = %s where id = %s",
+        (json.dumps(attrs), instance_id),
     )
 
 

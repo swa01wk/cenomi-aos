@@ -127,4 +127,7 @@ async def admit_attempt(
         daily_limit_usd=daily_limit_usd,
         reservation_usd=reservation_usd,
     )
+    from . import regions as region_ops
+
+    await region_ops.record_started_with_on_admit(conn, task_id)
     return new_token
