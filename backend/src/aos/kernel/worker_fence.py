@@ -126,7 +126,10 @@ async def evaluate_claimed_fence(
         " join work.tasks t on t.id = a.task_id"
         " join work.instances i on i.id = t.instance_id"
         " where a.id = %s and i.org_id = %s"
-        " for update of a, t",
+        # The instance row is locked too, before any outbox write: kernel commands (decisions, claims, edits)
+        # lock the instance first and then append to its stream, so a worker call that appended first and
+        # locked the instance later (submit → region done, save_draft → event triggers) deadlocked with them.
+        " for update of a, t, i",
         (attempt_id, org_id),
     )
     row = await cur.fetchone()
