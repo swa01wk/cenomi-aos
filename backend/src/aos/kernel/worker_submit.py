@@ -469,15 +469,29 @@ async def submit_result(
             packs_dir=packs_dir,
         )
     if gate.kind != "assist" and task_to in ("COMPLETED", "READY", "EXCEPTION"):
-        from .progress import post_task_outcome_progress
+        summary = result.get("summary") if isinstance(result.get("summary"), str) else None
+        if task_to == "EXCEPTION":
+            from .task_retry import finalize_workflow_task_exception
 
-        await post_task_outcome_progress(
-            conn,
-            org=org,
-            org_id=gate.org_id,
-            instance_id=gate.instance_id,
-            task_id=gate.task_id,
-            summary=result.get("summary") if isinstance(result.get("summary"), str) else None,
-            attempt_id=attempt_id,
-        )
+            await finalize_workflow_task_exception(
+                conn,
+                org=org,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                task_id=gate.task_id,
+                attempt_id=attempt_id,
+                summary=summary,
+            )
+        else:
+            from .progress import post_task_outcome_progress
+
+            await post_task_outcome_progress(
+                conn,
+                org=org,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                task_id=gate.task_id,
+                summary=summary,
+                attempt_id=attempt_id,
+            )
     return accepted_response

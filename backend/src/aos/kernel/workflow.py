@@ -572,6 +572,14 @@ async def apply_event(
         ),
     )
     from . import decisions as decision_ops
+    from . import task_retry as task_retry_ops
 
+    await task_retry_ops.void_task_retry_on_state_leave(
+        conn,
+        instance_id=instance_id,
+        from_state=from_state,
+        definition=definition,
+        job_closed=bool(to_spec.final),
+    )
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
     return ApplyEventResult(True, from_state, to_state, new_version)

@@ -91,6 +91,7 @@ async def post_attempt_events(
     events: list[dict[str, Any]] | None,
     stream: list[dict[str, Any]] | None,
     hub: OutboxHub,
+    org: Any | None = None,
 ) -> CommittedFenced | EndAttemptResult | None:
     gate = await require_claimed_attempt(
         conn, org_id=org_id, attempt_id=attempt_id, worker_id=worker_id, fencing_token=fencing_token
@@ -244,4 +245,16 @@ async def post_attempt_events(
                 attributes={"failure_category": "budget_exhausted"},
             ),
         )
+        if gate.kind == "task" and org is not None:
+            from .task_retry import finalize_workflow_task_exception
+
+            await finalize_workflow_task_exception(
+                conn,
+                org=org,
+                org_id=gate.org_id,
+                instance_id=gate.instance_id,
+                task_id=gate.task_id,
+                attempt_id=attempt_id,
+                summary=None,
+            )
     return end

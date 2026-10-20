@@ -158,8 +158,15 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
   `join_at`, the region goes back to `running` with `started_with` cleared and a new start Task is created (the
   previous Task stays `COMPLETED`). When a transition leaves a `join_at` state, regions for that join become
   `joined` and are not re-run. This is the all-required join (ADR 002).
-- **Readiness**: a Task is READY when its state is current and its inputs exist. Dispatch identity is
-  `(task_id, attempts_used)`, so two concurrent completions admit one attempt (guidebook C03).
+- **Readiness**: the scheduler tick loads CREATED/READY workflow Tasks on running jobs, locks the instance then each
+  Task with `FOR UPDATE SKIP LOCKED`, cancels Tasks that are no longer current (`TaskCancelled`), and admits through
+  the eight gates with the kernel as actor (`participant_ok` for gate 4). Refusals leave the Task READY with
+  `waiting_for {kind: admission, code}`; a new `admission.denied` record is written only when the code changes.
+  Successful admission clears `waiting_for`. Dispatch identity is `(task_id, attempts_used)` (guidebook C03).
+- **Task retry**: when a workflow Task reaches EXCEPTION, the kernel opens one `task.retry` decision pending per Task
+  (`work.pending_items.task_id`), bound to nothing. `decidePending` on that event spawns a replacement Task (region
+  re-run or a new state Task). Stale retry cards are voided when the job leaves the state or closes; deciding a stale
+  card returns 409 and voids the pending item.
 - **Timers**: the scheduler claims due timers with `FOR UPDATE SKIP LOCKED`, flips them to `fired` and raises the event
   in the same transaction; each fires once. `demo_after` applies when `AOS_DEMO=1`.
 - **Attributes** are written only by the kernel, never by the agent. Each workflow declares `spec.attributes` (name
