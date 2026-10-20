@@ -13,6 +13,7 @@ from ..evals.runner import run_suite
 from ..kernel import (
     artifacts,
     audit_store,
+    decisions,
     instances,
     publish,
     registry_store,
@@ -52,6 +53,10 @@ def _raise_instance_error(exc: instances.InstanceError) -> None:
 
 
 def _raise_artifact_error(exc: artifacts.ArtifactError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_decision_error(exc: decisions.DecisionError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -637,6 +642,64 @@ async def get_artifact_version(
         return await artifacts.get_artifact_version(conn, k.org, p.org_id, id, version, p.person_id)
     except artifacts.ArtifactError as exc:
         _raise_artifact_error(exc)
+
+
+class CreateArtifactVersionBody(BaseModel):
+    base_version: int
+    content: dict[str, Any]
+
+
+@router.post("/artifacts/{id}/versions", tags=["artifacts"], status_code=201)
+async def create_artifact_version(
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: CreateArtifactVersionBody,
+) -> dict:
+    try:
+        return await artifacts.create_artifact_version(
+            conn,
+            k.org,
+            p.org_id,
+            id,
+            p.person_id,
+            body.model_dump(),
+            packs_dir=k.settings.packs_dir,
+        )
+    except artifacts.ArtifactError as exc:
+        _raise_artifact_error(exc)
+
+
+class DecidePendingBody(BaseModel):
+    value: str
+    expected_version: int
+    artifact_version: int | None = None
+    selection: list[str] | None = None
+    note: str | None = None
+
+
+@router.post("/pending/{id}/decide", tags=["decisions"])
+async def decide_pending(
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: DecidePendingBody,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> dict:
+    try:
+        return await decisions.decide_pending(
+            conn,
+            p.org_id,
+            id,
+            p.person_id,
+            body.model_dump(),
+            idempotency_key=idempotency_key,
+            packs_dir=k.settings.packs_dir,
+        )
+    except decisions.DecisionError as exc:
+        _raise_decision_error(exc)
 
 
 # ------------------------------------------------------------------ worker protocol (M1-BE-05-A)

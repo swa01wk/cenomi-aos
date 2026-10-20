@@ -73,3 +73,11 @@ spec:
     - {from: ordering, to: closed, on: task.completed.po_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
   timers:
     quote_deadline: {after: 5d, demo_after: 15m, emits: quotes_closed}
+  decisions:
+    brief_confirmed:
+      {label: Confirm the brief, state: intake, for: requester, sets: {brief_version: artifact_version}}
+    shortlist_confirmed:
+      {label: Confirm the shortlist, state: shortlisting, for: buyer, selection: true,
+       sets: {shortlist_count: selection_count}}
+    supplier_selected:
+      {label: Select the supplier, state: comparison, for: buyer, selection: true}

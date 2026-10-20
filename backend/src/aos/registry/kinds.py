@@ -383,6 +383,17 @@ class WorkflowAttributeSpec(Strict):
     classification: Literal["shareable", "internal", "restricted"] = "internal"
 
 
+DecisionSetter = Literal["artifact_version", "selection_count"]
+
+
+class WorkflowDecisionSpec(Strict):
+    label: str
+    state: Name
+    for_: Name = Field(alias="for")
+    selection: bool = False
+    sets: dict[Name, DecisionSetter] = {}
+
+
 class WorkflowSpec(Strict):
     title: str
     description: str = ""
@@ -411,6 +422,7 @@ class WorkflowSpec(Strict):
     parallel: list[ParallelRegion] = []
     transitions: list[Transition] = Field(min_length=1)
     timers: dict[Name, Timer] = {}
+    decisions: dict[Name, WorkflowDecisionSpec] = {}
 
 
 class WorkflowDefinition(Envelope):

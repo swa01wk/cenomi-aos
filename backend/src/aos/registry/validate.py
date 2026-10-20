@@ -409,6 +409,58 @@ class _Checker:
                 for s in sorted(seen):
                     if not w.states[s].final and not graph[s]:
                         self.err("E_DEAD_END", K, wname, f"spec.states.{s}", f"state {s!r} has no way out")
+            self._check_decisions(wname, w, attrs, participants)
+
+    def _check_decisions(self, wname: str, w, attrs: set[str], participants: set[str]) -> None:
+        K = "WorkflowDefinition"
+        for dname, dec in w.decisions.items():
+            base = f"spec.decisions.{dname}"
+            if dec.state not in w.states:
+                self.err("E_REF", K, wname, f"{base}.state", f"no state {dec.state!r}")
+                continue
+            st = w.states[dec.state]
+            if not st.view:
+                self.err("E_DECISION", K, wname, base, f"state {dec.state!r} needs a view for decisions")
+            if dec.for_ not in participants:
+                self.err("E_REF", K, wname, f"{base}.for", f"{dec.for_!r} is not a participant")
+            for attr_key, setter in dec.sets.items():
+                if attr_key not in attrs:
+                    self.err("E_REF", K, wname, f"{base}.sets.{attr_key}", f"{attr_key!r} is not a declared attribute")
+                if setter not in ("artifact_version", "selection_count"):
+                    self.err("E_DECISION", K, wname, f"{base}.sets.{attr_key}", f"unknown setter {setter!r}")
+                if setter == "selection_count" and not dec.selection:
+                    self.err(
+                        "E_DECISION",
+                        K,
+                        wname,
+                        f"{base}.sets.{attr_key}",
+                        "selection_count setter requires selection: true",
+                    )
+            ev = f"decision.{dname}"
+            matched = False
+            for i, tr in enumerate(w.transitions):
+                if tr.from_ != dec.state:
+                    continue
+                if ev not in tr.events:
+                    continue
+                if tr.by != dec.for_:
+                    self.err(
+                        "E_DECISION",
+                        K,
+                        wname,
+                        f"spec.transitions[{i}]",
+                        f"{ev!r} must have by={dec.for_!r}, not {tr.by!r}",
+                    )
+                matched = True
+                break
+            if not matched:
+                self.err(
+                    "E_DECISION",
+                    K,
+                    wname,
+                    base,
+                    f"no transition from {dec.state!r} on {ev!r} with by={dec.for_!r}",
+                )
 
     def _check_event(self, wname: str, path: str, ev: str, w, t, from_templates: set[str]) -> None:
         K = "WorkflowDefinition"
