@@ -14,6 +14,7 @@ from ..kernel import (
     artifacts,
     audit_store,
     clock,
+    console,
     decisions,
     demo,
     instances,
@@ -37,7 +38,7 @@ from ..kernel.simulate import run_simulation_rolled_back
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
-from ..sse import InstanceStreamError, instance_event_stream, preflight_instance_stream
+from ..sse import InstanceStreamError, instance_event_stream, preflight_instance_stream, user_event_stream
 from .deps import ConsoleDep, FencingDep, HubDep, Kernel, KernelDep, Principal, PrincipalDep, TxDep, WorkerDep, needs_role
 
 router = APIRouter()
@@ -66,6 +67,10 @@ def _raise_decision_error(exc: decisions.DecisionError) -> None:
 
 
 def _raise_participant_error(exc: participants.ParticipantError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_console_error(exc: console.ConsoleError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -1123,6 +1128,94 @@ async def submit_result_route(
 def _require_demo(k: KernelDep) -> None:
     if not k.settings.demo:
         raise HTTPException(404, "Not found")
+
+
+# ------------------------------------------------------------------ operate (Console, M2)
+
+@router.get("/console/workflows", tags=["operate"])
+async def list_workflows_route(p: ConsoleDep, conn: TxDep) -> dict:
+    items = await console.list_workflows(conn, p.org_id)
+    return {"items": items}
+
+
+@router.get("/console/workflows/{name}", tags=["operate"])
+async def get_workflow_graph_route(
+    name: str,
+    p: PrincipalDep,
+    conn: TxDep,
+    version: int | None = None,
+) -> dict:
+    try:
+        return await console.get_workflow_graph(
+            conn,
+            p.org_id,
+            name,
+            person_id=p.person_id,
+            roles=p.roles,
+            console=p.console,
+            version=version,
+        )
+    except console.ConsoleError as exc:
+        _raise_console_error(exc)
+
+
+@router.get("/console/instances", tags=["operate"])
+async def list_instances_route(
+    p: ConsoleDep,
+    k: KernelDep,
+    conn: TxDep,
+    state: str | None = None,
+    workflow: str | None = None,
+    waiting_on: str | None = None,
+    q: str | None = None,
+) -> dict:
+    return await console.list_instances(
+        conn,
+        k.org,
+        p.org_id,
+        state=state,
+        workflow=workflow,
+        waiting_on=waiting_on,
+        q=q,
+    )
+
+
+@router.get("/console/instances/{id}/timeline", tags=["operate"])
+async def get_instance_timeline_route(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
+    try:
+        return await console.get_instance_timeline(
+            conn,
+            k.org,
+            p.org_id,
+            id,
+            person_id=p.person_id,
+            roles=p.roles,
+            console=p.console,
+        )
+    except console.ConsoleError as exc:
+        _raise_console_error(exc)
+
+
+@router.get("/events", tags=["workspace"])
+async def stream_user_events(
+    request: Request,
+    p: PrincipalDep,
+    k: KernelDep,
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+) -> StreamingResponse:
+    hub = request.app.state.hub
+    resume = last_event_id
+    return StreamingResponse(
+        user_event_stream(
+            hub,
+            k.pool,
+            org_id=p.org_id,
+            person_id=p.person_id,
+            cursor=resume,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 class AdvanceClockMinutes(BaseModel):

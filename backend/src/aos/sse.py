@@ -206,16 +206,19 @@ class OutboxHub:
         pending = [r for r in rows if r[1] > sub.last_delivered_seq]
         if not pending:
             return
-        async with self._pool.connection() as conn:
-            roles = await streaming.participant_roles(conn, sub.instance_id, sub.person_id)
-        if not roles:
-            sub.closed = True
-            try:
-                sub.queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
-            await self._remove_subscriber(sub)
-            return
+        user_stream = sub.stream.startswith("user:")
+        roles: list[str] = []
+        if not user_stream:
+            async with self._pool.connection() as conn:
+                roles = await streaming.participant_roles(conn, sub.instance_id, sub.person_id)
+            if not roles:
+                sub.closed = True
+                try:
+                    sub.queue.put_nowait(None)
+                except asyncio.QueueFull:
+                    pass
+                await self._remove_subscriber(sub)
+                return
         for stream, seq, event_type, instance_id, audience, data, created_at in pending:
             if seq <= sub.last_delivered_seq:
                 continue
@@ -247,15 +250,18 @@ async def _fanout_catch_up(
     hub_rows = rows
     if not hub_rows:
         return
-    async with pool.connection() as conn:
-        roles = await streaming.participant_roles(conn, sub.instance_id, sub.person_id)
-    if not roles:
-        sub.closed = True
-        try:
-            sub.queue.put_nowait(None)
-        except asyncio.QueueFull:
-            pass
-        return
+    user_stream = sub.stream.startswith("user:")
+    roles: list[str] = []
+    if not user_stream:
+        async with pool.connection() as conn:
+            roles = await streaming.participant_roles(conn, sub.instance_id, sub.person_id)
+        if not roles:
+            sub.closed = True
+            try:
+                sub.queue.put_nowait(None)
+            except asyncio.QueueFull:
+                pass
+            return
     for stream, seq, event_type, instance_id, audience, data, created_at in hub_rows:
         if seq <= sub.last_delivered_seq:
             continue
@@ -367,3 +373,49 @@ class InstanceStreamError(Exception):
         self.title = title
         self.detail = detail
         super().__init__(title)
+
+
+async def user_event_stream(
+    hub: OutboxHub,
+    pool: AsyncConnectionPool,
+    *,
+    org_id: str,
+    person_id: str,
+    cursor: str | None,
+) -> AsyncIterator[str]:
+    stream = ids.stream_user(person_id)
+    async with pool.connection() as conn:
+        head = await streaming.stream_head(conn, stream)
+        validation = await streaming.validate_user_cursor(conn, person_id=person_id, cursor=cursor)
+        if not validation.ok:
+            reason = validation.reason or "cursor_unknown"
+            snap_seq = validation.seq if reason == "gap" and validation.seq else head
+            snap = streaming.snapshot_required_event(stream=stream, seq=snap_seq, reason=reason)
+            yield format_sse_outbox(snap)
+            start_seq = head
+        else:
+            start_seq = validation.seq
+
+    sub = Subscriber(
+        stream=stream,
+        person_id=person_id,
+        org_id=org_id,
+        instance_id="",
+        last_delivered_seq=start_seq,
+    )
+    unsubscribe = await hub.subscribe_and_wait(sub)
+    async with hub._stream_lock(stream):
+        await _fanout_catch_up(pool, sub, after_seq=start_seq)
+
+    try:
+        while not sub.closed:
+            try:
+                chunk = await asyncio.wait_for(sub.queue.get(), timeout=hub.heartbeat_seconds)
+            except TimeoutError:
+                yield format_sse_comment()
+                continue
+            if chunk is None:
+                break
+            yield chunk
+    finally:
+        unsubscribe()
