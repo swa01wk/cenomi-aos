@@ -1,56 +1,48 @@
-"""Deterministic artifact placeholders for workflow simulation (M2-BE-06)."""
+"""Deterministic artifact placeholders for workflow simulation (M2-BE-06).
+
+Generated only from each field's declared type, never from field names: platform code doesn't know a pack's
+fields. Rows of row-based types get distinct row_key values.
+"""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from aos.registry.kinds import ArtifactType, FieldSpec
 
+from . import clock
+
 
 def _field_value(name: str, field: FieldSpec, *, row_index: int | None = None) -> Any:
-    suffix = f"-{row_index}" if row_index is not None else ""
+    n = (row_index or 0) + 1
     if field.type == "integer":
-        return (row_index or 0) + 1
+        return n
     if field.type in ("number", "money"):
-        return float((row_index or 0) + 1)
+        return float(n)
     if field.type == "date":
-        return "2026-12-01"
+        return (clock.now() + timedelta(days=30)).date().isoformat()
     if field.type == "datetime":
-        return "2026-12-01T12:00:00Z"
+        return clock.iso_z(clock.now() + timedelta(days=30))
     if field.type == "list":
-        if name == "sources":
-            return [{"ref": f"sim-source{suffix}"}]
-        if name == "lines":
-            return [{"description": "sim line", "quantity": 1, "unit_price": 1.0}]
-        if name == "attachments":
-            return []
         return []
     if field.type == "boolean":
         return True
     if field.type == "object":
         return {}
-    if name == "category":
-        return "CAT-SIM"
+    suffix = f"-{row_index}" if row_index is not None else ""
     return f"sim-{name}{suffix}"
 
 
 def placeholder_content(artifact_type: ArtifactType) -> dict[str, Any]:
     spec = artifact_type.spec
     if spec.row_based:
-        row_key = spec.row_key or "id"
+        row_key = spec.row_key
         rows: list[dict[str, Any]] = []
         for i in range(3):
             row: dict[str, Any] = {}
             for fname, fspec in spec.fields.items():
-                if fname == row_key:
-                    row[fname] = f"sim-{i + 1}"
-                elif fname == "rank":
-                    row[fname] = i + 1
-                else:
-                    row[fname] = _field_value(fname, fspec, row_index=i)
+                row[fname] = f"sim-{i + 1}" if fname == row_key else _field_value(fname, fspec, row_index=i)
             rows.append(row)
         return {"rows": rows}
-    content: dict[str, Any] = {}
-    for fname, fspec in spec.fields.items():
-        content[fname] = _field_value(fname, fspec)
-    return content
+    return {fname: _field_value(fname, fspec) for fname, fspec in spec.fields.items()}

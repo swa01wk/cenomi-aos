@@ -497,6 +497,8 @@ async def start_instance(
         raise _pack_material_error(exc) from exc
 
     prefix = (wdoc.get("spec") or {}).get("id_prefix", "JOB")
+    if simulation_instance_id is not None and "-SIM-" not in simulation_instance_id:
+        raise InstanceError("internal", 500, "Invalid simulation id", "Simulated job ids contain -SIM-.")
     instance_id = simulation_instance_id or await ids.next_instance_id(conn, prefix)
     task_id = ids.new_task_id()
     attempt_id = ids.new_attempt_id()

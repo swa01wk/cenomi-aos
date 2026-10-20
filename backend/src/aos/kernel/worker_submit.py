@@ -252,6 +252,9 @@ async def submit_result(
     )
     if isinstance(gate, CommittedFenced):
         return gate
+    if simulation and "-SIM-" not in str(gate.instance_id):
+        # Skipping the verifier is for aos simulate's rolled-back jobs only, never a real job.
+        raise WorkerError("internal", 500, "Simulation flag on a real job", "Verifiers can't be skipped here.")
 
     if result.get("attempt_id") != attempt_id:
         raise WorkerError("validation_failed", 422, "Wrong attempt", "attempt_id does not match the URL.")
