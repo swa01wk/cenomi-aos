@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from psycopg import AsyncConnection, errors as pg_errors
-from . import artifacts, contracts, ids
+from . import artifacts, contracts, decisions, ids
 from .admission import (
     AdmissionContext,
     check_admission,
@@ -406,7 +406,7 @@ async def build_snapshot(
         "stages": _stages(wdoc, state),
         "participants": participants,
         "my_roles": my_roles,
-        "pending": [],
+        "pending": await decisions.pending_for_viewer(conn, instance_id, person_id, my_roles),
         "artifacts": await artifacts.summaries_for_instance(
             conn, org, instance_id, my_roles, defs
         ),

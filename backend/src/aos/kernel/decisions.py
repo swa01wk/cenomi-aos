@@ -106,13 +106,68 @@ async def _state_tasks_complete(
     return True
 
 
-async def _participant_person(conn: AsyncConnection, instance_id: str, role: str) -> str | None:
+async def pending_for_viewer(
+    conn: AsyncConnection,
+    instance_id: str,
+    person_id: str,
+    viewer_roles: list[str],
+) -> list[dict[str, Any]]:
+    """Open pending items visible to the caller (PendingItem shape)."""
     cur = await conn.execute(
-        "select person_id from work.participants where instance_id = %s and role = %s",
-        (instance_id, role),
+        "select id, instance_id, kind, event, title, detail, for_role, for_person_id,"
+        " options, artifact_ref, approval_id, due_at, status, created_at"
+        " from work.pending_items where instance_id = %s and status = 'open'"
+        " order by created_at",
+        (instance_id,),
     )
-    row = await cur.fetchone()
-    return row[0] if row else None
+    out: list[dict[str, Any]] = []
+    for row in await cur.fetchall():
+        (
+            pid,
+            inst_id,
+            kind,
+            event,
+            title,
+            detail,
+            for_role,
+            for_person,
+            options,
+            artifact_ref,
+            approval_id,
+            due_at,
+            status,
+            created_at,
+        ) = row
+        if for_person != person_id and for_role not in viewer_roles:
+            continue
+        options_doc = options if isinstance(options, list) else json.loads(options or "[]")
+        art: dict[str, Any] | None
+        if artifact_ref is None:
+            art = None
+        elif isinstance(artifact_ref, dict):
+            art = artifact_ref
+        else:
+            art = json.loads(artifact_ref)
+        created: datetime | str = created_at
+        out.append(
+            {
+                "pending_id": pid,
+                "instance_id": inst_id,
+                "kind": kind,
+                "event": event,
+                "title": title,
+                "detail": detail or "",
+                "for_role": for_role,
+                "for_person_id": for_person,
+                "options": options_doc,
+                "artifact_ref": art,
+                "approval_id": approval_id,
+                "due_at": due_at.isoformat() if due_at is not None else None,
+                "status": status,
+                "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
+            }
+        )
+    return out
 
 
 async def _latest_view_artifact(
@@ -269,7 +324,11 @@ async def open_ready_decisions(
             continue
         if not await _regions_ready(conn, instance_id, dec.state, definition):
             continue
-        person_id = await _participant_person(conn, instance_id, dec.for_)
+        from . import participants as participant_ops
+
+        person_id = await participant_ops.resolve_participant(
+            conn, org, instance_id, dec.for_, packs_dir=packs_dir
+        )
         if person_id is None:
             continue
         view = definition.spec.states[dec.state].view

@@ -120,6 +120,8 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
 
 ### M2-FE-01 Lists and live updates
 - My jobs with waiting-on-me (WS-MyJobs), Team queue with claim and `ConflictNotice` (WS-Queue), user stream.
+- **Carried from M2-BE-03 (review):** replace `requester` / `buyer` on `InstanceSummary` with a generic
+  `people` list (`[{role, name}]`) in `openapi.yaml`, regenerate the web types, and use it in My jobs and the queue.
 ### M2-FE-02 Job page decisions and views
 - `DecisionCard` (confirm brief, confirm shortlist), supplier ranking `ArtifactSheet` with selection, brief edit in the
   document view, REWORK notice from `verification.completed`.
