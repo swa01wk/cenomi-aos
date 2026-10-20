@@ -29,7 +29,9 @@ vendor: ## sandbox fallback: fetch FastAPI and psycopg from GitHub when PyPI is 
 	bash scripts/vendor-from-github.sh
 
 test: ## run all backend tests (Postgres tests skip if no local Postgres)
-	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m unittest discover -s tests -t . -v
+	@# Real-model settings in .env never reach the tests (make smoke-real is the real-model target).
+	cd backend && env -u OPENAI_API_KEY -u ANTHROPIC_API_KEY -u AOS_MODEL_PRICE_IN_PER_MTOK \
+		-u AOS_MODEL_PRICE_OUT_PER_MTOK PYTHONPATH=$(PYPATH) $(PY) -m unittest discover -s tests -t . -v
 
 validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
