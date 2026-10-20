@@ -635,6 +635,21 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
                 "update work.tasks set state = 'EXCEPTION', updated_at = now() where id = %s",
                 (task_id,),
             )
+            await write_execution_event(
+                conn,
+                ExecutionEventWrite(
+                    org_id=org_id,
+                    run_id=instance_id,
+                    event_type="TaskFailed",
+                    actor_kind="kernel",
+                    actor_id="kernel",
+                    correlation_id=correlation_id,
+                    redacted_summary="Attempts used up after the worker's lease expired.",
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    attributes={"failure_category": "expired"},
+                ),
+            )
         return ExpireOutcome(expired=True)
 
     if task_kind == "assist":

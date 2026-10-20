@@ -73,6 +73,11 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
 ### M2-BE-05 Timers, scheduler and demo clock
 - Readiness loop, timers with `SKIP LOCKED`, demo clock (`getDemoState`, `advanceClock`) behind `AOS_DEMO=1`.
 - **Tests:** a timer fires once with two scheduler loops running; advancing the demo clock fires due timers.
+- **Carried from M2-BE-07 (review):** when a workflow Task runs out of attempts because its leases expired, the
+  scheduler path (`expire_one_attempt`) sets EXCEPTION and writes `TaskFailed`, but posts no progress turn,
+  because it has no `org`. Give the scheduler the kernel's `org` and post the Task's EXCEPTION progress turn
+  there too. **Test:** a workflow Task whose leases keep expiring ends in EXCEPTION with one progress turn to its
+  `on_behalf_of` person.
 
 ### M2-BE-06 Simulate and Console reads
 - `simulatePackVersion` and the `aos simulate` CLI (shared code); `listWorkflows`, `getWorkflowGraph`,

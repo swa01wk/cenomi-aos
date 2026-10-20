@@ -691,13 +691,14 @@ class ConversationFollowsJobTests(unittest.TestCase):
             return "REWORK", ["fix the draft"]
 
         verify.register_implementation("aos.verifiers.brief_schema", _rework)
+        self.addCleanup(verify.unregister_implementation, "aos.verifiers.brief_schema")
         inst = self._start()
         task_id = ids.new_task_id()
         contract = {
             "schema_version": "aos.task_contract/1",
             "contract_id": ids.new_contract_id(),
             "contract_version": 1,
-            "permission_scope": {"classification_ceiling": "public", "resources": []},
+            "permission_scope": {"classification_ceiling": "shareable", "resources": []},
             "on_behalf_of": {"role": "buyer", "person_id": None},
             "budget": {"cost_usd": 1},
         }

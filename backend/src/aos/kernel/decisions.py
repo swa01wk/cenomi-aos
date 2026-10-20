@@ -654,7 +654,8 @@ async def decide_pending(
 
     from .progress import post_decision_resolved_progress
 
-    unchanged_label = (definition.spec.states.get(from_state) or {}).label if from_state else from_state
+    from_spec = definition.spec.states.get(from_state) if from_state else None
+    unchanged_label = from_spec.label if from_spec is not None else from_state
     await post_decision_resolved_progress(
         conn,
         org=org,

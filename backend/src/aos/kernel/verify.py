@@ -22,6 +22,10 @@ def register_implementation(path: str, handler: Handler) -> None:
     _HANDLERS[path] = handler
 
 
+def unregister_implementation(path: str) -> None:
+    _HANDLERS.pop(path, None)
+
+
 async def run_task_verifier(
     conn: AsyncConnection,
     *,
@@ -36,5 +40,6 @@ async def run_task_verifier(
     impl = (vdoc.get("spec") or {}).get("implementation") or ""
     handler = _HANDLERS.get(str(impl))
     if handler is None:
-        return "PASS", []
+        # Fail closed: a verifier that can't run never passes work.
+        return "FAIL", [f"Verifier {verifier_name!r} has no implementation available ({impl!r})."]
     return handler(conn, gate, result, defs)
