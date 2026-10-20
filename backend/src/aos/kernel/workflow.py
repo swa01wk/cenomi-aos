@@ -241,7 +241,10 @@ async def _run_effects(
             )
             row = await cur.fetchone()
             generation = int(row[0]) + 1 if row else 1
-            fires_at = at + clock.parse_duration(timer.after)
+            duration = timer.after
+            if clock.demo_enabled() and timer.demo_after:
+                duration = timer.demo_after
+            fires_at = at + clock.parse_duration(duration)
             await conn.execute(
                 "insert into work.timers (id, instance_id, name, emits, fires_at, generation)"
                 " values (%s, %s, %s, %s, %s, %s)",

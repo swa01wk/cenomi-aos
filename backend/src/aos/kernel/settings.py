@@ -35,6 +35,7 @@ class Settings:
     sse_heartbeat_seconds: float = 15.0
     worker_lease_seconds: float = 90.0
     scheduler_interval_seconds: float = 5.0
+    demo: bool = False
     gateway_timeout_seconds: float = 10.0
     connector_secrets: dict[str, str] = field(default_factory=dict)
     connector_urls: dict[str, str] = field(default_factory=dict)
@@ -55,6 +56,7 @@ class Settings:
             "sse_heartbeat_seconds": float(env.get("AOS_SSE_HEARTBEAT_SECONDS", "15")),
             "worker_lease_seconds": float(env.get("AOS_WORKER_LEASE_SECONDS", "90")),
             "scheduler_interval_seconds": float(env.get("AOS_SCHEDULER_INTERVAL_SECONDS", "5")),
+            "demo": env.get("AOS_DEMO", "0") in ("1", "true", "yes"),
             "gateway_timeout_seconds": float(env.get("AOS_GATEWAY_TIMEOUT_SECONDS", "10")),
             "connector_secrets": _json_env(env, "AOS_CONNECTOR_SECRETS"),
             "connector_urls": _json_env(env, "AOS_CONNECTOR_URLS"),

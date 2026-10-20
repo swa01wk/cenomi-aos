@@ -12,6 +12,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from ..gateway.broker import CredentialBroker
 from ..gateway.gateway import ToolGateway
+from ..kernel import clock, demo
 from ..kernel.org import load_org, seed_sql
 from ..kernel.scheduler import start_scheduler
 from ..kernel.settings import Settings
@@ -48,6 +49,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             connector_urls=settings.connector_urls,
             timeout_s=settings.gateway_timeout_seconds,
         )
+        clock.configure(demo_enabled=settings.demo)
+        if settings.demo:
+            async with pool.connection() as conn:
+                await demo.load_demo_clock(conn, org.organization.id)
+
         app.state.kernel = Kernel(
             settings=settings,
             org=org,
@@ -57,7 +63,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.hub = hub
         sched_task, sched_stop = start_scheduler(
-            pool, database_url=settings.database_url, interval_s=settings.scheduler_interval_seconds
+            pool,
+            database_url=settings.database_url,
+            interval_s=settings.scheduler_interval_seconds,
+            org=org,
+            packs_dir=settings.packs_dir,
         )
         try:
             yield

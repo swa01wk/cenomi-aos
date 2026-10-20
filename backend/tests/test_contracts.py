@@ -261,6 +261,21 @@ class OpenApiTests(unittest.TestCase):
         }
         self.assertTrue(m2 <= served, f"M2 decision/artifact routes missing: {m2 - served}")
 
+    def test_m2_demo_operations_match_the_running_app(self) -> None:
+        try:
+            from aos.api import create_app
+            from aos.kernel.settings import Settings
+        except ImportError as exc:
+            self.skipTest(f"FastAPI unavailable: {exc}")
+        app = create_app(Settings.from_env(seed_on_start=False))
+        served = {(m, p.removeprefix("/api")) for p, item in app.openapi()["paths"].items() if p.startswith("/api")
+                  for m in item if m in METHODS}
+        m2_demo = {
+            ("get", "/demo/state"),
+            ("post", "/demo/clock/advance"),
+        }
+        self.assertTrue(m2_demo <= served, f"M2 demo routes missing: {m2_demo - served}")
+
 
 if __name__ == "__main__":
     unittest.main()
