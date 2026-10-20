@@ -83,6 +83,13 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
 ### M2-AG-01 Task graph
 - Generic Task graph from the harness spec; `request_intake` as the intake Task with resume-on-input; Task contracts per
   Skill spec (budgets, ceilings, tools).
+- **Carried from M2-BE-01 (review):**
+  - `aos validate` requires `on_behalf_of` on every task template (states' `tasks`, `on_event`, parallel `start`), so
+    a missing one fails at publish, not when a job first reaches that state.
+  - `build_task_contract` takes the classification ceiling from the Skill spec, never above the clearance of the
+    `on_behalf_of` role. M2-BE-01 uses a placeholder (the Seat's highest grant), harmless only while no Task runs.
+  - **Tests:** a template without `on_behalf_of` fails validation; the `supplier_lookup` contract's ceiling is
+    `shareable` and `request_intake`'s is `internal`.
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
