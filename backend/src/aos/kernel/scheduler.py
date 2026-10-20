@@ -13,6 +13,10 @@ import logging
 import psycopg
 from psycopg_pool import AsyncConnectionPool
 
+from pathlib import Path
+
+from . import clock, timers
+from .org import OrgModel
 from .worker_attempts import expire_one_attempt, readmit_after_expiry_lease
 
 log = logging.getLogger("aos.scheduler")
@@ -52,14 +56,35 @@ async def run_lease_expiry_tick(pool: AsyncConnectionPool, *, database_url: str)
         await lock_conn.close()
 
 
+async def run_timer_tick(
+    pool: AsyncConnectionPool,
+    *,
+    org: OrgModel,
+    packs_dir: Path,
+) -> int:
+    as_of = clock.now()
+    results = await timers.run_timer_tick(pool, as_of=as_of, org=org, packs_dir=packs_dir)
+    fired = sum(1 for r in results if r.outcome == "fired")
+    return fired
+
+
 async def scheduler_loop(
-    pool: AsyncConnectionPool, *, database_url: str, interval_s: float, stop: asyncio.Event
+    pool: AsyncConnectionPool,
+    *,
+    database_url: str,
+    interval_s: float,
+    stop: asyncio.Event,
+    org: OrgModel,
+    packs_dir: Path,
 ) -> None:
     while not stop.is_set():
         try:
             n = await run_lease_expiry_tick(pool, database_url=database_url)
             if n:
                 log.debug("expired %s worker lease(s)", n)
+            t = await run_timer_tick(pool, org=org, packs_dir=packs_dir)
+            if t:
+                log.debug("fired %s timer(s)", t)
         except Exception:  # noqa: BLE001 - loop keeps running
             log.exception("scheduler tick failed")
         try:
@@ -69,11 +94,23 @@ async def scheduler_loop(
 
 
 def start_scheduler(
-    pool: AsyncConnectionPool, *, database_url: str, interval_s: float
+    pool: AsyncConnectionPool,
+    *,
+    database_url: str,
+    interval_s: float,
+    org: OrgModel,
+    packs_dir: Path,
 ) -> tuple[asyncio.Task, asyncio.Event]:
     stop = asyncio.Event()
     task = asyncio.create_task(
-        scheduler_loop(pool, database_url=database_url, interval_s=interval_s, stop=stop),
+        scheduler_loop(
+            pool,
+            database_url=database_url,
+            interval_s=interval_s,
+            stop=stop,
+            org=org,
+            packs_dir=packs_dir,
+        ),
         name="aos-scheduler",
     )
     return task, stop

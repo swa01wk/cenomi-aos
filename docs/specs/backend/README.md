@@ -69,6 +69,9 @@ verify expiry with an explicit clock check (`verify_exp` off in decode so tests 
 5. **Visibility.** Artifact reads go through `artifacts.project(version, viewer_roles)`, which drops fields per the
    artifact type's `visibility` and `classification`; `hidden_fields` lists the dropped names. The same function feeds
    the ContextAssembler, so the agent and the person see the same projection.
+6. **Lock order.** Every transaction that changes a job locks its `work.instances` row first (`FOR UPDATE`), then
+   anything else for that job (timers, regions, tasks, outbox stream heads). The worker fence path already locks the
+   instance before the attempt and task rows.
 
 ## Seat lifecycle (M1)
 

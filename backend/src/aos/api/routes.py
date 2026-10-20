@@ -13,12 +13,15 @@ from ..evals.runner import run_suite
 from ..kernel import (
     artifacts,
     audit_store,
+    clock,
     decisions,
+    demo,
     instances,
     participants,
     publish,
     registry_store,
     seats,
+    timers,
     worker_attempts,
     worker_events,
     worker_questions,
@@ -1085,6 +1088,55 @@ async def submit_result_route(
     if isinstance(result, CommittedFenced):
         return _fenced_response(request, result)
     return result
+
+
+# ------------------------------------------------------------------ demo (sandbox)
+
+def _require_demo(k: KernelDep) -> None:
+    if not k.settings.demo:
+        raise HTTPException(404, "Not found")
+
+
+class AdvanceClockMinutes(BaseModel):
+    minutes: int = Field(ge=1)
+
+
+class AdvanceClockNextTimer(BaseModel):
+    to_next_timer: Literal[True]
+
+
+@router.get("/demo/state", tags=["demo"])
+async def get_demo_state(k: KernelDep, p: ConsoleDep, conn: TxDep) -> dict:
+    _require_demo(k)
+    return await demo.build_demo_state(conn, p.org_id)
+
+
+@router.post("/demo/clock/advance", tags=["demo"])
+async def advance_clock(
+    k: KernelDep,
+    p: ConsoleDep,
+    body: AdvanceClockMinutes | AdvanceClockNextTimer,
+) -> dict:
+    _require_demo(k)
+    minutes = body.minutes if isinstance(body, AdvanceClockMinutes) else None
+    to_next = isinstance(body, AdvanceClockNextTimer)
+    async with k.pool.connection() as conn:
+        async with conn.transaction():
+            offset = await demo.advance_demo_clock(
+                conn,
+                p.org_id,
+                minutes=minutes,
+                to_next_timer=to_next,
+            )
+    clock.set_offset(offset)
+    await timers.run_timer_tick(
+        k.pool,
+        as_of=clock.now(),
+        org=k.org,
+        packs_dir=k.settings.packs_dir,
+    )
+    async with k.pool.connection() as conn:
+        return await demo.build_demo_state(conn, p.org_id)
 
 
 # ------------------------------------------------------------------ audit (Console)
