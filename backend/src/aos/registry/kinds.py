@@ -133,6 +133,7 @@ class ArtifactTypeSpec(Strict):
     description: str = ""
     fields: dict[Name, FieldSpec] = Field(min_length=1)
     row_based: bool = False
+    row_key: Name | None = None
     classification: Literal["shareable", "internal", "restricted"] = "internal"
     view: ViewSpec
     # participant role -> "all" | "none" | list of visible fields

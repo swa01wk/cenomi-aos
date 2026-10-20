@@ -118,6 +118,35 @@ class _Checker:
                     if f.classification in ("internal", "restricted"):
                         self.err("E_CLASSIFICATION", "ArtifactType", name, f"spec.fields.{fname}",
                                  "a shareable artifact type cannot hold internal or restricted fields")
+            if at.spec.row_key is not None and at.spec.row_key not in fields:
+                self.err(
+                    "E_REF",
+                    "ArtifactType",
+                    name,
+                    "spec.row_key",
+                    f"no field {at.spec.row_key!r}",
+                )
+        self._check_decision_row_keys()
+
+    def _check_decision_row_keys(self) -> None:
+        for wname, wf in self.workflows.items():
+            for dname, dec in wf.spec.decisions.items():
+                if not dec.selection:
+                    continue
+                st = wf.spec.states.get(dec.state)
+                if st is None or not st.view:
+                    continue
+                at = self.artifacts.get(st.view)
+                if at is None or not at.spec.row_based:
+                    continue
+                if not at.spec.row_key:
+                    self.err(
+                        "E_DECISION",
+                        "WorkflowDefinition",
+                        wname,
+                        f"spec.decisions.{dname}",
+                        f"selection decision needs row_key on row-based ArtifactType {st.view!r}",
+                    )
 
     def check_verifiers(self) -> None:
         for name, v in self.verifiers.items():

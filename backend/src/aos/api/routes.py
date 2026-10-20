@@ -977,7 +977,9 @@ async def save_draft_route(
     row = await pvid.fetchone()
     defs = await _load_definitions(conn, str(row[0])) if row else {}
     try:
-        return await artifacts.save_draft_from_attempt(conn, gate=gate, body=body, defs=defs)
+        return await artifacts.save_draft_from_attempt(
+            conn, gate=gate, body=body, defs=defs, packs_dir=k.settings.packs_dir
+        )
     except artifacts.ArtifactError as exc:
         _raise_artifact_error(exc)
 

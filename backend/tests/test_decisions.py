@@ -12,7 +12,8 @@ from pathlib import Path
 import psycopg
 from fastapi.testclient import TestClient
 from aos.api import create_app
-from aos.kernel import decisions, ids
+from aos.kernel import artifacts, decisions, ids, workflow
+from aos.kernel.worker_fence import ClaimedAttempt
 from aos.kernel.contracts import _canonical_json
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.registry_store import sync_pack
@@ -105,31 +106,43 @@ async def _insert_brief(conn, instance_id: str, versions: list[dict]) -> str:
     return aid
 
 
-async def _insert_supplier_list(conn, instance_id: str) -> str:
-    aid = ids.new_artifact_id()
-    content = {
+def _supplier_content(sids: tuple[str, ...]) -> dict:
+    return {
         "rows": [
             {
-                "rank": 1,
-                "supplier": "A",
-                "supplier_id": "s1",
+                "rank": i + 1,
+                "supplier": f"Supplier {sid}",
+                "supplier_id": sid,
                 "score": 1.0,
                 "sources": [],
             }
+            for i, sid in enumerate(sids)
         ]
     }
-    ch = __import__("hashlib").sha256(_canonical_json(content)).hexdigest()
+
+
+async def _insert_supplier_list(
+    conn,
+    instance_id: str,
+    *,
+    sids: tuple[str, ...] = ("s1",),
+    version_contents: list[dict] | None = None,
+) -> str:
+    contents = version_contents or [_supplier_content(sids)]
+    aid = ids.new_artifact_id()
     await conn.execute(
         "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
-        " values (%s, %s, 'supplier_list', '', 'Suppliers', 'draft', 1)",
-        (aid, instance_id),
+        " values (%s, %s, 'supplier_list', '', 'Suppliers', 'draft', %s)",
+        (aid, instance_id, len(contents)),
     )
-    await conn.execute(
-        "insert into work.artifact_versions (artifact_id, version, content, content_hash,"
-        " produced_by_kind, produced_by, inputs, sources)"
-        " values (%s, 1, %s, %s, 'attempt', 'att_x', '[]', '[]')",
-        (aid, json.dumps(content), ch),
-    )
+    for i, content in enumerate(contents, start=1):
+        ch = __import__("hashlib").sha256(_canonical_json(content)).hexdigest()
+        await conn.execute(
+            "insert into work.artifact_versions (artifact_id, version, content, content_hash,"
+            " produced_by_kind, produced_by, inputs, sources)"
+            " values (%s, %s, %s, %s, 'attempt', 'att_x', '[]', '[]')",
+            (aid, i, json.dumps(content), ch),
+        )
     return aid
 
 
@@ -333,7 +346,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         await _insert_instance(
             self.conn, instance_id=inst, pack_version_id=self.pack_version_id, state="shortlisting", version=2
         )
-        await _insert_supplier_list(self.conn, inst)
+        await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
         await _region_done(self.conn, inst)
         opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
         pending_id = opened[0]
@@ -342,7 +355,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             ORG_ID,
             pending_id,
             "noura",
-            {"value": "confirm", "expected_version": 2, "selection": ["s1", "s2"]},
+            {"value": "confirm", "expected_version": 2, "artifact_version": 1, "selection": ["s1", "s2"]},
             idempotency_key=None,
             packs_dir=self.packs_dir,
         )
@@ -366,11 +379,138 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             ORG_ID,
             pending2,
             "noura",
-            {"value": "confirm", "expected_version": 2, "selection": ["s1", "s2", "s3"]},
+            {
+                "value": "confirm",
+                "expected_version": 2,
+                "artifact_version": 1,
+                "selection": ["s1", "s2", "s3"],
+            },
             idempotency_key=None,
             packs_dir=self.packs_dir,
         )
         self.assertEqual(rec2["resulting_state"], "rfq_drafting")
+
+    async def test_shortlist_stale_artifact_version_409(self) -> None:
+        inst = "QQ-D09"
+        await _insert_instance(
+            self.conn, instance_id=inst, pack_version_id=self.pack_version_id, state="shortlisting", version=2
+        )
+        v1 = _supplier_content(("s1",))
+        v2 = _supplier_content(("s1", "s2"))
+        await _insert_supplier_list(self.conn, inst, version_contents=[v1, v2])
+        await _region_done(self.conn, inst)
+        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        with self.assertRaises(decisions.DecisionError) as ctx:
+            await decisions.decide_pending(
+                self.conn,
+                ORG_ID,
+                opened[0],
+                "noura",
+                {
+                    "value": "confirm",
+                    "expected_version": 2,
+                    "artifact_version": 1,
+                    "selection": ["s1"],
+                },
+                idempotency_key=None,
+                packs_dir=self.packs_dir,
+            )
+        self.assertEqual(ctx.exception.code, "stale_version")
+        self.assertEqual(ctx.exception.title, "Version changed")
+
+    async def test_shortlist_selection_invalid_ids_422(self) -> None:
+        inst = "QQ-D10"
+        await _insert_instance(
+            self.conn, instance_id=inst, pack_version_id=self.pack_version_id, state="shortlisting", version=2
+        )
+        await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
+        await _region_done(self.conn, inst)
+        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        with self.assertRaises(decisions.DecisionError) as ctx:
+            await decisions.decide_pending(
+                self.conn,
+                ORG_ID,
+                opened[0],
+                "noura",
+                {
+                    "value": "confirm",
+                    "expected_version": 2,
+                    "artifact_version": 1,
+                    "selection": ["s1", "s9", "s8"],
+                },
+                idempotency_key=None,
+                packs_dir=self.packs_dir,
+            )
+        self.assertEqual(ctx.exception.code, "validation_failed")
+
+    async def test_shortlist_selection_duplicate_422(self) -> None:
+        inst = "QQ-D11"
+        await _insert_instance(
+            self.conn, instance_id=inst, pack_version_id=self.pack_version_id, state="shortlisting", version=2
+        )
+        await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
+        await _region_done(self.conn, inst)
+        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        with self.assertRaises(decisions.DecisionError) as ctx:
+            await decisions.decide_pending(
+                self.conn,
+                ORG_ID,
+                opened[0],
+                "noura",
+                {
+                    "value": "confirm",
+                    "expected_version": 2,
+                    "artifact_version": 1,
+                    "selection": ["s1", "s1", "s2"],
+                },
+                idempotency_key=None,
+                packs_dir=self.packs_dir,
+            )
+        self.assertEqual(ctx.exception.code, "validation_failed")
+
+    async def test_save_draft_voids_confirm_and_reopens(self) -> None:
+        inst = "QQ-D12"
+        await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
+        await _insert_task_completed(self.conn, inst, "request_intake")
+        aid = await _insert_brief(self.conn, inst, [_brief_v(1), _brief_v(2)])
+        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        pending_id = opened[0]
+        defs = await workflow._load_definitions(self.conn, self.pack_version_id)
+        gate = ClaimedAttempt(
+            attempt_id="att_dec_test",
+            task_id=ids.new_task_id(),
+            instance_id=inst,
+            org_id=ORG_ID,
+            seat=SEAT,
+            seat_version=1,
+            correlation_id=f"corr_{inst}",
+            fencing_token=1,
+            attempt_n=1,
+            turn_id=None,
+            kind="task",
+            contract={"expected_outputs": [{"artifact_type": "brief"}]},
+            reserved_usd=0,
+            usage={},
+            worker_id="worker_test",
+            task_state="RUNNING",
+            attempts_used=1,
+            max_attempts=3,
+        )
+        await artifacts.save_draft_from_attempt(
+            conn=self.conn,
+            gate=gate,
+            body={"artifact_type": "brief", "artifact_id": aid, "base_version": 2, "content": _brief_v(3)},
+            defs=defs,
+            packs_dir=self.packs_dir,
+        )
+        cur = await self.conn.execute("select status from work.pending_items where id = %s", (pending_id,))
+        self.assertEqual((await cur.fetchone())[0], "voided")
+        cur = await self.conn.execute(
+            "select artifact_ref->>'version' from work.pending_items"
+            " where instance_id = %s and status = 'open'",
+            (inst,),
+        )
+        self.assertEqual((await cur.fetchone())[0], "3")
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
@@ -452,6 +592,25 @@ class DecisionsApiTests(unittest.TestCase):
             )
         )
         self.assertEqual(self.loop.run_until_complete(cur.fetchone())[0], "2")
+
+    def test_brief_edit_missing_required_field_422(self) -> None:
+        inst = "QQ-DAPI3"
+
+        async def setup() -> str:
+            await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
+            return await _insert_brief(self.conn, inst, [_brief_v(1)])
+
+        aid = self.loop.run_until_complete(setup())
+        self.loop.run_until_complete(self.conn.commit())
+        incomplete = dict(_brief_v(2))
+        del incomplete["delivery_site"]
+        r = self.client.post(
+            f"/api/artifacts/{aid}/versions",
+            headers=self._auth("faisal"),
+            json={"base_version": 1, "content": incomplete},
+        )
+        self.assertEqual(r.status_code, 422)
+        self.assertEqual(r.json()["code"], "validation_failed")
 
 
 if __name__ == "__main__":

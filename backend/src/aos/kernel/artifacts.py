@@ -14,7 +14,7 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
 from ..registry.kinds import ArtifactType, ArtifactTypeSpec, FieldSpec
-from . import ids
+from . import clock, ids
 from .contracts import _canonical_json
 from .org import OrgModel
 
@@ -656,6 +656,7 @@ async def save_draft_from_attempt(
     gate: Any,
     body: dict[str, Any],
     defs: dict[str, dict[str, dict]],
+    packs_dir: Path,
 ) -> dict[str, Any]:
     from datetime import timezone
 
@@ -792,7 +793,16 @@ async def save_draft_from_attempt(
         (new_version, artifact_id),
     )
 
+    from . import decisions as decision_ops
     from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
+
+    await decision_ops.void_open_decisions_for_artifact(
+        conn,
+        instance_id=gate.instance_id,
+        artifact_id=artifact_id,
+        voided_by=gate.seat,
+    )
+    await decision_ops.open_ready_decisions(conn, gate.instance_id, packs_dir=packs_dir)
 
     ref = f"{artifact_id}@{new_version}"
     await write_execution_event(
@@ -856,8 +866,6 @@ async def create_artifact_version(
     packs_dir: Path,
 ) -> dict[str, Any]:
     """Person-authored artifact version (M2 createArtifactVersion)."""
-    from datetime import timezone
-
     from . import decisions as decision_ops
     from .instances import _load_definitions
     from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
@@ -899,7 +907,7 @@ async def create_artifact_version(
         raise ArtifactError(
             "stale_version",
             409,
-            "Version moved on",
+            "Version changed",
             "Reload the artifact and edit again.",
             current_version=latest,
         )
@@ -918,7 +926,7 @@ async def create_artifact_version(
             "You cannot save a version that would overwrite fields you cannot see.",
         )
 
-    field_errors = validate_artifact_content(at.spec, content, partial=True)
+    field_errors = validate_artifact_content(at.spec, content, partial=False)
     if field_errors:
         raise ArtifactError(
             "validation_failed",
@@ -930,9 +938,8 @@ async def create_artifact_version(
 
     pend_cur = await conn.execute(
         "select 1 from work.pending_items where instance_id = %s and status = 'open'"
-        " and kind = 'decision' and for_person_id = %s"
-        " and artifact_ref->>'artifact_id' = %s limit 1",
-        (instance_id, person_id, artifact_id),
+        " and kind = 'decision' and artifact_ref->>'artifact_id' = %s limit 1",
+        (instance_id, artifact_id),
     )
     has_open_decision = await pend_cur.fetchone() is not None
     if status in ("locked", "final"):
@@ -943,14 +950,10 @@ async def create_artifact_version(
                 "Artifact cannot be edited",
                 "This artifact is locked or final.",
             )
-    if has_open_decision:
-        await decision_ops.void_open_decision_for_artifact(
-            conn, instance_id=instance_id, artifact_id=artifact_id, person_id=person_id
-        )
 
     content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
     new_version = latest + 1
-    ts = datetime.now(timezone.utc).replace(microsecond=0)
+    ts = clock.now()
     await conn.execute(
         "insert into work.artifact_versions ("
         " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
@@ -960,6 +963,13 @@ async def create_artifact_version(
     await conn.execute(
         "update work.artifacts set latest_version = %s, status = 'draft' where id = %s",
         (new_version, artifact_id),
+    )
+
+    await decision_ops.void_open_decisions_for_artifact(
+        conn,
+        instance_id=instance_id,
+        artifact_id=artifact_id,
+        voided_by=person_id,
     )
 
     await write_execution_event(

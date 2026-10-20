@@ -11,7 +11,7 @@ from typing import Any
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
-from aos.registry.kinds import WorkflowDecisionSpec, WorkflowDefinition
+from aos.registry.kinds import ArtifactType, WorkflowDecisionSpec, WorkflowDefinition
 
 from . import audit_store, clock, ids, workflow
 from .contracts import _canonical_json
@@ -311,6 +311,41 @@ async def open_ready_decisions(
     return opened
 
 
+def _row_key_values(content: dict[str, Any], row_key: str) -> set[str]:
+    rows = content.get("rows")
+    if not isinstance(rows, list):
+        return set()
+    out: set[str] = set()
+    for row in rows:
+        if isinstance(row, dict) and row_key in row and row[row_key] is not None:
+            out.add(str(row[row_key]))
+    return out
+
+
+def _validate_selection(
+    selection: list[str],
+    *,
+    row_key: str,
+    content: dict[str, Any],
+) -> None:
+    if len(selection) != len(set(selection)):
+        raise DecisionError(
+            "validation_failed",
+            422,
+            "Invalid selection",
+            "Each item may appear only once.",
+        )
+    allowed = _row_key_values(content, row_key)
+    bad = [s for s in selection if s not in allowed]
+    if bad:
+        raise DecisionError(
+            "validation_failed",
+            422,
+            "Invalid selection",
+            "One or more selected items are not in the current version.",
+        )
+
+
 def _apply_sets(
     attributes: dict[str, Any],
     dec: WorkflowDecisionSpec,
@@ -474,6 +509,7 @@ async def decide_pending(
     wrow = await wcur.fetchone()
     wdoc = wrow[0] if isinstance(wrow[0], dict) else json.loads(wrow[0])
     definition = WorkflowDefinition.model_validate(wdoc)
+    defs = await workflow._load_definitions(conn, str(pack_version_id))
     dec = definition.spec.decisions.get(dname)
     if dec is None:
         raise DecisionError("internal", 500, "Decision undefined", f"No decision {dname!r} on workflow.")
@@ -482,15 +518,15 @@ async def decide_pending(
         json.loads(artifact_ref_raw) if artifact_ref_raw else None
     )
     body_artifact_version = body.get("artifact_version")
-    needs_artifact_version = any(v == "artifact_version" for v in dec.sets.values())
-    if artifact_ref is not None and needs_artifact_version:
+    bound_content: dict[str, Any] | None = None
+    if artifact_ref is not None:
         bound_ver = int(artifact_ref["version"])
         if body_artifact_version is None or int(body_artifact_version) != bound_ver:
             raise DecisionError(
                 "stale_version",
                 409,
-                "Brief version changed",
-                "Reload the document and confirm the current version.",
+                "Version changed",
+                "Reload and confirm the current version.",
                 current_version=bound_ver,
             )
         aid = artifact_ref["artifact_id"]
@@ -503,10 +539,17 @@ async def decide_pending(
             raise DecisionError(
                 "stale_version",
                 409,
-                "Brief version changed",
-                "Reload the document and confirm the current version.",
+                "Version changed",
+                "Reload and confirm the current version.",
                 current_version=int(arow[0]) if arow else bound_ver,
             )
+        vcur = await conn.execute(
+            "select content from work.artifact_versions where artifact_id = %s and version = %s",
+            (aid, bound_ver),
+        )
+        vrow = await vcur.fetchone()
+        if vrow is not None:
+            bound_content = vrow[0] if isinstance(vrow[0], dict) else json.loads(vrow[0])
 
     selection = body.get("selection")
     if dec.selection and (selection is None or not isinstance(selection, list) or len(selection) == 0):
@@ -516,6 +559,18 @@ async def decide_pending(
             "Selection required",
             "Choose one or more items before confirming.",
         )
+    if dec.selection and isinstance(selection, list) and artifact_ref is not None and bound_content is not None:
+        view_name = definition.spec.states[dec.state].view
+        if view_name:
+            raw_at = defs.get("ArtifactType", {}).get(view_name)
+            if raw_at is not None:
+                at = ArtifactType.model_validate(raw_at)
+                if at.spec.row_based and at.spec.row_key:
+                    _validate_selection(
+                        [str(s) for s in selection],
+                        row_key=at.spec.row_key,
+                        content=bound_content,
+                    )
 
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     new_attributes = _apply_sets(
@@ -617,36 +672,36 @@ async def decide_pending(
     return record_body
 
 
-async def void_open_decision_for_artifact(
+async def void_open_decisions_for_artifact(
     conn: AsyncConnection,
     *,
     instance_id: str,
     artifact_id: str,
-    person_id: str,
-) -> bool:
-    """Void an open decision pending bound to this artifact for *person_id*. Returns True if one was voided."""
+    voided_by: str,
+) -> int:
+    """Void every open decision pending bound to this artifact. Returns how many were voided."""
     cur = await conn.execute(
         "select id, for_person_id from work.pending_items"
         " where instance_id = %s and status = 'open' and kind = 'decision'"
-        " and for_person_id = %s and artifact_ref->>'artifact_id' = %s"
+        " and artifact_ref->>'artifact_id' = %s"
         " for update",
-        (instance_id, person_id, artifact_id),
+        (instance_id, artifact_id),
     )
-    row = await cur.fetchone()
-    if row is None:
-        return False
-    pending_id = row[0]
+    rows = await cur.fetchall()
+    if not rows:
+        return 0
     ts = clock.now()
-    await conn.execute(
-        "update work.pending_items set status = 'voided', resolved_at = %s, resolved_by = %s where id = %s",
-        (ts, person_id, pending_id),
-    )
-    await _emit_pending_resolved(
-        conn,
-        instance_id=instance_id,
-        person_id=person_id,
-        pending_id=pending_id,
-        outcome="voided",
-        by=person_id,
-    )
-    return True
+    for pending_id, for_person in rows:
+        await conn.execute(
+            "update work.pending_items set status = 'voided', resolved_at = %s, resolved_by = %s where id = %s",
+            (ts, voided_by, pending_id),
+        )
+        await _emit_pending_resolved(
+            conn,
+            instance_id=instance_id,
+            person_id=for_person,
+            pending_id=pending_id,
+            outcome="voided",
+            by=voided_by,
+        )
+    return len(rows)

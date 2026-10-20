@@ -12,6 +12,7 @@ spec:
     score: {type: number, required: true}
     sources: {type: list, required: true}
   row_based: true
+  row_key: supplier_id
   view: {type: sheet, columns: [rank, supplier, past_pos, on_time_pct, score]}
   visibility:
     buyer: all
