@@ -751,6 +751,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
                             "output_artifact_refs": [],
                             "input_versions": {},
                         },
+                        packs_dir=REPO / "packs",
                     )
 
         asyncio.run(_submit())

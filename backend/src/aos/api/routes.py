@@ -1076,6 +1076,7 @@ async def submit_result_route(
             worker_id=w.worker_id,
             fencing_token=token,
             result=body,
+            packs_dir=k.settings.packs_dir,
         )
     except worker_attempts.WorkerError as exc:
         _raise_worker_error(exc)

@@ -803,10 +803,9 @@ async def save_draft_from_attempt(
         artifact_id=artifact_id,
         voided_by=gate.seat,
     )
-    await decision_ops.open_ready_decisions(conn, gate.instance_id, org=org, packs_dir=packs_dir)
 
     ref = f"{artifact_id}@{new_version}"
-    await write_execution_event(
+    produced_id = await write_execution_event(
         conn,
         ExecutionEventWrite(
             org_id=gate.org_id,
@@ -821,6 +820,18 @@ async def save_draft_from_attempt(
             artifact_refs=[ref],
         ),
     )
+    from . import events as workflow_events
+
+    await workflow_events.evaluate_artifact_triggers(
+        conn,
+        org,
+        gate.instance_id,
+        artifact_type=artifact_type,
+        content=content,
+        packs_dir=packs_dir,
+        cause=produced_id,
+    )
+    await decision_ops.open_ready_decisions(conn, gate.instance_id, org=org, packs_dir=packs_dir)
     audience_roles = artifact_type_audience_roles(at.spec)
     await append_outbox_many(
         conn,
@@ -973,7 +984,7 @@ async def create_artifact_version(
         voided_by=person_id,
     )
 
-    await write_execution_event(
+    produced_id = await write_execution_event(
         conn,
         ExecutionEventWrite(
             org_id=org_id,
@@ -985,6 +996,17 @@ async def create_artifact_version(
             redacted_summary=f"Edited {artifact_type} v{new_version}.",
             artifact_refs=[f"{artifact_id}@{new_version}"],
         ),
+    )
+    from . import events as workflow_events
+
+    await workflow_events.evaluate_artifact_triggers(
+        conn,
+        org,
+        instance_id,
+        artifact_type=artifact_type,
+        content=content,
+        packs_dir=packs_dir,
+        cause=produced_id,
     )
     audience_roles = artifact_type_audience_roles(at.spec)
     await append_outbox_many(
