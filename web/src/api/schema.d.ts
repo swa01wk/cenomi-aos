@@ -2863,6 +2863,7 @@ export interface components {
                 job_snapshot?: {
                     title: string;
                     state: string;
+                    goal: string;
                     participants: {
                         role: string;
                         name: string;
@@ -2870,6 +2871,26 @@ export interface components {
                     attributes: {
                         [key: string]: number | string | null;
                     };
+                    stages: {
+                        state: string;
+                        label: string;
+                        /** @enum {unknown} */
+                        status: "done" | "current" | "next";
+                    }[];
+                    open_decisions: {
+                        pending_id: string;
+                        label: string;
+                        for_role: string;
+                        waiting_on: {
+                            role: string;
+                            name: string;
+                        };
+                    }[];
+                    work_in_progress: {
+                        template: string;
+                        state: string;
+                        attempts_used: number;
+                    }[];
                 };
                 running_summary?: {
                     text: string;
