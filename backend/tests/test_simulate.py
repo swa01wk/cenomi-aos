@@ -203,7 +203,9 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(api_report, direct)
 
     def test_cli_simulate_reaches_closed(self) -> None:
-        env = {**dict(**{"PYTHONPATH": f"{REPO}/backend/src:{REPO}/backend/.vendor"}), "DATABASE_URL": self.url}
+        # AOS_DATABASE_URL is what Settings reads; with the wrong name the CLI fell back to the default database
+        # (the developer's real one locally, nothing in CI).
+        env = {"PYTHONPATH": f"{REPO}/backend/src:{REPO}/backend/.vendor", "AOS_DATABASE_URL": self.url}
         pack = self.packs_dir / "procurement_demo"
         rc = subprocess.run(
             [sys.executable, "-m", "aos.cli", "simulate", str(pack), "--workflow", WORKFLOW, "--json"],
@@ -235,7 +237,7 @@ class WorkflowTaskCompletedEventTests(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.packs_dir, ignore_errors=True)
 
     async def test_rfq_draft_completion_moves_to_rfq_sending(self) -> None:
-        inst = "QQ-TC1"
+        inst = "QQ-SIM-TC1"  # completed through the simulation stub, which only runs on simulated jobs
         async with self.conn.transaction():
             await self.conn.execute(
                 """
