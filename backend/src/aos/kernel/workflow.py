@@ -518,4 +518,7 @@ async def apply_event(
             },
         ),
     )
+    from . import decisions as decision_ops
+
+    await decision_ops.open_ready_decisions(conn, instance_id, packs_dir=packs_dir)
     return ApplyEventResult(True, from_state, to_state, new_version)

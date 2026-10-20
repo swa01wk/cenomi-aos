@@ -12,6 +12,7 @@ spec:
     warranty_months: {type: integer}
     score: {type: number, required: true}
   row_based: true
+  row_key: supplier
   view: {type: sheet, columns: [rank, supplier, unit_price, total, lead_time_days, warranty_months, score], export: excel}
   visibility:
     buyer: all

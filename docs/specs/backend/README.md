@@ -151,21 +151,21 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
   `(task_id, attempts_used)`, so two concurrent completions admit one attempt (guidebook C03).
 - **Timers**: the scheduler claims due timers with `FOR UPDATE SKIP LOCKED`, flips them to `fired` and raises the event
   in the same transaction; each fires once. `demo_after` applies when `AOS_DEMO=1`.
-- **Attributes** are written only by the kernel, from records, never by the agent:
-
-  | Attribute | Set when |
-  | --- | --- |
-  | `brief_version` | the requester confirms a brief version (`decision.brief_confirmed`) |
-  | `shortlist_count` | the buyer confirms a shortlist (length of `selection`) |
-  | `invited_count` | `rfq_send` completes (number of send receipts) |
-  | `quote_count` | each `quote_triage` Task completes |
-  | `po_amount` | a `po_payload` version is saved |
-
-- **Domain events the kernel raises** (declared in the workflow's `events`): `event.intent_identified` when the first
-  brief version with a `category` is saved; `event.all_quotes_received` when `quote_count == invited_count`.
-- **Decisions the kernel opens** (pending items): confirm the brief (requester, when `request_intake` completes),
-  confirm the shortlist (buyer, when bound and the discovery region is done), select the supplier (buyer, when
-  `quote_comparison` completes).
+- **Attributes** are written only by the kernel, never by the agent. Each workflow declares `spec.attributes` (name
+  and type). Values are set from pack data: workflow `decisions[].sets` maps attribute names to setters
+  (`artifact_version`, `selection_count`), from task completion and kernel-raised `event.*` handlers in later stories,
+  and from artifact saves where the spec says so. The interpreter evaluates guards over `attr.*` only after the kernel
+  has committed those writes.
+- **Domain events the kernel raises** are listed in `spec.events` (for example `event.intent_identified`,
+  `event.all_quotes_received`); handlers are pack-specific and run in the same transaction as the triggering change.
+- **Decisions** are declared under `spec.decisions` (label, `state`, `for` participant, optional `selection`, optional
+  `sets`). The kernel opens a pending item when the job is in that `state`, every Task template listed on the state is
+  `COMPLETED`, every parallel region with `join_at` equal to that state is done, the `for` participant is bound, and no
+  open pending already exists for `decision.<name>`. The item is bound to the latest version of the state's `view`
+  artifact (ref plus content hash). `decidePending` records a Decision Record, applies `sets`, resolves the pending item,
+  raises `decision.<name>`, and when the transition fires marks the bound artifact version `final`. A guard that fails
+  still records the decision; `open_ready_decisions` runs again in the same transaction so the card reopens on the same
+  version when preconditions still hold.
 
 ## Policy engine (M3)
 

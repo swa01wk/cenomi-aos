@@ -133,6 +133,7 @@ class ArtifactTypeSpec(Strict):
     description: str = ""
     fields: dict[Name, FieldSpec] = Field(min_length=1)
     row_based: bool = False
+    row_key: Name | None = None
     classification: Literal["shareable", "internal", "restricted"] = "internal"
     view: ViewSpec
     # participant role -> "all" | "none" | list of visible fields
@@ -383,6 +384,17 @@ class WorkflowAttributeSpec(Strict):
     classification: Literal["shareable", "internal", "restricted"] = "internal"
 
 
+DecisionSetter = Literal["artifact_version", "selection_count"]
+
+
+class WorkflowDecisionSpec(Strict):
+    label: str
+    state: Name
+    for_: Name = Field(alias="for")
+    selection: bool = False
+    sets: dict[Name, DecisionSetter] = {}
+
+
 class WorkflowSpec(Strict):
     title: str
     description: str = ""
@@ -411,6 +423,7 @@ class WorkflowSpec(Strict):
     parallel: list[ParallelRegion] = []
     transitions: list[Transition] = Field(min_length=1)
     timers: dict[Name, Timer] = {}
+    decisions: dict[Name, WorkflowDecisionSpec] = {}
 
 
 class WorkflowDefinition(Envelope):

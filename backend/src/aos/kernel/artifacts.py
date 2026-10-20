@@ -7,13 +7,14 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 
 from ..registry.kinds import ArtifactType, ArtifactTypeSpec, FieldSpec
-from . import ids
+from . import clock, ids
 from .contracts import _canonical_json
 from .org import OrgModel
 
@@ -655,6 +656,7 @@ async def save_draft_from_attempt(
     gate: Any,
     body: dict[str, Any],
     defs: dict[str, dict[str, dict]],
+    packs_dir: Path,
 ) -> dict[str, Any]:
     from datetime import timezone
 
@@ -791,7 +793,16 @@ async def save_draft_from_attempt(
         (new_version, artifact_id),
     )
 
+    from . import decisions as decision_ops
     from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
+
+    await decision_ops.void_open_decisions_for_artifact(
+        conn,
+        instance_id=gate.instance_id,
+        artifact_id=artifact_id,
+        voided_by=gate.seat,
+    )
+    await decision_ops.open_ready_decisions(conn, gate.instance_id, packs_dir=packs_dir)
 
     ref = f"{artifact_id}@{new_version}"
     await write_execution_event(
@@ -842,3 +853,179 @@ async def save_draft_from_attempt(
         "sources": sources if isinstance(sources, list) else [],
         "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
+
+
+async def create_artifact_version(
+    conn: AsyncConnection,
+    org: OrgModel,
+    org_id: str,
+    artifact_id: str,
+    person_id: str,
+    body: dict[str, Any],
+    *,
+    packs_dir: Path,
+) -> dict[str, Any]:
+    """Person-authored artifact version (M2 createArtifactVersion)."""
+    from . import decisions as decision_ops
+    from .instances import _load_definitions
+    from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
+
+    base_version = body.get("base_version")
+    content = body.get("content")
+    if base_version is None or not isinstance(content, dict):
+        raise ArtifactError("validation_failed", 422, "Invalid body", "base_version and content are required.")
+
+    cur = await conn.execute(
+        "select a.id, a.instance_id, a.artifact_type, a.name, a.status, a.latest_version"
+        " from work.artifacts a"
+        " join work.instances i on i.id = a.instance_id and i.org_id = %s"
+        " where a.id = %s",
+        (org_id, artifact_id),
+    )
+    meta = await cur.fetchone()
+    if meta is None:
+        raise ArtifactError("not_found", 404, "Artifact not found", f"No artifact {artifact_id!r}.")
+    _aid, instance_id, artifact_type, name, status, latest_version = meta
+
+    inst_cur = await conn.execute(
+        "select pack_version_id, correlation_id, seat from work.instances where id = %s for update",
+        (instance_id,),
+    )
+    inst_row = await inst_cur.fetchone()
+    if inst_row is None:
+        raise ArtifactError("not_found", 404, "Job not found", "Artifact belongs to a missing job.")
+    pack_version_id, correlation_id, seat_name = str(inst_row[0]), inst_row[1], inst_row[2]
+
+    await conn.execute("select id from work.artifacts where id = %s for update", (artifact_id,))
+
+    roles = await _participant_roles(conn, instance_id, person_id)
+    if not roles:
+        raise ArtifactError("not_permitted", 403, "Not a participant", "You are not part of this job.")
+
+    latest = int(latest_version)
+    if int(base_version) != latest:
+        raise ArtifactError(
+            "stale_version",
+            409,
+            "Version changed",
+            "Reload the artifact and edit again.",
+            current_version=latest,
+        )
+
+    defs = await _load_definitions(conn, pack_version_id)
+    at = parse_artifact_type(defs, artifact_type)
+    projected = await get_artifact_version(
+        conn, org, org_id, artifact_id, latest, person_id, defs=defs
+    )
+    hidden = projected.get("hidden_fields") or []
+    if hidden:
+        raise ArtifactError(
+            "not_permitted",
+            403,
+            "Cannot edit hidden fields",
+            "You cannot save a version that would overwrite fields you cannot see.",
+        )
+
+    field_errors = validate_artifact_content(at.spec, content, partial=False)
+    if field_errors:
+        raise ArtifactError(
+            "validation_failed",
+            422,
+            "Content is invalid",
+            "Fix the fields and try again.",
+            errors=field_errors,
+        )
+
+    pend_cur = await conn.execute(
+        "select 1 from work.pending_items where instance_id = %s and status = 'open'"
+        " and kind = 'decision' and artifact_ref->>'artifact_id' = %s limit 1",
+        (instance_id, artifact_id),
+    )
+    has_open_decision = await pend_cur.fetchone() is not None
+    if status in ("locked", "final"):
+        if not has_open_decision:
+            raise ArtifactError(
+                "conflict",
+                409,
+                "Artifact cannot be edited",
+                "This artifact is locked or final.",
+            )
+
+    content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
+    new_version = latest + 1
+    ts = clock.now()
+    await conn.execute(
+        "insert into work.artifact_versions ("
+        " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
+        ") values (%s, %s, %s, %s, 'person', %s, '[]'::jsonb, '[]'::jsonb)",
+        (artifact_id, new_version, Jsonb(content), content_hash, person_id),
+    )
+    await conn.execute(
+        "update work.artifacts set latest_version = %s, status = 'draft' where id = %s",
+        (new_version, artifact_id),
+    )
+
+    await decision_ops.void_open_decisions_for_artifact(
+        conn,
+        instance_id=instance_id,
+        artifact_id=artifact_id,
+        voided_by=person_id,
+    )
+
+    await write_execution_event(
+        conn,
+        ExecutionEventWrite(
+            org_id=org_id,
+            run_id=instance_id,
+            event_type="ArtifactProduced",
+            actor_kind="person",
+            actor_id=person_id,
+            correlation_id=correlation_id,
+            redacted_summary=f"Edited {artifact_type} v{new_version}.",
+            artifact_refs=[f"{artifact_id}@{new_version}"],
+        ),
+    )
+    audience_roles = artifact_type_audience_roles(at.spec)
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(instance_id),
+                event_type="artifact.version_created",
+                instance_id=instance_id,
+                audience={"roles": audience_roles},
+                data={
+                    "instance_id": instance_id,
+                    "artifact_id": artifact_id,
+                    "artifact_type": artifact_type,
+                    "version": new_version,
+                    "status": "draft",
+                    "by": person_id,
+                },
+            )
+        ],
+    )
+
+    await decision_ops.open_ready_decisions(conn, instance_id, packs_dir=packs_dir)
+
+    out = project(
+        VersionRecord(
+            artifact_id=artifact_id,
+            artifact_type=artifact_type,
+            version=new_version,
+            status="draft",
+            content=content,
+            content_hash=content_hash,
+            produced_by_kind="person",
+            produced_by=person_id,
+            inputs=[],
+            sources=[],
+            verification=None,
+            created_at=ts,
+        ),
+        at.spec,
+        roles,
+        latest_version=new_version,
+    )
+    out["produced_by"]["name"] = _produced_by_name(org, "person", person_id)
+    return out

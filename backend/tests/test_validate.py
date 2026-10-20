@@ -167,6 +167,19 @@ class BrokenPacksFail(PackCase):
         self.edit("workflows/quick_quote.yaml", fn)
         self.assertFailsWith("E_REF")
 
+    def test_decision_selection_count_requires_selection_flag(self) -> None:
+        def fn(d):
+            d["spec"]["decisions"]["shortlist_confirmed"]["sets"] = {"shortlist_count": "selection_count"}
+            d["spec"]["decisions"]["shortlist_confirmed"]["selection"] = False
+        self.edit("workflows/quick_quote.yaml", fn)
+        self.assertFailsWith("E_DECISION")
+
+    def test_decision_must_match_transition(self) -> None:
+        def fn(d):
+            d["spec"]["decisions"]["brief_confirmed"]["for"] = "buyer"
+        self.edit("workflows/quick_quote.yaml", fn)
+        self.assertFailsWith("E_DECISION")
+
 
 if __name__ == "__main__":
     unittest.main()
