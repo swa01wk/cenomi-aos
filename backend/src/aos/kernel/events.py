@@ -373,6 +373,97 @@ async def evaluate_attribute_triggers(
             )
 
 
+async def raise_inbound_event(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    event: str,
+    *,
+    packs_dir: Path,
+) -> bool:
+    """Create the current state's on_event Task for *event*, or record WorkflowEventIgnored."""
+    actor_kind, actor_id = "kernel", "kernel"
+    (
+        org_id,
+        workflow_name,
+        pack_version_id,
+        seat_name,
+        seat_version,
+        inst_status,
+        _version,
+        correlation_id,
+        _attributes,
+        _raised,
+        definition,
+        defs,
+        pack_name,
+        pack_ver,
+        pack_digest,
+        graph_revision,
+        seat_doc,
+    ) = await _load_instance_workflow(conn, instance_id)
+    icur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    inst_row = await icur.fetchone()
+    instance_state = str(inst_row[0]) if inst_row else ""
+
+    if inst_status != "running":
+        await write_execution_event(
+            conn,
+            ExecutionEventWrite(
+                org_id=org_id,
+                run_id=instance_id,
+                event_type="WorkflowEventIgnored",
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                correlation_id=correlation_id,
+                redacted_summary=f"Event {event} ignored (not_running) in {instance_state}",
+                graph_revision=graph_revision,
+                attributes={"state": instance_state, "event": event, "reason": "not_running"},
+            ),
+        )
+        return False
+
+    state_spec = definition.spec.states.get(instance_state)
+    if state_spec is None or event not in state_spec.on_event:
+        await write_execution_event(
+            conn,
+            ExecutionEventWrite(
+                org_id=org_id,
+                run_id=instance_id,
+                event_type="WorkflowEventIgnored",
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                correlation_id=correlation_id,
+                redacted_summary=f"Event {event} ignored (no_match) in {instance_state}",
+                graph_revision=graph_revision,
+                attributes={"state": instance_state, "event": event, "reason": "no_match"},
+            ),
+        )
+        return False
+
+    tpl = state_spec.on_event[event]
+    participants = await workflow._participants(conn, instance_id)
+    seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
+    await workflow._create_entry_tasks(
+        conn,
+        packs_dir=packs_dir,
+        org_id=org_id,
+        instance_id=instance_id,
+        seat_name=seat_name,
+        seat_version=int(seat_version),
+        workflow_name=workflow_name,
+        pack_name=pack_name,
+        pack_version=pack_ver,
+        pack_digest=pack_digest,
+        defs=defs,
+        seat_doc=seat_doc,
+        seat_limits=seat_limits,
+        entry_tasks=[tpl],
+        participants=participants,
+    )
+    return True
+
+
 async def on_workflow_task_completed(
     conn: AsyncConnection,
     org: OrgModel,
@@ -382,13 +473,26 @@ async def on_workflow_task_completed(
     packs_dir: Path,
 ) -> None:
     cur = await conn.execute(
-        "select region from work.tasks where id = %s and instance_id = %s",
+        "select region, template from work.tasks where id = %s and instance_id = %s",
         (task_id, instance_id),
     )
     row = await cur.fetchone()
-    if row is None or not row[0]:
+    if row is None:
         return
-    region_name = str(row[0])
+    region_name, template = row[0], str(row[1])
+    if not region_name:
+        await workflow.apply_event(
+            conn,
+            instance_id,
+            f"task.completed.{template}",
+            by_role=None,
+            packs_dir=packs_dir,
+            org=org,
+            actor={"kind": "kernel", "id": "kernel"},
+        )
+        return
+
+    region_name = str(region_name)
     from . import regions as region_ops
 
     # Lock the instance first, then decide: a re-run committed by another transaction (which holds this lock
