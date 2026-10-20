@@ -105,6 +105,11 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
   the simulation's Tasks and intake through the real graphs with `FakeRuntime` and the pack's `happy` scripts, so
   the exit gate's "with the fake model" is literally true; keep the stub only as a fallback for Skills without a
   script. **Test:** the dry run reaches `closed` through FakeRuntime with verifiers running.
+- **Carried from M2-BE-06 (review):** `build_task_contract` grants every tool the Skill may request, so the
+  `rfq_draft` Task (work type `document_draft`) gets `send_message` because `rfq_authoring` lists it. Grant tools of
+  class `committed_effect` only when the template's work type is in `EFFECT_COMMIT_WORK_TYPES` (kinds.py), the same
+  rule the Console's `needs_approval` uses. **Test:** the `rfq_draft` contract has no `send_message`; the
+  `rfq_send` contract does.
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
