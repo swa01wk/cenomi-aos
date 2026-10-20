@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections import deque
 from pathlib import PurePosixPath
 
+import re
+
 from . import expressions as ex
 from .kinds import (BUILTIN_RESOLVERS, NATIVE_TOOLS, ArtifactType, EvalSuite, Policy, Resource, Role, Seat,
                     Skill, TaskTemplate, ToolProvider, Verifier, WorkflowDefinition)
@@ -18,6 +20,7 @@ WORKFLOW_FIELDS = {"state", "status", "version", "definition", "reached"}
 SUBJECT_FIELDS = {"role", "participant_roles", "id"}
 EFFECT_KEYS = {"start_timer", "cancel_timers", "lock", "handover", "outcome_record", "bind"}
 GUARD_FUNCTIONS = set(ex.GUARD_FUNCTIONS)
+_TEAM_OWNER_RULE = re.compile(r"^team_owner\(([a-z0-9_]+/[a-z0-9_]+)\)$")
 
 
 class _Checker:
@@ -317,6 +320,15 @@ class _Checker:
         if t.verifier:
             self.ref("WorkflowDefinition", wname, f"{path}.verifier", "Verifier", t.verifier, self.verifiers)
 
+    def _org_team_paths(self) -> set[str]:
+        if not self.org:
+            return set()
+        out: set[str] = set()
+        for dept_id, dept in (self.org.get("departments") or {}).items():
+            for team_id in (dept.get("teams") or {}):
+                out.add(f"{dept_id}/{team_id}")
+        return out
+
     def _org_role_names(self) -> set[str]:
         if not self.org:
             return set()
@@ -366,6 +378,27 @@ class _Checker:
                     self.err("E_PARTICIPANT", K, wname, f"spec.participants.{pname}", "by_claim needs a queue")
                 if p.bind == "by_rule" and not p.rule:
                     self.err("E_PARTICIPANT", K, wname, f"spec.participants.{pname}", "by_rule needs a rule")
+                if p.bind == "by_rule" and p.rule:
+                    m = _TEAM_OWNER_RULE.match(p.rule.strip())
+                    if not m:
+                        self.err(
+                            "E_PARTICIPANT",
+                            K,
+                            wname,
+                            f"spec.participants.{pname}.rule",
+                            f"unknown rule function in {p.rule!r}; only team_owner(dept/team) is supported",
+                        )
+                    else:
+                        team_path = m.group(1)
+                        teams = self._org_team_paths()
+                        if teams and team_path not in teams:
+                            self.err(
+                                "E_PARTICIPANT",
+                                K,
+                                wname,
+                                f"spec.participants.{pname}.rule",
+                                f"team {team_path!r} is not in the organization",
+                            )
 
             templates_by_state: dict[str, set[str]] = {}
             all_templates: set[str] = set()

@@ -256,6 +256,8 @@ class OpenApiTests(unittest.TestCase):
         m2 = {
             ("post", "/pending/{id}/decide"),
             ("post", "/artifacts/{id}/versions"),
+            ("get", "/queues/{queue}/instances"),
+            ("post", "/instances/{id}/claim"),
         }
         self.assertTrue(m2 <= served, f"M2 decision/artifact routes missing: {m2 - served}")
 

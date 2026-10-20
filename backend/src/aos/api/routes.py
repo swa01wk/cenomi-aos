@@ -15,6 +15,7 @@ from ..kernel import (
     audit_store,
     decisions,
     instances,
+    participants,
     publish,
     registry_store,
     seats,
@@ -57,6 +58,10 @@ def _raise_artifact_error(exc: artifacts.ArtifactError) -> None:
 
 
 def _raise_decision_error(exc: decisions.DecisionError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_participant_error(exc: participants.ParticipantError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -669,6 +674,45 @@ async def create_artifact_version(
         )
     except artifacts.ArtifactError as exc:
         _raise_artifact_error(exc)
+
+
+class ClaimInstanceBody(BaseModel):
+    role: str
+    expected_version: int
+
+
+@router.get("/queues/{queue:path}/instances", tags=["decisions"])
+async def list_queue(queue: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
+    try:
+        items = await participants.list_queue_instances(
+            conn, k.org, p.org_id, p.person_id, queue
+        )
+    except participants.ParticipantError as exc:
+        _raise_participant_error(exc)
+    return {"items": items}
+
+
+@router.post("/instances/{id}/claim", tags=["decisions"])
+async def claim_instance(
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: ClaimInstanceBody,
+) -> dict:
+    try:
+        return await participants.claim_instance(
+            conn,
+            k.org,
+            p.org_id,
+            p.person_id,
+            id,
+            body.role,
+            body.expected_version,
+            packs_dir=k.settings.packs_dir,
+        )
+    except participants.ParticipantError as exc:
+        _raise_participant_error(exc)
 
 
 class DecidePendingBody(BaseModel):

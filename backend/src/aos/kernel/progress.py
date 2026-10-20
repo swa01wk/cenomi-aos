@@ -138,14 +138,11 @@ async def post_task_outcome_progress(
     role = on_behalf.get("role")
     if not role:
         return
-    pcur = await conn.execute(
-        "select person_id from work.participants where instance_id = %s and role = %s",
-        (instance_id, role),
-    )
-    prow = await pcur.fetchone()
-    if prow is None:
+    from . import participants as participant_ops
+
+    person_id = await participant_ops.resolve_participant(conn, org, instance_id, role)
+    if person_id is None:
         return
-    person_id = prow[0]
     fallback = await _state_label(
         conn,
         pack_version_id=str(pvid),
