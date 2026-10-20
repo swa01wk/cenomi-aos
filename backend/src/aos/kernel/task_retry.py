@@ -521,6 +521,16 @@ async def decide_task_retry(
                 return response
             return json.loads(response) if isinstance(response, str) else dict(response)
 
+    # Lock order: the instance row first, then the pending item (apply_event voids retry items after locking
+    # the instance, so locking the item first could deadlock with it).
+    pre_cur = await conn.execute(
+        "select instance_id from work.pending_items where id = %s",
+        (pending_id,),
+    )
+    pre_row = await pre_cur.fetchone()
+    if pre_row is None:
+        raise DecisionError("not_found", 404, "Pending item not found", f"No pending item {pending_id!r}.")
+    await conn.execute("select id from work.instances where id = %s for update", (pre_row[0],))
     pend_cur = await conn.execute(
         "select instance_id, for_person_id, status, task_id from work.pending_items where id = %s for update",
         (pending_id,),

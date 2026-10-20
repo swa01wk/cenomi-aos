@@ -262,14 +262,13 @@ async def process_ready_task(
                 reservation_usd=reservation,
             )
     except (pg_errors.CheckViolation, pg_errors.UniqueViolation) as exc:
+        # The backstop records the refusal itself; don't write a second record here.
         refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
         if refusal:
             await conn.execute(
                 "update work.tasks set state = 'READY', waiting_for = %s, updated_at = now() where id = %s",
                 (Jsonb({"kind": "admission", "code": refusal.code}), task_id),
             )
-            if existing_code != refusal.code:
-                await check_admission(conn, ctx, record_denial=True)
             return ReadinessResult(task_id, "waiting")
         raise
 
