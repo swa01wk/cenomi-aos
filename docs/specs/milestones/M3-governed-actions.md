@@ -35,6 +35,12 @@
   `markNoticeRead`.
 - **Tests:** C05 — edit after approval voids it and the effect never runs on the old payload; the requester can't approve;
   one person can't approve two steps; an expired approval can't be approved.
+- **Carried from M2-BE-03 (review):** `resolve_participant` binds a `by_rule` role (e.g. `team_owner(…)`) to whoever
+  the rule names, even if that person already holds another role on the job, for example a team owner who raised
+  the job as requester. Claims enforce one person, one role; rule binding doesn't. Decide the rule here: refuse
+  the binding, or escalate to the next person up. Then make sure segregation (`not_requester`,
+  `distinct_approvers`) holds when the approver came from a rule. **Test:** a job raised by the rule's team owner
+  never lets them approve their own job's step.
 
 ### M3-BE-03 Actions, gateway effects and reconciliation
 - `requestAction`, `checkpointAttempt`; action executions with idempotency keys; gateway committed calls; reconciler
