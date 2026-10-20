@@ -277,11 +277,8 @@ async def record_started_with_on_admit(conn: AsyncConnection, task_id: str) -> N
     if row is None or not row[1]:
         return
     instance_id, region_name = str(row[0]), str(row[1])
-    if not await is_latest_region_task(
-        conn, instance_id=instance_id, region=region_name, task_id=task_id
-    ):
-        return
 
+    # Lock the region row first (re-runs lock it too), then check this is still the region's latest Task.
     rcur = await conn.execute(
         "select join_guard, started_with from work.regions"
         " where instance_id = %s and name = %s for update",
@@ -289,6 +286,10 @@ async def record_started_with_on_admit(conn: AsyncConnection, task_id: str) -> N
     )
     rrow = await rcur.fetchone()
     if rrow is None:
+        return
+    if not await is_latest_region_task(
+        conn, instance_id=instance_id, region=region_name, task_id=task_id
+    ):
         return
     join_guard, sw_raw = rrow[0], rrow[1]
     attrs_in_guard = same_attributes(join_guard)

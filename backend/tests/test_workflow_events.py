@@ -1335,7 +1335,7 @@ class ParallelJoinTests(unittest.IsolatedAsyncioTestCase):
 
         return await _setup(self.conn)
 
-    async def _c03_run(self, inst: str, *, complete_first: bool) -> None:
+    async def _c03_run(self, inst: str, *, complete_first: bool | None) -> None:
         url = _pg.kernel_url(self.db)
         (
             task_id,
@@ -1374,7 +1374,10 @@ class ParallelJoinTests(unittest.IsolatedAsyncioTestCase):
                         packs_dir=self.packs_dir,
                     )
 
-        if complete_first:
+        if complete_first is None:
+            # The real race: both transactions run at once; the instance lock decides the order.
+            await asyncio.gather(_complete_lookup(), _confirm_brief())
+        elif complete_first:
             await _complete_lookup()
             await _confirm_brief()
         else:
@@ -1387,6 +1390,7 @@ class ParallelJoinTests(unittest.IsolatedAsyncioTestCase):
     async def test_c03_concurrent_completion_and_brief_confirm(self) -> None:
         await self._c03_run("QQ-J03A", complete_first=True)
         await self._c03_run("QQ-J03B", complete_first=False)
+        await self._c03_run("QQ-J03C", complete_first=None)
 
 
 def _brief_v(n: int) -> dict:

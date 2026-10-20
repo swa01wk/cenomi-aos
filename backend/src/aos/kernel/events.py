@@ -391,11 +391,8 @@ async def on_workflow_task_completed(
     region_name = str(row[0])
     from . import regions as region_ops
 
-    if not await region_ops.is_latest_region_task(
-        conn, instance_id=instance_id, region=region_name, task_id=task_id
-    ):
-        return
-
+    # Lock the instance first, then decide: a re-run committed by another transaction (which holds this lock
+    # while it creates the new Task) must be visible before we ask whether this Task is still the latest.
     inst_cur = await conn.execute(
         "select org_id, workflow, pack_version_id, seat, seat_version, state, attributes"
         " from work.instances where id = %s for update",
@@ -403,6 +400,10 @@ async def on_workflow_task_completed(
     )
     inst = await inst_cur.fetchone()
     if inst is None:
+        return
+    if not await region_ops.is_latest_region_task(
+        conn, instance_id=instance_id, region=region_name, task_id=task_id
+    ):
         return
     (
         org_id,
