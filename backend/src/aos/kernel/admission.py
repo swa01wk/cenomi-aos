@@ -42,6 +42,7 @@ class AdmissionContext:
     reservation_usd: float
     participant_ok: bool
     live_seat_attempts: int
+    turn_attempts_used: int | None = None
 
 
 def _rule(gate: int, code: str) -> str:
@@ -137,7 +138,12 @@ async def check_admission(conn: AsyncConnection, ctx: AdmissionContext) -> Commi
             status=409,
         )
 
-    if ctx.attempts_used >= ctx.max_attempts:
+    budget_used = (
+        ctx.turn_attempts_used
+        if ctx.turn_attempts_used is not None
+        else ctx.attempts_used
+    )
+    if budget_used >= ctx.max_attempts:
         return await _record_admission_denied(
             conn,
             ctx,

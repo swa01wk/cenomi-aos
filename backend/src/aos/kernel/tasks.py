@@ -12,6 +12,30 @@ from . import ids
 from .admission import reserve_budget
 
 
+async def count_attempts_for_turn(conn: AsyncConnection, task_id: str, turn_id: str) -> int:
+    cur = await conn.execute(
+        "select count(*) from work.attempts where task_id = %s and turn_id = %s",
+        (task_id, turn_id),
+    )
+    row = await cur.fetchone()
+    return int(row[0]) if row else 0
+
+
+async def update_assist_task_contract(
+    conn: AsyncConnection,
+    *,
+    task_id: str,
+    skill: str,
+    work_type: str,
+    contract: dict[str, Any],
+) -> None:
+    await conn.execute(
+        "update work.tasks set skill = %s, work_type = %s, contract = %s, contract_hash = %s, updated_at = now()"
+        " where id = %s",
+        (skill, work_type, Jsonb(contract), contract["contract_hash"], task_id),
+    )
+
+
 async def insert_assist_task(
     conn: AsyncConnection,
     *,

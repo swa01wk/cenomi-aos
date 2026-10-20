@@ -188,8 +188,8 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
         await _insert_task_completed(self.conn, inst, "request_intake")
         await _insert_brief(self.conn, inst, [_brief_v(1)])
-        await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
-        await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         cur = await self.conn.execute(
             "select count(*) as c from work.pending_items where instance_id = %s and status = 'open'",
             (inst,),
@@ -202,7 +202,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             self.conn, instance_id=inst, pack_version_id=self.pack_version_id, state="shortlisting", with_buyer=False
         )
         await _insert_supplier_list(self.conn, inst)
-        await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         cur = await self.conn.execute(
             "select count(*) as c from work.pending_items where instance_id = %s and event = %s",
             (inst, "decision.shortlist_confirmed"),
@@ -213,14 +213,14 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             " values (%s, 'buyer', 'noura', 'claim')",
             (inst,),
         )
-        await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         cur = await self.conn.execute(
             "select count(*) as c from work.pending_items where instance_id = %s and event = %s",
             (inst, "decision.shortlist_confirmed"),
         )
         self.assertEqual((await cur.fetchone())[0], 0)
         await _region_done(self.conn, inst)
-        await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         cur = await self.conn.execute(
             "select count(*) as c from work.pending_items where instance_id = %s and status = 'open'"
             " and event = 'decision.shortlist_confirmed'",
@@ -232,7 +232,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
         await _insert_task_completed(self.conn, inst, "request_intake")
         await _insert_brief(self.conn, inst, [_brief_v(1), _brief_v(2)])
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         self.assertEqual(len(opened), 1)
         return opened[0]
 
@@ -241,6 +241,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         pending_id = await self._open_brief_pending(inst)
         rec = await decisions.decide_pending(
             self.conn,
+            ORG,
             ORG_ID,
             pending_id,
             "faisal",
@@ -263,6 +264,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
                 self.conn,
+                ORG,
                 ORG_ID,
                 pending_id,
                 "faisal",
@@ -278,6 +280,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
                 self.conn,
+                ORG,
                 ORG_ID,
                 pending_id,
                 "noura",
@@ -293,7 +296,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         body = {"value": "confirm", "expected_version": 1, "artifact_version": 2, "note": None}
         key = "idem-brief-1"
         r1 = await decisions.decide_pending(
-            self.conn, ORG_ID, pending_id, "faisal", body, idempotency_key=key, packs_dir=self.packs_dir
+            self.conn, ORG, ORG_ID, pending_id, "faisal", body, idempotency_key=key, packs_dir=self.packs_dir
         )
         cur = await self.conn.execute("select count(*) as c from gov.decision_records where idempotency_key = %s", (key,))
         self.assertEqual((await cur.fetchone())[0], 1)
@@ -302,6 +305,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
                 self.conn,
+                ORG,
                 ORG_ID,
                 pending_id2,
                 "faisal",
@@ -311,7 +315,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(ctx.exception.code, "validation_failed")
         r2 = await decisions.decide_pending(
-            self.conn, ORG_ID, pending_id, "faisal", body, idempotency_key=key, packs_dir=self.packs_dir
+            self.conn, ORG, ORG_ID, pending_id, "faisal", body, idempotency_key=key, packs_dir=self.packs_dir
         )
         self.assertEqual(r1, r2)
         cur = await self.conn.execute("select count(*) as c from gov.decision_records where idempotency_key = %s", (key,))
@@ -322,6 +326,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         pending_id = await self._open_brief_pending(inst)
         await decisions.decide_pending(
             self.conn,
+            ORG,
             ORG_ID,
             pending_id,
             "faisal",
@@ -332,6 +337,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
                 self.conn,
+                ORG,
                 ORG_ID,
                 pending_id,
                 "faisal",
@@ -348,10 +354,11 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         )
         await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
         await _region_done(self.conn, inst)
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         pending_id = opened[0]
         rec = await decisions.decide_pending(
             self.conn,
+            ORG,
             ORG_ID,
             pending_id,
             "noura",
@@ -376,6 +383,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         pending2 = (await cur.fetchone())[0]
         rec2 = await decisions.decide_pending(
             self.conn,
+            ORG,
             ORG_ID,
             pending2,
             "noura",
@@ -399,12 +407,13 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         v2 = _supplier_content(("s1", "s2"))
         await _insert_supplier_list(self.conn, inst, version_contents=[v1, v2])
         await _region_done(self.conn, inst)
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
-                self.conn,
-                ORG_ID,
-                opened[0],
+            self.conn,
+            ORG,
+            ORG_ID,
+            opened[0],
                 "noura",
                 {
                     "value": "confirm",
@@ -425,12 +434,13 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         )
         await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
         await _region_done(self.conn, inst)
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
-                self.conn,
-                ORG_ID,
-                opened[0],
+            self.conn,
+            ORG,
+            ORG_ID,
+            opened[0],
                 "noura",
                 {
                     "value": "confirm",
@@ -450,12 +460,13 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         )
         await _insert_supplier_list(self.conn, inst, sids=("s1", "s2", "s3"))
         await _region_done(self.conn, inst)
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         with self.assertRaises(decisions.DecisionError) as ctx:
             await decisions.decide_pending(
-                self.conn,
-                ORG_ID,
-                opened[0],
+            self.conn,
+            ORG,
+            ORG_ID,
+            opened[0],
                 "noura",
                 {
                     "value": "confirm",
@@ -473,7 +484,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
         await _insert_task_completed(self.conn, inst, "request_intake")
         aid = await _insert_brief(self.conn, inst, [_brief_v(1), _brief_v(2)])
-        opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs_dir)
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
         pending_id = opened[0]
         defs = await workflow._load_definitions(self.conn, self.pack_version_id)
         gate = ClaimedAttempt(
@@ -498,6 +509,7 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         )
         await artifacts.save_draft_from_attempt(
             conn=self.conn,
+            org=ORG,
             gate=gate,
             body={"artifact_type": "brief", "artifact_id": aid, "base_version": 2, "content": _brief_v(3)},
             defs=defs,
@@ -569,7 +581,7 @@ class DecisionsApiTests(unittest.TestCase):
             await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
             await _insert_task_completed(self.conn, inst, "request_intake")
             aid = await _insert_brief(self.conn, inst, [_brief_v(1)])
-            opened = await decisions.open_ready_decisions(self.conn, inst, packs_dir=self.packs)
+            opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs)
             return aid, opened[0]
 
         aid, pending_id = self.loop.run_until_complete(setup())

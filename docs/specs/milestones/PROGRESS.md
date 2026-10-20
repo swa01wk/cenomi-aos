@@ -31,7 +31,7 @@ milestone. A story's details, tests and contract references are in its milestone
 
 - [x] M2-BE-01 Workflow interpreter
 - [x] M2-BE-04 Decisions
-- [ ] M2-BE-07 Conversation follows the job (ADR 015)
+- [x] M2-BE-07 Conversation follows the job (ADR 015)
 - [ ] M2-BE-03 Participants, queue and claim
 - [ ] M2-BE-02 Parallel region and join
 - [ ] M2-BE-05 Timers, scheduler and demo clock

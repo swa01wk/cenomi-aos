@@ -332,7 +332,7 @@ async def assemble_context(
             worker_id=gate.worker_id,
         )
 
-    from .instances import _load_definitions, _pack_meta
+    from .instances import _load_definitions, _pack_meta, _stages
 
     cur = await conn.execute(
         "select title, workflow, pack_version_id, state, attributes, correlation_id, seat, seat_version"
@@ -381,11 +381,58 @@ async def assemble_context(
             participants.append({"role": role, "name": pname})
         filtered_attrs, attr_redactions = _filter_job_attributes(attrs_raw, attr_specs, ceiling)
         redactions.extend(attr_redactions)
+        goal = (wdoc.get("spec") or {}).get("description") or ""
+        stages = _stages(wdoc, str(state))
+        open_decisions: list[dict[str, Any]] = []
+        pend_cur = await conn.execute(
+            "select id, title, for_role, for_person_id from work.pending_items"
+            " where instance_id = %s and status = 'open' and kind = 'decision'"
+            " order by created_at",
+            (instance_id,),
+        )
+        for pending_id, label, for_role, for_person in await pend_cur.fetchall():
+            if for_role not in viewer_roles and str(person_id) != for_person:
+                redactions.append(
+                    {
+                        "artifact_type": "job_snapshot",
+                        "field": f"open_decisions.{pending_id}",
+                        "reason": "visibility",
+                    }
+                )
+                continue
+            waiter_name = org.people[for_person].name if for_person in org.people else for_person
+            open_decisions.append(
+                {
+                    "pending_id": pending_id,
+                    "label": label,
+                    "for_role": for_role,
+                    "waiting_on": {"role": for_role, "name": waiter_name},
+                }
+            )
+        work_in_progress: list[dict[str, Any]] = []
+        wip_cur = await conn.execute(
+            "select template, state, attempts_used from work.tasks"
+            " where instance_id = %s and kind = 'task' and state not in ('COMPLETED', 'CANCELLED')"
+            " order by template",
+            (instance_id,),
+        )
+        for template, task_state, used in await wip_cur.fetchall():
+            work_in_progress.append(
+                {
+                    "template": template,
+                    "state": task_state,
+                    "attempts_used": int(used),
+                }
+            )
         resolvers["job_snapshot"] = {
             "title": title,
             "state": state,
+            "goal": goal,
             "participants": participants,
             "attributes": filtered_attrs,
+            "stages": stages,
+            "open_decisions": open_decisions,
+            "work_in_progress": work_in_progress,
         }
 
     recent_messages: list[dict[str, Any]] = []

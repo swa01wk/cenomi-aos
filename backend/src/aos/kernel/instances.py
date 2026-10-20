@@ -17,7 +17,7 @@ from .admission import (
     refuse_live_attempt_conflict,
     task_has_live_attempt,
 )
-from .contracts import PackMaterialError
+from .contracts import PackMaterialError, finalize_assist_contract, resolve_assist_skill
 from .conversation import (
     find_turn_by_client_id,
     insert_person_turn,
@@ -502,7 +502,10 @@ async def start_instance(
     participant_role = bind_role_name
     if participant_role is None:
         raise InstanceError("internal", 500, "Admission inconsistency", "Start role binding missing.")
-    template = _initial_task_template(wdoc)
+    initial_state = (wdoc.get("spec") or {}).get("initial")
+    assist_skill = resolve_assist_skill(seat_doc, wdoc, str(initial_state))
+    skill_doc = defs.get("Skill", {}).get(assist_skill) or {}
+    assist_work_type = (skill_doc.get("spec") or {}).get("work_types", ["analysis"])[0]
     try:
         contract = contracts.build_assist_contract(
             packs_dir=packs_dir,
@@ -517,18 +520,18 @@ async def start_instance(
             seat_version=seat_version,
             seat_doc=seat_doc,
             workflow_name=workflow_name,
-            skill_name=template["skill"],
-            work_type=template["work_type"],
+            skill_name=assist_skill,
+            work_type=str(assist_work_type),
             participant_role=participant_role,
             person_id=actor,
             attempt_n=1,
             seat_limits=limits,
+            org=org,
         )
     except PackMaterialError as exc:
         raise _pack_material_error(exc) from exc
     correlation_id = secrets.token_hex(16)
     title = (first_message[:80] + "…") if len(first_message) > 80 else first_message
-    initial_state = (wdoc.get("spec") or {}).get("initial")
     person_name = org.people[actor].name
     turn: dict[str, Any]
     try:
@@ -561,8 +564,8 @@ async def start_instance(
                 conn,
                 task_id=task_id,
                 instance_id=instance_id,
-                skill=template["skill"],
-                work_type=template["work_type"],
+                skill=assist_skill,
+                work_type=str(assist_work_type),
                 contract=contract,
                 max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
             )
@@ -672,14 +675,14 @@ async def post_turn(
         return {"turn": turn, "attempt_id": existing[6]}
 
     cur = await conn.execute(
-        "select i.seat, i.seat_version, i.workflow, i.pack_version_id, i.attributes, i.correlation_id"
+        "select i.seat, i.seat_version, i.workflow, i.pack_version_id, i.attributes, i.correlation_id, i.state"
         " from work.instances i where i.id = %s and i.org_id = %s",
         (instance_id, org_id),
     )
     inst = await cur.fetchone()
     if inst is None:
         raise InstanceError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
-    seat_name, seat_version, workflow_name, pvid, attributes, correlation_id = inst
+    seat_name, seat_version, workflow_name, pvid, attributes, correlation_id, instance_state = inst
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
     scur = await conn.execute(
@@ -691,6 +694,32 @@ async def post_turn(
     if seat_locked is None:
         raise InstanceError("not_found", 404, "Seat not found", f"Seat {seat_name!r} v{seat_version} missing.")
     seat_state = seat_locked[0]
+    pack_name, pack_ver, pack_digest, pack_status = await _pack_meta(conn, org_id, str(pvid))
+    if seat_state != "ACTIVE":
+        ctx = AdmissionContext(
+            org_id=org_id,
+            actor=actor,
+            actor_roles=roles,
+            seat_name=seat_name,
+            seat_state=seat_state,
+            workflow_name=workflow_name,
+            instance_id=instance_id,
+            pack_version_id=str(pvid),
+            pack_published=pack_status == "published",
+            task_id=None,
+            attempts_used=0,
+            max_attempts=1,
+            has_live_attempt=False,
+            dependency_versions=attributes,
+            contract_dependency_versions={},
+            reservation_usd=0.0,
+            participant_ok=True,
+            live_seat_attempts=0,
+        )
+        refusal = await check_admission(conn, ctx)
+        if refusal:
+            return refusal
+        raise InstanceError("not_found", 404, "Seat not found", f"Seat {seat_name!r} is not active.")
 
     tcur = await conn.execute(
         "select id, contract, attempts_used, max_attempts from work.tasks"
@@ -706,7 +735,6 @@ async def post_turn(
     tstate_cur = await conn.execute("select state from work.tasks where id = %s", (task_id,))
     task_state_before = (await tstate_cur.fetchone() or ("RUNNING",))[0]
     has_live = await task_has_live_attempt(conn, task_id)
-    pack_name, pack_ver, _, pack_status = await _pack_meta(conn, org_id, str(pvid))
 
     if has_live:
         await insert_person_turn(
@@ -748,6 +776,7 @@ async def post_turn(
         task_id=task_id,
         attempts_used=int(attempts_used),
         max_attempts=int(max_attempts),
+        turn_attempts_used=0,
         has_live_attempt=False,
         dependency_versions=attributes,
         contract_dependency_versions=contract.get("dependency_versions") or {},
@@ -759,12 +788,55 @@ async def post_turn(
     if refusal:
         return refusal
 
-    attempt_id = ids.new_attempt_id()
+    defs = await _load_definitions(conn, str(pvid))
+    seat_doc = defs.get("Seat", {}).get(seat_name) or {}
+    wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name) or {}
+    try:
+        contracts.verify_pinned_pack_on_disk(packs_dir, pack_name, pack_ver, pack_digest)
+    except PackMaterialError as exc:
+        raise _pack_material_error(exc) from exc
+    assist_skill = resolve_assist_skill(seat_doc, wdoc, str(instance_state))
+    skill_doc = defs.get("Skill", {}).get(assist_skill) or {}
+    assist_work_type = (skill_doc.get("spec") or {}).get("work_types", ["analysis"])[0]
+    participant_role = my_roles[0]
     attempt_n = int(attempts_used) + 1
-    seat_doc = (await _load_definitions(conn, str(pvid))).get("Seat", {}).get(seat_name) or {}
+    draft = contracts.build_assist_contract(
+        packs_dir=packs_dir,
+        pack_name=pack_name,
+        pack_version=pack_ver,
+        pack_digest=pack_digest,
+        defs=defs,
+        org_id=org_id,
+        instance_id=instance_id,
+        task_id=task_id,
+        seat_name=seat_name,
+        seat_version=int(seat_version),
+        seat_doc=seat_doc,
+        workflow_name=workflow_name,
+        skill_name=assist_skill,
+        work_type=str(assist_work_type),
+        participant_role=participant_role,
+        person_id=actor,
+        attempt_n=attempt_n,
+        seat_limits=_seat_limits(seat_doc),
+        org=org,
+    )
+    contract = finalize_assist_contract(draft, previous=contract)
+    reservation = float(contract["budget"]["cost_usd"])
+
+    attempt_id = ids.new_attempt_id()
     daily_limit = float(_seat_limits(seat_doc)["daily_cost_usd"])
     try:
         async with conn.transaction():
+            stored_contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
+            if contract.get("contract_hash") != stored_contract.get("contract_hash"):
+                await task_ops.update_assist_task_contract(
+                    conn,
+                    task_id=task_id,
+                    skill=assist_skill,
+                    work_type=str(assist_work_type),
+                    contract=contract,
+                )
             turn = await insert_person_turn(
                 conn,
                 instance_id=instance_id,

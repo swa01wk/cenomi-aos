@@ -11,6 +11,7 @@ from typing import Any
 from ..registry.kinds import NATIVE_TOOLS
 from ..registry.loader import load_pack
 from . import clock, ids
+from .org import OrgModel
 
 
 class PackMaterialError(Exception):
@@ -182,6 +183,7 @@ def build_assist_contract(
     person_id: str,
     attempt_n: int,
     seat_limits: dict[str, Any],
+    org: OrgModel | None = None,
 ) -> dict[str, Any]:
     skill_doc = defs.get("Skill", {}).get(skill_name)
     if skill_doc is None:
@@ -200,16 +202,9 @@ def build_assist_contract(
             prov, tool = tools_idx[tname]
             allowed.append(_tool_grant(tname, tool, prov))
     resources = list(seat_spec.get("resources") or [])
-    prof_ref = seat_spec.get("authority_profile") or ""
-    prof_name = prof_ref.split("@")[0]
-    prof = defs.get("Policy", {}).get(prof_name) or {}
-    ceiling = "internal"
-    if prof.get("spec", {}).get("type") == "authority_profile":
-        for grant in prof.get("spec", {}).get("grants") or []:
-            if grant.get("resource") in resources:
-                c = grant.get("classification") or "internal"
-                if _class_rank(c) > _class_rank(ceiling):
-                    ceiling = c
+    ceiling = _seat_classification_ceiling(seat_doc, defs)
+    if org is not None:
+        ceiling = participant_classification_ceiling(seat_doc, defs, org=org, person_id=person_id)
     budget = seat_budget_block(seat_limits)
     outputs = [
         {
@@ -252,10 +247,9 @@ def build_assist_contract(
             "alias": (seat_spec.get("runtime") or {}).get("model_alias", "enterprise_reasoning"),
             "max_output_tokens": 4000,
         },
-        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "created_at": clock.now().replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
-    contract["contract_hash"] = contract_hash(contract)
-    return contract
+    return finalize_assist_contract(contract, previous=None)
 
 
 def build_task_contract(
@@ -358,3 +352,79 @@ def build_task_contract(
 
 def _class_rank(label: str) -> int:
     return {"shareable": 0, "internal": 1, "restricted": 2}.get(label, 1)
+
+
+def _min_classification(a: str, b: str) -> str:
+    return a if _class_rank(a) <= _class_rank(b) else b
+
+
+def resolve_assist_skill(seat_doc: dict, workflow_doc: dict, instance_state: str) -> str:
+    seat_spec = seat_doc.get("spec") or {}
+    states = (workflow_doc.get("spec") or {}).get("states") or {}
+    state_spec = states.get(instance_state) or {}
+    if state_spec.get("assist"):
+        return str(state_spec["assist"])
+    return str(seat_spec["assist_skill"])
+
+
+def _seat_classification_ceiling(seat_doc: dict, defs: dict[str, dict[str, dict]]) -> str:
+    seat_spec = seat_doc.get("spec") or {}
+    resources = list(seat_spec.get("resources") or [])
+    prof_ref = seat_spec.get("authority_profile") or ""
+    prof_name = prof_ref.split("@")[0]
+    prof = defs.get("Policy", {}).get(prof_name) or {}
+    ceiling = "internal"
+    if prof.get("spec", {}).get("type") == "authority_profile":
+        for grant in prof.get("spec", {}).get("grants") or []:
+            if grant.get("resource") in resources:
+                c = grant.get("classification") or "internal"
+                if _class_rank(c) > _class_rank(ceiling):
+                    ceiling = c
+    return ceiling
+
+
+def participant_classification_ceiling(
+    seat_doc: dict,
+    defs: dict[str, dict[str, dict]],
+    *,
+    org: OrgModel,
+    person_id: str,
+) -> str:
+    """Highest classification labels this person may receive in context and progress turns."""
+    seat_ceiling = _seat_classification_ceiling(seat_doc, defs)
+    person = org.people.get(person_id)
+    org_roles = list(person.roles) if person else []
+    if org_roles == ["end_user"]:
+        return _min_classification(seat_ceiling, "shareable")
+    return seat_ceiling
+
+
+_ASSIST_CONTRACT_IDENTITY_KEYS = frozenset(
+    {"contract_id", "contract_version", "contract_hash", "created_at", "idempotency_key"}
+)
+
+
+def assist_contract_material_body(contract: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in contract.items() if k not in _ASSIST_CONTRACT_IDENTITY_KEYS}
+
+
+def assist_contract_materially_unchanged(current: dict[str, Any], previous: dict[str, Any]) -> bool:
+    return assist_contract_material_body(current) == assist_contract_material_body(previous)
+
+
+def finalize_assist_contract(
+    contract: dict[str, Any],
+    *,
+    previous: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Freeze contract hash and bump contract_version when the material body changes."""
+    body = dict(contract)
+    if previous and assist_contract_materially_unchanged(body, previous):
+        return previous
+    if previous and previous.get("contract_id"):
+        body["contract_id"] = previous["contract_id"]
+        body["contract_version"] = int(previous.get("contract_version") or 1) + 1
+    else:
+        body.setdefault("contract_version", 1)
+    body["contract_hash"] = contract_hash(body)
+    return body

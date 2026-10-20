@@ -691,6 +691,7 @@ async def decide_pending(
     try:
         return await decisions.decide_pending(
             conn,
+            k.org,
             p.org_id,
             id,
             p.person_id,
@@ -887,6 +888,7 @@ async def fail_attempt_route(
     id: str,
     request: Request,
     w: WorkerDep,
+    k: KernelDep,
     conn: TxDep,
     token: FencingDep,
     body: FailAttemptBody,
@@ -894,6 +896,7 @@ async def fail_attempt_route(
     try:
         result = await worker_attempts.fail_attempt(
             conn,
+            org=k.org,
             org_id=w.org_id,
             attempt_id=id,
             worker_id=w.worker_id,
@@ -978,7 +981,7 @@ async def save_draft_route(
     defs = await _load_definitions(conn, str(row[0])) if row else {}
     try:
         return await artifacts.save_draft_from_attempt(
-            conn, gate=gate, body=body, defs=defs, packs_dir=k.settings.packs_dir
+            conn, org=k.org, gate=gate, body=body, defs=defs, packs_dir=k.settings.packs_dir
         )
     except artifacts.ArtifactError as exc:
         _raise_artifact_error(exc)
@@ -1023,6 +1026,7 @@ async def submit_result_route(
     try:
         result = await worker_submit.submit_result(
             conn,
+            org=k.org,
             org_id=w.org_id,
             attempt_id=id,
             worker_id=w.worker_id,

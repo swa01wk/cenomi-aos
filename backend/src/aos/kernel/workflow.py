@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from .org import OrgModel
 
 from psycopg import AsyncConnection
 
@@ -346,6 +349,7 @@ async def apply_event(
     by_role: str | None,
     decision_id: str | None = None,
     packs_dir: Path,
+    org: "OrgModel",
     actor: dict[str, Any] | None = None,
 ) -> ApplyEventResult:
     """Match *event* against the pinned workflow and commit a transition or record why it was ignored."""
@@ -520,5 +524,5 @@ async def apply_event(
     )
     from . import decisions as decision_ops
 
-    await decision_ops.open_ready_decisions(conn, instance_id, packs_dir=packs_dir)
+    await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
     return ApplyEventResult(True, from_state, to_state, new_version)

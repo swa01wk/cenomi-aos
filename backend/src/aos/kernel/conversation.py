@@ -42,7 +42,7 @@ async def insert_agent_turn(
     seat_name: str,
     blocks: list[dict[str, Any]],
     audience_roles: list[str] | None,
-    attempt_id: str,
+    attempt_id: str | None,
 ) -> dict[str, Any]:
     turn_id = ids.new_turn_id()
     seq = await next_turn_seq(conn, instance_id)
