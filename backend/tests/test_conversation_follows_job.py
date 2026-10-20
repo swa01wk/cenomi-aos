@@ -16,7 +16,8 @@ from fastapi.testclient import TestClient
 from aos.api import create_app
 from aos.kernel import ids, progress, tasks as task_ops
 from aos.kernel.auth import issue_worker_token
-from aos.kernel.contracts import contract_hash
+from aos.kernel.contracts import contract_hash, finalize_assist_contract
+from aos.kernel.worker_attempts import expire_one_attempt
 from aos.kernel.org import load_org
 from aos.kernel.registry_store import sync_pack
 from aos.kernel.settings import REPO, Settings
@@ -129,11 +130,16 @@ class ConversationFollowsJobTests(unittest.TestCase):
             delete from work.turns;
             delete from work.attempts;
             delete from work.pending_items;
+            delete from work.instance_transitions;
+            delete from work.timers;
+            delete from work.regions;
+            delete from work.artifact_versions;
+            delete from work.artifacts;
             delete from work.tasks;
             delete from work.participants;
             delete from work.instances;
             delete from gov.budget_ledger;
-            delete from gov.decision_records where event = 'admission.denied';
+            delete from gov.decision_records;
             update registry.seats set state = 'ACTIVE'
             where org_id = '%s' and name = '%s' and version = 1;
             """
@@ -471,6 +477,327 @@ class ConversationFollowsJobTests(unittest.TestCase):
         before, after_expire = asyncio.run(_counts())
         self.assertEqual(before, 1)
         self.assertEqual(after_expire, 1)
+
+    def test_stored_assist_contract_hash_matches_canonical(self) -> None:
+        inst = self._start()
+
+        async def _check() -> None:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                cur = await conn.execute(
+                    "select contract from work.tasks where instance_id = %s and kind = 'assist'",
+                    (inst,),
+                )
+                row = await cur.fetchone()
+                assert row is not None
+                stored = row[0] if isinstance(row[0], dict) else json.loads(row[0])
+                body_hash = contract_hash({k: v for k, v in stored.items() if k != "contract_hash"})
+                self.assertEqual(stored["contract_hash"], body_hash)
+
+        asyncio.run(_check())
+
+    def test_assist_contract_version_stable_in_same_state(self) -> None:
+        inst = self._start()
+        self._complete_assist(inst, "faisal", "v-stable-1", post=False)
+        self._complete_assist(inst, "faisal", "v-stable-2")
+
+        async def _versions() -> list[int]:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                cur = await conn.execute(
+                    "select contract_version from evidence.execution_events"
+                    " where event_type = 'TaskDispatched' order by aggregate_seq",
+                )
+                return [int(r[0]) for r in await cur.fetchall() if r[0] is not None]
+
+        versions = asyncio.run(_versions())
+        self.assertEqual(len(set(versions)), 1)
+
+    def test_assist_contract_version_bumps_when_assist_skill_changes(self) -> None:
+        prev = {
+            "schema_version": "aos.task_contract/1",
+            "contract_id": "c1",
+            "contract_version": 1,
+            "skill": {"name": "request_intake", "version": 1},
+            "objective": "x",
+            "contract_hash": "abc",
+        }
+        nxt = dict(prev)
+        nxt["skill"] = {"name": "sourcing_assist", "version": 1}
+        nxt.pop("contract_hash", None)
+        nxt.pop("contract_version", None)
+        out = finalize_assist_contract(nxt, previous=prev)
+        self.assertEqual(out["contract_version"], 2)
+        self.assertEqual(out["contract_id"], "c1")
+        self.assertEqual(out["contract_hash"], contract_hash(out))
+
+    def test_finalize_keeps_previous_when_materially_unchanged(self) -> None:
+        prev = finalize_assist_contract(
+            {"schema_version": "aos.task_contract/1", "contract_id": "c1", "skill": {"name": "a"}},
+            previous=None,
+        )
+        draft = dict(prev)
+        draft["idempotency_key"] = "different"
+        out = finalize_assist_contract(draft, previous=prev)
+        self.assertIs(out, prev)
+
+    def test_task_progress_reaches_buyer_bound_after_task_created(self) -> None:
+        inst = self._start()
+        task_id = ids.new_task_id()
+        contract = {
+            "schema_version": "aos.task_contract/1",
+            "contract_id": ids.new_contract_id(),
+            "contract_version": 1,
+            "permission_scope": {"classification_ceiling": "internal", "resources": []},
+            "on_behalf_of": {"role": "buyer", "person_id": None},
+            "budget": {"cost_usd": 1},
+        }
+        contract["contract_hash"] = contract_hash(contract)
+
+        async def _run() -> None:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        insert into work.tasks (
+                          id, instance_id, kind, template, skill, work_type, state, contract, contract_hash, max_attempts
+                        ) values (%s, %s, 'task', 'supplier_lookup', 'supplier_lookup', 'analysis', 'COMPLETED',
+                                  %s, %s, 3)
+                        """,
+                        (task_id, inst, json.dumps(contract), contract["contract_hash"]),
+                    )
+                    await conn.execute(
+                        "insert into work.participants (instance_id, role, person_id, bound_by)"
+                        " values (%s, 'buyer', 'noura', 'claim') on conflict do nothing",
+                        (inst,),
+                    )
+                    await progress.post_task_outcome_progress(
+                        conn,
+                        org=ORG,
+                        org_id=ORG_ID,
+                        instance_id=inst,
+                        task_id=task_id,
+                        summary="Lookup finished.",
+                        attempt_id=None,
+                    )
+
+        asyncio.run(_run())
+        row = _pg.admin_sql(
+            self.db,
+            f"select blocks from work.turns where instance_id = '{inst}' and author_kind = 'seat' order by seq desc limit 1",
+        ).stdout
+        self.assertIn("Lookup finished", row)
+
+    def test_decision_resolved_progress_when_job_moves(self) -> None:
+        from aos.kernel import decisions as dec_ops
+        from tests.test_decisions import _brief_v, _insert_brief, _insert_task_completed
+
+        inst = self._start()
+
+        async def _brief_and_decide() -> str:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await _insert_task_completed(conn, inst, "request_intake")
+                    aid = await _insert_brief(conn, inst, [_brief_v(1), _brief_v(2)])
+                    await conn.execute(
+                        "update work.artifacts set status = 'final' where id = %s",
+                        (aid,),
+                    )
+                    opened = await dec_ops.open_ready_decisions(
+                        conn, inst, org=ORG, packs_dir=self.packs
+                    )
+                    self.assertEqual(len(opened), 1)
+                    pend = opened[0]
+                    cur = await conn.execute("select version from work.instances where id = %s", (inst,))
+                    inst_v = int((await cur.fetchone())[0])
+                    await dec_ops.decide_pending(
+                        conn,
+                        ORG,
+                        ORG_ID,
+                        pend,
+                        "faisal",
+                        {
+                            "value": "confirm",
+                            "expected_version": inst_v,
+                            "artifact_version": 2,
+                        },
+                        idempotency_key=str(uuid.uuid4()),
+                        packs_dir=self.packs,
+                    )
+                    cur = await conn.execute(
+                        "select blocks from work.turns where instance_id = %s and author_kind = 'seat'"
+                        " and blocks::text like '%%decided:%%' order by seq desc limit 1",
+                        (inst,),
+                    )
+                    row = await cur.fetchone()
+                    return json.dumps(row[0]) if row else ""
+
+        text = asyncio.run(_brief_and_decide())
+        self.assertIn("Faisal decided:", text)
+        self.assertIn("Confirm the brief", text)
+
+    def test_decision_resolved_progress_when_job_unchanged(self) -> None:
+        from aos.kernel import decisions as dec_ops
+        from tests.test_decisions import _insert_supplier_list, _region_done
+
+        inst = self._start()
+
+        async def _run() -> str:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "insert into work.participants (instance_id, role, person_id, bound_by)"
+                        " values (%s, 'buyer', 'noura', 'claim') on conflict do nothing",
+                        (inst,),
+                    )
+                    await conn.execute(
+                        "update work.instances set state = 'shortlisting', version = 2 where id = %s",
+                        (inst,),
+                    )
+                    await _insert_supplier_list(conn, inst, sids=("s1", "s2", "s3"))
+                    await _region_done(conn, inst)
+                    opened = await dec_ops.open_ready_decisions(
+                        conn, inst, org=ORG, packs_dir=self.packs
+                    )
+                    pend = opened[0]
+                    await dec_ops.decide_pending(
+                        conn,
+                        ORG,
+                        ORG_ID,
+                        pend,
+                        "noura",
+                        {
+                            "value": "confirm",
+                            "expected_version": 2,
+                            "artifact_version": 1,
+                            "selection": ["s1", "s2"],
+                        },
+                        idempotency_key=str(uuid.uuid4()),
+                        packs_dir=self.packs,
+                    )
+                    cur = await conn.execute(
+                        "select blocks from work.turns where instance_id = %s and author_kind = 'seat'"
+                        " and blocks::text like '%%still in%%' order by seq desc limit 1",
+                        (inst,),
+                    )
+                    row = await cur.fetchone()
+                    return json.dumps(row[0]) if row else ""
+
+        text = asyncio.run(_run())
+        self.assertIn("still in Shortlisting", text)
+
+    def test_verifier_rework_posts_task_progress(self) -> None:
+        from aos.kernel import verify
+
+        def _rework(_conn, _gate, _result, _defs):
+            return "REWORK", ["fix the draft"]
+
+        verify.register_implementation("aos.verifiers.brief_schema", _rework)
+        inst = self._start()
+        task_id = ids.new_task_id()
+        contract = {
+            "schema_version": "aos.task_contract/1",
+            "contract_id": ids.new_contract_id(),
+            "contract_version": 1,
+            "permission_scope": {"classification_ceiling": "public", "resources": []},
+            "on_behalf_of": {"role": "buyer", "person_id": None},
+            "budget": {"cost_usd": 1},
+        }
+        contract["contract_hash"] = contract_hash(contract)
+        attempt_id = ids.new_attempt_id()
+
+        async def _submit() -> None:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        insert into work.tasks (
+                          id, instance_id, kind, template, skill, work_type, verifier, state, contract, contract_hash,
+                          max_attempts, fencing_token, attempts_used
+                        ) values (%s, %s, 'task', 'request_intake', 'request_intake', 'analysis', 'brief_schema',
+                                  'RUNNING', %s, %s, 3, 1, 1)
+                        """,
+                        (task_id, inst, json.dumps(contract), contract["contract_hash"]),
+                    )
+                    await conn.execute(
+                        """
+                        insert into work.attempts (id, task_id, n, fencing_token, state, reserved_usd, worker_id)
+                        values (%s, %s, 1, 1, 'CLAIMED', 1.0, 'w-rework')
+                        """,
+                        (attempt_id, task_id),
+                    )
+                    await conn.execute(
+                        "update work.instances set seat = %s, seat_version = 1 where id = %s",
+                        (SEAT, inst),
+                    )
+                    await conn.execute(
+                        "insert into work.participants (instance_id, role, person_id, bound_by)"
+                        " values (%s, 'buyer', 'noura', 'claim') on conflict do nothing",
+                        (inst,),
+                    )
+                    from aos.kernel.worker_submit import submit_result
+
+                    await submit_result(
+                        conn,
+                        org=ORG,
+                        org_id=ORG_ID,
+                        attempt_id=attempt_id,
+                        worker_id="w-rework",
+                        fencing_token=1,
+                        result={
+                            "attempt_id": attempt_id,
+                            "contract_id": contract["contract_id"],
+                            "status": "completed",
+                            "summary": "Needs another pass.",
+                            "output_artifact_refs": [],
+                            "input_versions": {},
+                        },
+                    )
+
+        asyncio.run(_submit())
+        resp = _pg.admin_sql(
+            self.db,
+            f"select state from work.tasks where id = '{task_id}'",
+        ).stdout.strip()
+        self.assertEqual(resp, "READY")
+        row = _pg.admin_sql(
+            self.db,
+            f"select blocks from work.turns where instance_id = '{inst}' and author_kind = 'seat' order by seq",
+        ).stdout
+        self.assertIn("Needs another pass", row)
+
+    def test_workflow_task_expires_to_exception_at_max_attempts(self) -> None:
+        inst = self._start()
+        task_id = ids.new_task_id()
+        attempt_id = ids.new_attempt_id()
+
+        async def _run() -> str:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        insert into work.tasks (
+                          id, instance_id, kind, template, skill, work_type, state, contract, contract_hash,
+                          max_attempts, fencing_token, attempts_used
+                        ) values (%s, %s, 'task', 'supplier_lookup', 'supplier_lookup', 'analysis', 'RUNNING',
+                                  '{}', 'deadbeef', 2, 0, 2)
+                        """,
+                        (task_id, inst),
+                    )
+                    await conn.execute(
+                        """
+                        insert into work.attempts (
+                          id, task_id, n, fencing_token, state, reserved_usd, lease_expires_at, worker_id
+                        ) values (%s, %s, 2, 1, 'CLAIMED', 1.0, now() - interval '1 minute', 'w-exp')
+                        """,
+                        (attempt_id, task_id),
+                    )
+                    out = await expire_one_attempt(conn, attempt_id=attempt_id)
+                    self.assertTrue(out.expired)
+                    self.assertIsNone(out.readmit)
+                    cur2 = await conn.execute("select state from work.tasks where id = %s", (task_id,))
+                    return (await cur2.fetchone())[0]
+
+        state = asyncio.run(_run())
+        self.assertEqual(state, "EXCEPTION")
 
 
 if __name__ == "__main__":

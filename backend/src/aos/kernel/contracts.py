@@ -399,21 +399,32 @@ def participant_classification_ceiling(
     return seat_ceiling
 
 
+_ASSIST_CONTRACT_IDENTITY_KEYS = frozenset(
+    {"contract_id", "contract_version", "contract_hash", "created_at", "idempotency_key"}
+)
+
+
+def assist_contract_material_body(contract: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in contract.items() if k not in _ASSIST_CONTRACT_IDENTITY_KEYS}
+
+
+def assist_contract_materially_unchanged(current: dict[str, Any], previous: dict[str, Any]) -> bool:
+    return assist_contract_material_body(current) == assist_contract_material_body(previous)
+
+
 def finalize_assist_contract(
     contract: dict[str, Any],
     *,
     previous: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Freeze contract hash and bump contract_version when the body changes."""
+    """Freeze contract hash and bump contract_version when the material body changes."""
     body = dict(contract)
-    prev_hash = (previous or {}).get("contract_hash")
-    new_hash = contract_hash(body)
-    if previous and prev_hash == new_hash:
+    if previous and assist_contract_materially_unchanged(body, previous):
         return previous
     if previous and previous.get("contract_id"):
         body["contract_id"] = previous["contract_id"]
         body["contract_version"] = int(previous.get("contract_version") or 1) + 1
     else:
         body.setdefault("contract_version", 1)
-    body["contract_hash"] = new_hash
+    body["contract_hash"] = contract_hash(body)
     return body

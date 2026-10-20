@@ -6,7 +6,10 @@ import json
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .org import OrgModel
 
 from psycopg import AsyncConnection, errors as pg_errors
 from . import ids, tasks as task_ops
@@ -431,6 +434,7 @@ async def assemble_context(
 async def fail_attempt(
     conn: AsyncConnection,
     *,
+    org: "OrgModel",
     org_id: str,
     attempt_id: str,
     worker_id: str,
@@ -496,11 +500,8 @@ async def fail_attempt(
                 failure_class=failure_class,
             )
         else:
-            from .org import load_org
             from .progress import post_task_outcome_progress
-            from .settings import REPO
 
-            org = load_org(REPO / "seed" / "org.yaml")
             await post_task_outcome_progress(
                 conn,
                 org=org,
@@ -613,9 +614,10 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
     if task_kind == "assist" and turn_id:
         turn_count = await task_ops.count_attempts_for_turn(conn, task_id, turn_id)
         turn_budget_exhausted = turn_count >= int(max_attempts)
-    if task_state != "RUNNING" or (
+    attempts_exhausted = (
         turn_budget_exhausted if task_kind == "assist" else int(attempts_used) >= int(max_attempts)
-    ):
+    )
+    if task_state != "RUNNING" or attempts_exhausted:
         if task_kind == "assist" and task_state == "RUNNING":
             from .reply_failure import post_reply_failed
 
@@ -627,6 +629,11 @@ async def expire_one_attempt(conn: AsyncConnection, *, attempt_id: str | None = 
                 seat_version=int(seat_version),
                 attempt_id=attempt_id,
                 failure_class="expired",
+            )
+        elif task_kind != "assist" and task_state == "RUNNING" and attempts_exhausted:
+            await conn.execute(
+                "update work.tasks set state = 'EXCEPTION', updated_at = now() where id = %s",
+                (task_id,),
             )
         return ExpireOutcome(expired=True)
 
@@ -661,14 +668,14 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
     seat_state = seat_row[0]
 
     tcur = await conn.execute(
-        "select state, attempts_used, max_attempts, fencing_token, contract, instance_id"
+        "select state, attempts_used, max_attempts, fencing_token, contract, instance_id, kind"
         " from work.tasks where id = %s for update",
         (lease.task_id,),
     )
     task_row = await tcur.fetchone()
     if task_row is None:
         return
-    task_state, attempts_used, max_attempts, _fencing_token, contract_json, task_instance_id = task_row
+    task_state, attempts_used, max_attempts, _fencing_token, contract_json, task_instance_id, task_kind = task_row
     if task_instance_id != lease.instance_id:
         return
     contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
@@ -684,9 +691,14 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
     turn_count = 0
-    if lease.turn_id:
+    if task_kind == "assist" and lease.turn_id:
         turn_count = await task_ops.count_attempts_for_turn(conn, lease.task_id, lease.turn_id)
-    if task_state != "RUNNING" or turn_count >= int(max_attempts):
+    if task_state != "RUNNING":
+        return
+    if task_kind == "assist":
+        if lease.turn_id and turn_count >= int(max_attempts):
+            return
+    elif int(attempts_used) >= int(max_attempts):
         return
 
     pack_name, _, _, pack_status = await _pack_meta(conn, lease.org_id, pack_version_id)
@@ -706,7 +718,7 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
         task_id=lease.task_id,
         attempts_used=int(attempts_used),
         max_attempts=int(max_attempts),
-        turn_attempts_used=turn_count,
+        turn_attempts_used=turn_count if task_kind == "assist" else None,
         has_live_attempt=has_live,
         dependency_versions=attributes,
         contract_dependency_versions=contract.get("dependency_versions") or {},

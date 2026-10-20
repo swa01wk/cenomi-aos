@@ -308,6 +308,7 @@ class WorkerSubmitTests(WorkerHarness):
                     async with conn.transaction():
                         await worker_submit.submit_result(
                             conn,
+                            org=ORG,
                             org_id=ORG.organization.id,
                             attempt_id=attempt["attempt_id"],
                             worker_id="worker-test-1",

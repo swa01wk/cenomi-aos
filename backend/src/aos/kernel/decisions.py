@@ -15,6 +15,7 @@ from aos.registry.kinds import ArtifactType, WorkflowDecisionSpec, WorkflowDefin
 
 from . import audit_store, clock, ids, workflow
 from .contracts import _canonical_json
+from .org import OrgModel
 class DecisionError(Exception):
     def __init__(self, code: str, status: int, title: str, detail: str = "", **extra: Any) -> None:
         self.code = code
@@ -238,6 +239,7 @@ async def open_ready_decisions(
     conn: AsyncConnection,
     instance_id: str,
     *,
+    org: OrgModel,
     packs_dir: Path,
 ) -> list[str]:
     """Open pending items for decisions whose preconditions hold. Idempotent per decision event."""
@@ -307,11 +309,8 @@ async def open_ready_decisions(
             ),
         )
         await _emit_pending_created(conn, instance_id=instance_id, person_id=person_id, pending=pending_doc)
-        from .org import load_org
         from .progress import post_decision_opened_progress
-        from .settings import REPO
 
-        org = load_org(REPO / "seed" / "org.yaml")
         inst_org_cur = await conn.execute(
             "select org_id from work.instances where id = %s",
             (instance_id,),
@@ -424,6 +423,7 @@ def _decision_record_response(
 
 async def decide_pending(
     conn: AsyncConnection,
+    org: OrgModel,
     org_id: str,
     pending_id: str,
     person_id: str,
@@ -640,20 +640,6 @@ async def decide_pending(
         outcome="resolved",
         by=person_id,
     )
-    from .org import load_org
-    from .progress import post_decision_resolved_progress
-    from .settings import REPO
-
-    org = load_org(REPO / "seed" / "org.yaml")
-    await post_decision_resolved_progress(
-        conn,
-        org=org,
-        org_id=org_id,
-        instance_id=instance_id,
-        decider_id=person_id,
-        decider_role=actor_role,
-    )
-
     apply_result = await workflow.apply_event(
         conn,
         instance_id,
@@ -661,9 +647,24 @@ async def decide_pending(
         by_role=dec.for_,
         decision_id=decision_id,
         packs_dir=packs_dir,
+        org=org,
         actor={"kind": "person", "id": person_id},
     )
     resulting_state = apply_result.to_state if apply_result.applied else from_state
+
+    from .progress import post_decision_resolved_progress
+
+    unchanged_label = (definition.spec.states.get(from_state) or {}).label if from_state else from_state
+    await post_decision_resolved_progress(
+        conn,
+        org=org,
+        org_id=org_id,
+        instance_id=instance_id,
+        decider_id=person_id,
+        decision_label=dec.label,
+        job_moved=apply_result.applied,
+        state_label_if_unchanged=str(unchanged_label or from_state),
+    )
 
     if apply_result.applied and artifact_ref is not None:
         await conn.execute(
@@ -712,7 +713,7 @@ async def decide_pending(
         data={"decision_id": decision_id, "value": value, "resulting_state": resulting_state},
     )
 
-    await open_ready_decisions(conn, instance_id, packs_dir=packs_dir)
+    await open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
 
     return record_body
 

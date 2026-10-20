@@ -98,6 +98,7 @@ async def _apply(conn, instance_id: str, event: str, *, by_role: str | None, pac
         event,
         by_role=by_role,
         packs_dir=packs_dir,
+        org=ORG,
         **kw,
     )
 

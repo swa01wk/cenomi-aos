@@ -135,10 +135,17 @@ async def post_task_outcome_progress(
         return
     contract = trow[0] if isinstance(trow[0], dict) else json.loads(trow[0])
     on_behalf = contract.get("on_behalf_of") or {}
-    person_id = on_behalf.get("person_id")
     role = on_behalf.get("role")
-    if not person_id:
+    if not role:
         return
+    pcur = await conn.execute(
+        "select person_id from work.participants where instance_id = %s and role = %s",
+        (instance_id, role),
+    )
+    prow = await pcur.fetchone()
+    if prow is None:
+        return
+    person_id = prow[0]
     fallback = await _state_label(
         conn,
         pack_version_id=str(pvid),
@@ -216,7 +223,9 @@ async def post_decision_resolved_progress(
     org_id: str,
     instance_id: str,
     decider_id: str,
-    decider_role: str | None,
+    decision_label: str,
+    job_moved: bool,
+    state_label_if_unchanged: str,
 ) -> None:
     icur = await conn.execute(
         "select seat, seat_version from work.instances where id = %s",
@@ -227,8 +236,13 @@ async def post_decision_resolved_progress(
         return
     seat_name, seat_version = inst
     name = org.people[decider_id].name if decider_id in org.people else decider_id
-    role_part = f" ({decider_role})" if decider_role else ""
-    text = f"{name}{role_part} confirmed."
+    if job_moved:
+        text = f"{name} decided: {decision_label}."
+    else:
+        text = (
+            f"{name}'s decision on '{decision_label}' was recorded; "
+            f"the job is still in {state_label_if_unchanged}."
+        )
     pcur = await conn.execute(
         "select role from work.participants where instance_id = %s",
         (instance_id,),

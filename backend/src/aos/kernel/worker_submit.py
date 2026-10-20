@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .org import OrgModel
 
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
@@ -227,6 +230,7 @@ async def _finish_submit(
 async def submit_result(
     conn: AsyncConnection,
     *,
+    org: "OrgModel",
     org_id: str,
     attempt_id: str,
     worker_id: str,
@@ -341,13 +345,6 @@ async def submit_result(
 
     tcur = await conn.execute("select verifier from work.tasks where id = %s", (gate.task_id,))
     verifier_name = (await tcur.fetchone() or (None,))[0]
-    if verifier_name:
-        raise WorkerError(
-            "internal",
-            500,
-            "Verifier not implemented",
-            "Workflow task verifiers arrive in M2.",
-        )
 
     accepted_response = {
         "verdict": "ACCEPTED",
@@ -355,6 +352,66 @@ async def submit_result(
         "verifier": None,
         "next_attempt": False,
     }
+    task_to = "WAITING_INPUT" if gate.kind == "assist" else "VERIFYING"
+    verifier_doc: dict[str, Any] | None = None
+
+    if verifier_name and gate.kind != "assist":
+        from . import verify
+
+        verdict, findings = await verify.run_task_verifier(
+            conn,
+            verifier_name=str(verifier_name),
+            defs=defs,
+            gate=gate,
+            result=result,
+        )
+        verifier_doc = {"name": str(verifier_name), "verdict": verdict, "findings": findings}
+        accepted_response["verifier"] = verifier_doc
+        if verdict == "REWORK":
+            accepted_response["verdict"] = "REWORK"
+            accepted_response["task_state"] = "READY"
+            accepted_response["next_attempt"] = True
+            task_to = "READY"
+            await write_execution_event(
+                conn,
+                ExecutionEventWrite(
+                    org_id=gate.org_id,
+                    run_id=gate.instance_id,
+                    event_type="TaskRejected",
+                    actor_kind="kernel",
+                    actor_id="kernel",
+                    correlation_id=gate.correlation_id,
+                    redacted_summary="Verifier asked for rework.",
+                    task_id=gate.task_id,
+                    attempt_id=attempt_id,
+                    attributes={"stage": "verify", "verdict": "REWORK"},
+                ),
+            )
+        elif verdict == "FAIL":
+            accepted_response["verdict"] = "FAILED"
+            accepted_response["task_state"] = "EXCEPTION"
+            task_to = "EXCEPTION"
+            await write_execution_event(
+                conn,
+                ExecutionEventWrite(
+                    org_id=gate.org_id,
+                    run_id=gate.instance_id,
+                    event_type="TaskRejected",
+                    actor_kind="kernel",
+                    actor_id="kernel",
+                    correlation_id=gate.correlation_id,
+                    redacted_summary="Verifier failed the output.",
+                    task_id=gate.task_id,
+                    attempt_id=attempt_id,
+                    attributes={"stage": "verify", "verdict": "FAIL"},
+                ),
+            )
+        else:
+            task_to = "COMPLETED"
+            accepted_response["task_state"] = "COMPLETED"
+    elif gate.kind != "assist":
+        task_to = "COMPLETED"
+        accepted_response["task_state"] = "COMPLETED"
     await write_execution_event(
         conn,
         ExecutionEventWrite(
@@ -370,25 +427,22 @@ async def submit_result(
             attributes={"status": status, "output_artifact_refs": len(refs)},
         ),
     )
-    await write_execution_event(
-        conn,
-        ExecutionEventWrite(
-            org_id=gate.org_id,
-            run_id=gate.instance_id,
-            event_type="TaskAccepted",
-            actor_kind="kernel",
-            actor_id="kernel",
-            correlation_id=gate.correlation_id,
-            redacted_summary="Submit checks passed.",
-            task_id=gate.task_id,
-            attempt_id=attempt_id,
-            attributes={"verdict": "PASS"},
-        ),
-    )
-    task_to = "WAITING_INPUT" if gate.kind == "assist" else "COMPLETED"
-    if gate.kind != "assist":
-        accepted_response["task_state"] = "COMPLETED"
-
+    if accepted_response["verdict"] == "ACCEPTED":
+        await write_execution_event(
+            conn,
+            ExecutionEventWrite(
+                org_id=gate.org_id,
+                run_id=gate.instance_id,
+                event_type="TaskAccepted",
+                actor_kind="kernel",
+                actor_id="kernel",
+                correlation_id=gate.correlation_id,
+                redacted_summary="Submit checks passed.",
+                task_id=gate.task_id,
+                attempt_id=attempt_id,
+                attributes={"verdict": "PASS"},
+            ),
+        )
     finished = await _finish_submit(
         conn,
         gate=gate,
@@ -402,12 +456,9 @@ async def submit_result(
     )
     if isinstance(finished, CommittedFenced):
         return finished
-    if gate.kind != "assist" and task_to == "COMPLETED":
-        from .org import load_org
+    if gate.kind != "assist" and task_to in ("COMPLETED", "READY", "EXCEPTION"):
         from .progress import post_task_outcome_progress
-        from .settings import REPO
 
-        org = load_org(REPO / "seed" / "org.yaml")
         await post_task_outcome_progress(
             conn,
             org=org,

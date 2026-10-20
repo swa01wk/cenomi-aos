@@ -653,6 +653,7 @@ def _contract_allows_artifact_type(contract: dict[str, Any], artifact_type: str)
 async def save_draft_from_attempt(
     conn: AsyncConnection,
     *,
+    org: OrgModel,
     gate: Any,
     body: dict[str, Any],
     defs: dict[str, dict[str, dict]],
@@ -802,7 +803,7 @@ async def save_draft_from_attempt(
         artifact_id=artifact_id,
         voided_by=gate.seat,
     )
-    await decision_ops.open_ready_decisions(conn, gate.instance_id, packs_dir=packs_dir)
+    await decision_ops.open_ready_decisions(conn, gate.instance_id, org=org, packs_dir=packs_dir)
 
     ref = f"{artifact_id}@{new_version}"
     await write_execution_event(
@@ -1006,7 +1007,7 @@ async def create_artifact_version(
         ],
     )
 
-    await decision_ops.open_ready_decisions(conn, instance_id, packs_dir=packs_dir)
+    await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
 
     out = project(
         VersionRecord(
