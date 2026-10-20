@@ -91,6 +91,20 @@ async def _insert_instance(
     )
 
 
+async def _discovery_join_ready(
+    conn, instance_id: str, *, brief_version: int = 1
+) -> None:
+    await conn.execute(
+        """
+        insert into work.regions (
+          instance_id, name, state, started_on, join_at, join_guard, started_with
+        ) values (%s, 'discovery', 'done', 'event.intent_identified', 'shortlisting', 'same(brief_version)', %s)
+        on conflict (instance_id, name) do update set state = 'done', started_with = excluded.started_with
+        """,
+        (instance_id, json.dumps({"brief_version": brief_version})),
+    )
+
+
 async def _apply(conn, instance_id: str, event: str, *, by_role: str | None, packs_dir: Path, **kw):
     return await workflow.apply_event(
         conn,
@@ -157,8 +171,8 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
             async with conn.transaction():
                 await _insert_instance(conn, instance_id=inst, pack_version_id=self.v1_id)
                 steps = [
-                    ("decision.brief_confirmed", "requester", {"shortlist_count": 3}),
-                    ("decision.shortlist_confirmed", "buyer", {"shortlist_count": 3}),
+                    ("decision.brief_confirmed", "requester", {"shortlist_count": 3, "brief_version": 1}),
+                    ("decision.shortlist_confirmed", "buyer", {"shortlist_count": 3, "brief_version": 1}),
                     ("task.completed.rfq_draft", None, {"shortlist_count": 3}),
                     ("task.completed.rfq_send", None, {"shortlist_count": 3}),
                     ("timer.quotes_closed", None, {"shortlist_count": 3, "quote_count": 2}),
@@ -171,6 +185,10 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
                         "update work.instances set attributes = %s where id = %s",
                         (json.dumps({**attrs, **attr_patch}), inst),
                     )
+                    if event == "decision.shortlist_confirmed":
+                        await _discovery_join_ready(
+                            conn, inst, brief_version=attr_patch.get("brief_version", 1)
+                        )
                     if event == "decision.supplier_selected":
                         await conn.execute(
                             """
@@ -374,8 +392,9 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
                         instance_id=inst,
                         pack_version_id=self.v1_id,
                         state="shortlisting",
-                        attributes={"shortlist_count": 3},
+                        attributes={"shortlist_count": 3, "brief_version": 1},
                     )
+                    await _discovery_join_ready(conn, inst, brief_version=1)
                     r = await _apply(
                         conn,
                         inst,

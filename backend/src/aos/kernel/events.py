@@ -16,7 +16,7 @@ from psycopg.types.json import Jsonb
 from aos.registry.expressions import ExpressionScope, evaluate
 from aos.registry.kinds import TaskTemplate, WorkflowDefinition, WorkflowEventTrigger
 
-from . import contracts, ids, tasks as task_ops
+from . import ids
 from . import workflow
 from .outbox import ExecutionEventWrite, write_execution_event
 
@@ -149,7 +149,9 @@ async def _start_parallel_region(
             (instance_id, region.region, region.on, region.join_at, region.join_guard),
         )
         tpl = TaskTemplate.model_validate(region.start.model_dump(by_alias=True))
-        await _create_region_task(
+        from . import regions as region_ops
+
+        await region_ops.create_region_task(
             conn,
             packs_dir=packs_dir,
             org_id=org_id,
@@ -167,62 +169,6 @@ async def _start_parallel_region(
             region_name=region.region,
             participants=participants,
         )
-
-
-async def _create_region_task(
-    conn: AsyncConnection,
-    *,
-    packs_dir: Path,
-    org_id: str,
-    instance_id: str,
-    seat_name: str,
-    seat_version: int,
-    workflow_name: str,
-    pack_name: str,
-    pack_version: int,
-    pack_digest: str,
-    defs: dict[str, dict[str, dict]],
-    seat_doc: dict[str, Any],
-    seat_limits: dict[str, Any],
-    tpl: TaskTemplate,
-    region_name: str,
-    participants: list[tuple[str, str]],
-) -> None:
-    if tpl.on_behalf_of is None:
-        raise WorkflowEventError(f"template {tpl.template!r} is missing on_behalf_of")
-    role = tpl.on_behalf_of
-    person_id = next((p for r, p in participants if r == role), None)
-    task_id = ids.new_task_id()
-    contract = contracts.build_task_contract(
-        packs_dir=packs_dir,
-        pack_name=pack_name,
-        pack_version=pack_version,
-        pack_digest=pack_digest,
-        defs=defs,
-        org_id=org_id,
-        instance_id=instance_id,
-        task_id=task_id,
-        seat_name=seat_name,
-        seat_version=seat_version,
-        seat_doc=seat_doc,
-        workflow_name=workflow_name,
-        template=tpl.model_dump(by_alias=True),
-        participant_role=role,
-        person_id=person_id,
-        seat_limits=seat_limits,
-    )
-    await task_ops.insert_workflow_task(
-        conn,
-        task_id=task_id,
-        instance_id=instance_id,
-        template=tpl.template,
-        skill=tpl.skill,
-        work_type=tpl.work_type,
-        verifier=tpl.verifier,
-        contract=contract,
-        max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
-        region=region_name,
-    )
 
 
 async def raise_event(
@@ -443,14 +389,79 @@ async def on_workflow_task_completed(
     if row is None or not row[0]:
         return
     region_name = str(row[0])
-    await conn.execute(
-        "select id from work.instances where id = %s for update",
+    from . import regions as region_ops
+
+    if not await region_ops.is_latest_region_task(
+        conn, instance_id=instance_id, region=region_name, task_id=task_id
+    ):
+        return
+
+    inst_cur = await conn.execute(
+        "select org_id, workflow, pack_version_id, seat, seat_version, state, attributes"
+        " from work.instances where id = %s for update",
         (instance_id,),
     )
+    inst = await inst_cur.fetchone()
+    if inst is None:
+        return
+    (
+        org_id,
+        workflow_name,
+        pack_version_id,
+        seat_name,
+        seat_version,
+        instance_state,
+        attributes_raw,
+    ) = inst
+    attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
+
     await conn.execute(
         "update work.regions set state = 'done' where instance_id = %s and name = %s and state = 'running'",
         (instance_id, region_name),
     )
+
+    pack_cur = await conn.execute(
+        "select pack_name, version, digest from registry.pack_versions where id = %s",
+        (str(pack_version_id),),
+    )
+    pack_row = await pack_cur.fetchone()
+    if pack_row is None:
+        return
+    pack_name, pack_ver, pack_digest = pack_row[0], int(pack_row[1]), pack_row[2]
+    defs = await workflow._load_definitions(conn, str(pack_version_id))
+    wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name)
+    if wdoc is None:
+        return
+    definition = WorkflowDefinition.model_validate(wdoc)
+    seat_doc = defs.get("Seat", {}).get(seat_name) or {}
+    seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
+    participants = await workflow._participants(conn, instance_id)
+
+    join_at = next(
+        (r.join_at for r in definition.spec.parallel if r.region == region_name),
+        None,
+    )
+    if join_at is not None and instance_state == join_at:
+        await region_ops.rerun_stale_regions(
+            conn,
+            instance_id,
+            join_at,
+            definition,
+            attributes,
+            packs_dir=packs_dir,
+            org_id=str(org_id),
+            seat_name=seat_name,
+            seat_version=int(seat_version),
+            workflow_name=workflow_name,
+            pack_name=pack_name,
+            pack_version=pack_ver,
+            pack_digest=pack_digest,
+            defs=defs,
+            seat_doc=seat_doc,
+            seat_limits=seat_limits,
+            participants=participants,
+        )
+
     from . import decisions as decision_ops
 
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)

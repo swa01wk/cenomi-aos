@@ -69,26 +69,6 @@ async def _load_workflow(
     return org_id, workflow_name, definition, defs
 
 
-async def _regions_ready(
-    conn: AsyncConnection,
-    instance_id: str,
-    join_state: str,
-    definition: WorkflowDefinition,
-) -> bool:
-    required = [r.region for r in definition.spec.parallel if r.join_at == join_state]
-    if not required:
-        return True
-    for name in required:
-        cur = await conn.execute(
-            "select state from work.regions where instance_id = %s and name = %s",
-            (instance_id, name),
-        )
-        row = await cur.fetchone()
-        if row is None or row[0] not in ("done", "joined"):
-            return False
-    return True
-
-
 async def _state_tasks_complete(
     conn: AsyncConnection, instance_id: str, templates: list[str]
 ) -> bool:
@@ -299,14 +279,17 @@ async def open_ready_decisions(
 ) -> list[str]:
     """Open pending items for decisions whose preconditions hold. Idempotent per decision event."""
     cur = await conn.execute(
-        "select state, status from work.instances where id = %s",
+        "select state, status, attributes from work.instances where id = %s",
         (instance_id,),
     )
     row = await cur.fetchone()
     if row is None or row[1] != "running":
         return []
     state = row[0]
+    attributes_raw = row[2]
+    attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     _org_id, _wf_name, definition, _defs = await _load_workflow(conn, instance_id)
+    from . import regions as region_ops
     opened: list[str] = []
     ts = clock.now()
     for dname, dec in definition.spec.decisions.items():
@@ -322,7 +305,7 @@ async def open_ready_decisions(
         templates = [t.template for t in definition.spec.states[dec.state].tasks]
         if not await _state_tasks_complete(conn, instance_id, templates):
             continue
-        if not await _regions_ready(conn, instance_id, dec.state, definition):
+        if not await region_ops.join_ready(conn, instance_id, dec.state, definition, attributes):
             continue
         from . import participants as participant_ops
 

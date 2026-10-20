@@ -584,8 +584,6 @@ def _eval_call(node: _Call, scope: ExpressionScope) -> _Val:
             attr_name = arg.path.split(".")[0]
         else:
             return _Val.unk()
-        # Provisional: M2-BE-02 defines what workflow.started_with holds for the join (the branch's
-        # input version); this comparison may change when that lands.
         wf = scope.get("workflow")
         if not isinstance(wf, Mapping):
             return _Val.unk()
