@@ -248,8 +248,23 @@ class _Checker:
                 for t in s.delegation.targets:
                     self.ref("Seat", name, "spec.delegation.targets", "Role", t, self.roles)
 
-    def _check_template(self, wname: str, path: str, t: TaskTemplate, role: Role | None,
-                        seats_for_role: list[Seat]) -> None:
+    def _check_template(
+        self,
+        wname: str,
+        path: str,
+        t: TaskTemplate,
+        role: Role | None,
+        seats_for_role: list[Seat],
+        participants: set[str],
+    ) -> None:
+        if t.on_behalf_of is not None and t.on_behalf_of not in participants:
+            self.err(
+                "E_REF",
+                "WorkflowDefinition",
+                wname,
+                f"{path}.on_behalf_of",
+                f"{t.on_behalf_of!r} is not a participant",
+            )
         if self.ref("WorkflowDefinition", wname, f"{path}.skill", "Skill", t.skill, self.skills):
             if t.work_type not in self.skills[t.skill].spec.work_types:
                 self.err("E_SKILL_WORKTYPE", "WorkflowDefinition", wname, path,
@@ -324,13 +339,13 @@ class _Checker:
                     self.err("E_FINAL", K, wname, base, "a final state cannot create Tasks")
                 names = set()
                 for i, t in enumerate(st.tasks):
-                    self._check_template(wname, f"{base}.tasks[{i}]", t, role, seats_for_role)
+                    self._check_template(wname, f"{base}.tasks[{i}]", t, role, seats_for_role, participants)
                     names.add(t.template)
                 for ev, t in st.on_event.items():
                     if ev not in self.inbound_events:
                         self.err("E_EVENT", K, wname, f"{base}.on_event",
                                  f"{ev!r} is not an inbound event of any connector {sorted(self.inbound_events)}")
-                    self._check_template(wname, f"{base}.on_event.{ev}", t, role, seats_for_role)
+                    self._check_template(wname, f"{base}.on_event.{ev}", t, role, seats_for_role, participants)
                     names.add(t.template)
                 dup = names & all_templates
                 if dup:
@@ -341,7 +356,7 @@ class _Checker:
                 base = f"spec.parallel[{i}]"
                 self._check_event(wname, f"{base}.on", region.on, w, None, set())
                 self.ref(K, wname, f"{base}.join_at", "state", region.join_at, states)
-                self._check_template(wname, f"{base}.start", region.start, role, seats_for_role)
+                self._check_template(wname, f"{base}.start", region.start, role, seats_for_role, participants)
                 if region.join_guard:
                     self._check_expr(K, wname, f"{base}.join_guard", region.join_guard, attrs, states)
                 all_templates.add(region.start.template)

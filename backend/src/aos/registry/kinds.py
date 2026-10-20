@@ -321,6 +321,7 @@ class TaskTemplate(Strict):
     skill: Name
     work_type: WorkType
     verifier: Name | None = None
+    on_behalf_of: Name | None = None
 
 
 class StateSpec(Strict):

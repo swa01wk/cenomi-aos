@@ -25,7 +25,7 @@ spec:
       label: Intake
       view: brief
       tasks:
-        - {template: request_intake, skill: request_intake, work_type: analysis, verifier: brief_schema}
+        - {template: request_intake, skill: request_intake, work_type: analysis, verifier: brief_schema, on_behalf_of: requester}
     shortlisting:
       label: Shortlisting
       view: supplier_list
@@ -33,34 +33,34 @@ spec:
       label: RFQ drafting
       view: rfq_email
       tasks:
-        - {template: rfq_draft, skill: rfq_authoring, work_type: document_draft, verifier: leak_check}
+        - {template: rfq_draft, skill: rfq_authoring, work_type: document_draft, verifier: leak_check, on_behalf_of: buyer}
     rfq_sending:
       label: RFQ sending
       view: rfq_email
       tasks:
-        - {template: rfq_send, skill: rfq_authoring, work_type: outbound_communication, verifier: recipient_check}
+        - {template: rfq_send, skill: rfq_authoring, work_type: outbound_communication, verifier: recipient_check, on_behalf_of: buyer}
     awaiting_quotes:
       label: Awaiting quotes
       view: quote
       on_event:
-        mail.message_received: {template: quote_triage, skill: quote_triage, work_type: analysis}
+        mail.message_received: {template: quote_triage, skill: quote_triage, work_type: analysis, on_behalf_of: buyer}
     comparison:
       label: Comparison
       view: comparison
       tasks:
-        - {template: quote_comparison, skill: quote_comparison, work_type: analysis, verifier: score_recompute}
+        - {template: quote_comparison, skill: quote_comparison, work_type: analysis, verifier: score_recompute, on_behalf_of: buyer}
     ordering:
       label: Ordering
       view: po_payload
       tasks:
-        - {template: po_create, skill: quote_comparison, work_type: record_update, verifier: payload_match}
+        - {template: po_create, skill: quote_comparison, work_type: record_update, verifier: payload_match, on_behalf_of: buyer}
     closed:
       label: Closed
       final: true
   parallel:
     - on: event.intent_identified
       region: discovery
-      start: {template: supplier_lookup, skill: supplier_lookup, work_type: analysis, verifier: sources_cited}
+      start: {template: supplier_lookup, skill: supplier_lookup, work_type: analysis, verifier: sources_cited, on_behalf_of: buyer}
       join_at: shortlisting
       join_guard: same(brief_version)
   transitions:

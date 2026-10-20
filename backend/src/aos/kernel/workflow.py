@@ -16,7 +16,9 @@ from . import clock, contracts, ids
 from . import tasks as task_ops
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 
-TransitionReason = Literal["no_match", "wrong_role", "guard_failed"]
+TransitionReason = Literal["no_match", "wrong_role", "guard_failed", "not_running"]
+
+_ALLOWED_ACTOR_KINDS = frozenset({"seat", "person", "kernel", "connector", "demo"})
 
 
 class WorkflowEffectError(Exception):
@@ -136,22 +138,19 @@ def _actor_fields(actor: dict[str, Any] | None) -> tuple[str, str]:
     if actor is None:
         return "kernel", "kernel"
     kind = str(actor.get("kind") or "kernel")
+    if kind not in _ALLOWED_ACTOR_KINDS:
+        raise ValueError(
+            f"actor kind must be one of {sorted(_ALLOWED_ACTOR_KINDS)!r}, not {kind!r}"
+        )
     actor_id = str(actor.get("id") or "kernel")
     return kind, actor_id
 
 
-def _task_contract_role(workflow_doc: dict[str, Any], participants: list[tuple[str, str]]) -> tuple[str, str | None]:
-    spec = workflow_doc.get("spec") or {}
-    seat_role = spec.get("seat_role") or "buyer"
-    for role, person_id in participants:
-        if role == "buyer":
-            return role, person_id
-    for role, person_id in participants:
-        if role == seat_role:
-            return role, person_id
-    if participants:
-        return participants[0][0], participants[0][1]
-    return seat_role, None
+def _person_for_role(participants: list[tuple[str, str]], role: str) -> str | None:
+    for r, person_id in participants:
+        if r == role:
+            return person_id
+    return None
 
 
 async def _create_entry_tasks(
@@ -171,12 +170,16 @@ async def _create_entry_tasks(
     seat_limits: dict[str, Any],
     entry_tasks: list[TaskTemplate],
     participants: list[tuple[str, str]],
-    workflow_doc: dict[str, Any],
 ) -> None:
     if not entry_tasks:
         return
-    role, person_id = _task_contract_role(workflow_doc, participants)
     for tpl in entry_tasks:
+        if tpl.on_behalf_of is None:
+            raise WorkflowEffectError(
+                f"template {tpl.template!r} is missing on_behalf_of (participant role)"
+            )
+        role = tpl.on_behalf_of
+        person_id = _person_for_role(participants, role)
         task_id = ids.new_task_id()
         contract = contracts.build_task_contract(
             packs_dir=packs_dir,
@@ -350,7 +353,8 @@ async def apply_event(
     ts = clock.now()
 
     cur = await conn.execute(
-        "select org_id, workflow, pack_version_id, seat, seat_version, state, version, attributes, correlation_id"
+        "select org_id, workflow, pack_version_id, seat, seat_version, state, version, status,"
+        " attributes, correlation_id"
         " from work.instances where id = %s for update",
         (instance_id,),
     )
@@ -365,6 +369,7 @@ async def apply_event(
         seat_version,
         from_state,
         version,
+        inst_status,
         attributes_raw,
         correlation_id,
     ) = row
@@ -388,6 +393,24 @@ async def apply_event(
     seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
 
     participants = await _participants(conn, instance_id)
+
+    if inst_status != "running":
+        await write_execution_event(
+            conn,
+            ExecutionEventWrite(
+                org_id=org_id,
+                run_id=instance_id,
+                event_type="WorkflowEventIgnored",
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                correlation_id=correlation_id,
+                redacted_summary=f"Event {event} ignored (not_running) in {from_state}",
+                graph_revision=graph_revision,
+                attributes={"state": from_state, "event": event, "reason": "not_running"},
+            ),
+        )
+        return ApplyEventResult(False, from_state, from_state, int(version), "not_running")
+
     match = match_transition(
         definition,
         state=from_state,
@@ -417,12 +440,20 @@ async def apply_event(
     tr = match.transition
     to_state = tr.to
     new_version = int(version) + 1
-    to_label = definition.spec.states[to_state].label
+    to_spec = definition.spec.states[to_state]
+    to_label = to_spec.label
 
-    await conn.execute(
-        "update work.instances set state = %s, version = %s, state_entered_at = %s where id = %s",
-        (to_state, new_version, ts, instance_id),
-    )
+    if to_spec.final:
+        await conn.execute(
+            "update work.instances set state = %s, version = %s, state_entered_at = %s,"
+            " status = 'closed', closed_at = %s where id = %s",
+            (to_state, new_version, ts, ts, instance_id),
+        )
+    else:
+        await conn.execute(
+            "update work.instances set state = %s, version = %s, state_entered_at = %s where id = %s",
+            (to_state, new_version, ts, instance_id),
+        )
     await conn.execute(
         "insert into work.instance_transitions ("
         " instance_id, from_state, to_state, event, guard, decision_id, instance_version, at"
@@ -445,7 +476,6 @@ async def apply_event(
         seat_limits=seat_limits,
         entry_tasks=match.entry_tasks,
         participants=participants,
-        workflow_doc=wdoc,
     )
     await _run_effects(
         conn,

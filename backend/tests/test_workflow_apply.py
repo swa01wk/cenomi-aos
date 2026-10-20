@@ -12,7 +12,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
-from aos.kernel import workflow
+from aos.kernel import ids, workflow
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.registry_store import sync_pack
 from aos.kernel.workflow import WorkflowEffectError
@@ -122,7 +122,10 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
     async def _instance_row(self, instance_id: str) -> dict:
         async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
             row = await (
-                await conn.execute("select state, version from work.instances where id = %s", (instance_id,))
+                await conn.execute(
+                    "select state, version, status, closed_at from work.instances where id = %s",
+                    (instance_id,),
+                )
             ).fetchone()
             assert row is not None
             return row
@@ -195,6 +198,98 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
         row = await self._instance_row(inst)
         self.assertEqual(row["state"], "closed")
         self.assertEqual(row["version"], 8)
+        self.assertEqual(row["status"], "closed")
+        self.assertIsNotNone(row["closed_at"])
+
+        inst_stream = ids.stream_instance(inst)
+        async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
+            ob = await (
+                await conn.execute(
+                    "select stream, count(*) as c from evidence.outbox"
+                    " where instance_id = %s and event_type = 'instance.state_changed'"
+                    " group by stream order by stream",
+                    (inst,),
+                )
+            ).fetchall()
+            ob_map = {r["stream"]: int(r["c"]) for r in ob}
+            self.assertEqual(ob_map[inst_stream], 7)
+            self.assertEqual(ob_map[ids.stream_user("faisal")], 7)
+            self.assertEqual(ob_map[ids.stream_user("noura")], 7)
+
+            ev_count = await (
+                await conn.execute(
+                    "select count(*) as c from evidence.execution_events"
+                    " where run_id = %s and event_type = 'StateTransitioned'",
+                    (inst,),
+                )
+            ).fetchone()
+            self.assertEqual(int(ev_count["c"]), 7)
+
+            timer = await (
+                await conn.execute(
+                    "select status from work.timers where instance_id = %s and name = 'quote_deadline'",
+                    (inst,),
+                )
+            ).fetchone()
+            self.assertIsNotNone(timer)
+            self.assertEqual(timer["status"], "cancelled")
+
+            art = await (
+                await conn.execute("select status from work.artifacts where id = 'art_cmp'")
+            ).fetchone()
+            self.assertEqual(art["status"], "locked")
+
+            ntf = await (
+                await conn.execute(
+                    "select person_id from work.notifications where instance_id = %s",
+                    (inst,),
+                )
+            ).fetchone()
+            self.assertEqual(ntf["person_id"], "faisal")
+
+    async def test_event_after_close_is_not_running(self) -> None:
+        inst = "QQ-9006"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(
+                    conn,
+                    instance_id=inst,
+                    pack_version_id=self.v1_id,
+                    state="closed",
+                    version=8,
+                )
+                await conn.execute(
+                    "update work.instances set status = 'closed', closed_at = now() where id = %s",
+                    (inst,),
+                )
+                r = await _apply(
+                    conn, inst, "decision.brief_confirmed", by_role="requester", packs_dir=self.packs_dir
+                )
+        self.assertFalse(r.applied)
+        self.assertEqual(r.reason, "not_running")
+        async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
+            ev = await (
+                await conn.execute(
+                    "select attributes from evidence.execution_events where run_id = %s",
+                    (inst,),
+                )
+            ).fetchone()
+            self.assertEqual(ev["attributes"]["reason"], "not_running")
+
+    async def test_apply_event_rejects_unknown_actor_kind(self) -> None:
+        inst = "QQ-9007"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(conn, instance_id=inst, pack_version_id=self.v1_id)
+                with self.assertRaises(ValueError):
+                    await _apply(
+                        conn,
+                        inst,
+                        "decision.brief_confirmed",
+                        by_role="requester",
+                        packs_dir=self.packs_dir,
+                        actor={"kind": "unknown", "id": "x"},
+                    )
 
     async def test_wrong_role_refused(self) -> None:
         inst = "QQ-9002"

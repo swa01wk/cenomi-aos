@@ -10,7 +10,7 @@ from typing import Any
 
 from ..registry.kinds import NATIVE_TOOLS
 from ..registry.loader import load_pack
-from . import ids
+from . import clock, ids
 
 
 class PackMaterialError(Exception):
@@ -348,7 +348,7 @@ def build_task_contract(
             "alias": (seat_spec.get("runtime") or {}).get("model_alias", "enterprise_reasoning"),
             "max_output_tokens": 4000,
         },
-        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "created_at": clock.now().replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
     if template.get("verifier"):
         contract["verifier"] = template["verifier"]

@@ -161,6 +161,12 @@ class BrokenPacksFail(PackCase):
         self.edit("skills/rfq_authoring/skill.yaml", lambda d: d["spec"]["may_request"].append("upload_to_drive"))
         self.assertFailsWith("E_REF")
 
+    def test_task_template_on_behalf_of_must_be_a_participant(self) -> None:
+        def fn(d):
+            d["spec"]["states"]["rfq_drafting"]["tasks"][0]["on_behalf_of"] = "cfo"
+        self.edit("workflows/quick_quote.yaml", fn)
+        self.assertFailsWith("E_REF")
+
 
 if __name__ == "__main__":
     unittest.main()
