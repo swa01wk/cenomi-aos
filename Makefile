@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate api-types check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -36,7 +36,10 @@ test: ## run all backend tests (Postgres tests skip if no local Postgres)
 validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
 
-check: test validate ## everything a story must keep green before it is done
+api-types: ## regenerate the web API types from openapi.yaml; fails if the committed file is out of date (as CI does)
+	cd web && npm run --silent gen:api && git diff --exit-code -- src/api/schema.d.ts
+
+check: test validate api-types ## everything a story must keep green before it is done
 
 model-real: ## switch the Compose worker to the real model (asks only for a missing key; MODEL= PRICE_IN= PRICE_OUT= override)
 	@bash scripts/dev-model.sh real
