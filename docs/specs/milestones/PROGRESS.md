@@ -29,7 +29,7 @@ milestone. A story's details, tests and contract references are in its milestone
 
 ## M2 Workflow layer — [M2-workflow-layer.md](M2-workflow-layer.md)
 
-- [ ] M2-BE-01 Workflow interpreter
+- [x] M2-BE-01 Workflow interpreter
 - [ ] M2-BE-04 Decisions
 - [ ] M2-BE-07 Conversation follows the job (ADR 015)
 - [ ] M2-BE-03 Participants, queue and claim

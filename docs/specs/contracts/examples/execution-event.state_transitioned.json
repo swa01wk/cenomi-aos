@@ -1,0 +1,28 @@
+{
+  "event_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "schema_version": "aos.execution_event/1",
+  "event_type": "StateTransitioned",
+  "occurred_at": "2026-10-21T14:00:00Z",
+  "tenant_id": "org_demo",
+  "run_id": "QQ-0001",
+  "workflow_id": "quick_quote@1",
+  "task_id": null,
+  "attempt_id": null,
+  "actor": {"kind": "kernel", "id": "kernel"},
+  "correlation_id": "corr_qq0001",
+  "causation_id": null,
+  "aggregate_seq": 42,
+  "contract_version": null,
+  "graph_revision": "procurement_demo@1",
+  "artifact_refs": [],
+  "payload_ref": null,
+  "redacted_summary": "intake → shortlisting on decision.brief_confirmed",
+  "attributes": {
+    "from_state": "intake",
+    "to_state": "shortlisting",
+    "event": "decision.brief_confirmed",
+    "guard": "",
+    "decision_id": "dr_abc123",
+    "instance_version": 2
+  }
+}

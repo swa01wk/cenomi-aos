@@ -95,6 +95,14 @@ def new_eval_run_id() -> str:
     return _new_prefixed_id("ev_")
 
 
+def new_timer_id() -> str:
+    return _new_prefixed_id("tmr_")
+
+
+def new_notification_id() -> str:
+    return _new_prefixed_id("ntf_")
+
+
 def is_outbox_stream(stream: str) -> bool:
     return stream.startswith(OUTBOX_STREAM_PREFIXES)
 

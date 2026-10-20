@@ -40,6 +40,8 @@ Names follow reference architecture v1.2 §29. The worker may **propose** only t
 | TaskCancelled | A kill switch or a person cancels | kernel | `reason` |
 | AttemptFenced | A late call from a stale attempt is refused | kernel | `fencing_token`, `current_token` |
 | BudgetExceeded | An attempt crosses a limit | kernel | `limit`, `used` |
+| StateTransitioned | A workflow transition fires | kernel | `from_state`, `to_state`, `event`, `guard`, `decision_id`, `instance_version` |
+| WorkflowEventIgnored | An event did not match any transition | kernel | `state`, `event`, `reason` (`no_match`, `wrong_role`, `guard_failed`) |
 
 ## UiEvent types
 
