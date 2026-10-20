@@ -82,22 +82,28 @@ async def latest_artifact_version(
 async def is_latest_region_task(
     conn: AsyncConnection, *, instance_id: str, region: str, task_id: str
 ) -> bool:
+    """True when task_id is the region's current Task (work.regions.current_task).
+
+    The kernel sets current_task whenever it creates a region's Task. A region row without one (written by hand,
+    e.g. a test fixture) falls back to the newest Task by created_at; don't rely on that for Tasks created in one
+    transaction, since now() is the transaction's start time and they tie.
+    """
     cur = await conn.execute(
-        "select id from work.tasks where instance_id = %s and region = %s"
-        " and state not in ('COMPLETED', 'CANCELLED')"
-        " order by created_at desc, id desc limit 1",
+        "select current_task from work.regions where instance_id = %s and name = %s",
         (instance_id, region),
     )
     row = await cur.fetchone()
-    if row is not None:
+    if row is None:
+        return False
+    if row[0] is not None:
         return str(row[0]) == task_id
     cur = await conn.execute(
         "select id from work.tasks where instance_id = %s and region = %s"
         " order by created_at desc, id desc limit 1",
         (instance_id, region),
     )
-    row = await cur.fetchone()
-    return row is not None and str(row[0]) == task_id
+    latest = await cur.fetchone()
+    return latest is not None and str(latest[0]) == task_id
 
 
 async def join_ready(
@@ -195,6 +201,10 @@ async def create_region_task(
         contract=contract,
         max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
         region=region_name,
+    )
+    await conn.execute(
+        "update work.regions set current_task = %s where instance_id = %s and name = %s",
+        (task_id, instance_id, region_name),
     )
     return task_id
 
