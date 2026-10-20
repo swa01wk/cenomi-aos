@@ -238,6 +238,7 @@ async def submit_result(
     fencing_token: int,
     result: dict[str, Any],
     packs_dir: Path,
+    simulation: bool = False,
 ) -> dict[str, Any] | CommittedFenced:
     request_hash = agent_result_request_hash(result)
     replay = await check_submit_idempotency(
@@ -357,7 +358,7 @@ async def submit_result(
     task_to = "WAITING_INPUT" if gate.kind == "assist" else "VERIFYING"
     verifier_doc: dict[str, Any] | None = None
 
-    if verifier_name and gate.kind != "assist":
+    if verifier_name and gate.kind != "assist" and not simulation:
         from . import verify
 
         verdict, findings = await verify.run_task_verifier(

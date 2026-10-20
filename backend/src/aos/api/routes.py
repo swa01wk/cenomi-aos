@@ -33,6 +33,7 @@ from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
 from ..kernel.seats import EvalRunJob, SeatError
+from ..kernel.simulate import run_simulation_rolled_back
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
 from ..registry import validate_pack
@@ -204,6 +205,32 @@ async def pack_version(version_id: str, p: ConsoleDep, conn: TxDep) -> dict:
     if v is None:
         raise HTTPException(404, "no such pack version")
     return v
+
+
+class SimulatePackRequest(BaseModel):
+    workflow: str
+    script: str = "dry_run_script"
+
+
+@router.post("/console/pack-versions/{version_id}/simulate", tags=["registry"])
+async def simulate_pack_version(
+    version_id: str,
+    p: ConsoleDep,
+    k: KernelDep,
+    body: SimulatePackRequest,
+) -> dict:
+    async with k.pool.connection() as conn:
+        if await registry_store.get_version(conn, p.org_id, version_id) is None:
+            raise HTTPException(404, "no such pack version")
+    return await run_simulation_rolled_back(
+        k.pool,
+        k.org,
+        org_id=p.org_id,
+        pack_version_id=version_id,
+        workflow_name=body.workflow,
+        script_name=body.script,
+        packs_dir=k.settings.packs_dir,
+    )
 
 
 @router.get("/console/pack-versions/{version_id}/definitions/{kind}/{name}", tags=["registry"])

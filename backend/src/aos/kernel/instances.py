@@ -427,6 +427,7 @@ async def start_instance(
     first_message: str,
     idempotency_key: str | None,
     packs_dir: Path,
+    simulation_instance_id: str | None = None,
 ) -> dict[str, Any] | CommittedRefusal:
     existing_id = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
     if existing_id:
@@ -496,7 +497,7 @@ async def start_instance(
         raise _pack_material_error(exc) from exc
 
     prefix = (wdoc.get("spec") or {}).get("id_prefix", "JOB")
-    instance_id = await ids.next_instance_id(conn, prefix)
+    instance_id = simulation_instance_id or await ids.next_instance_id(conn, prefix)
     task_id = ids.new_task_id()
     attempt_id = ids.new_attempt_id()
     participant_role = bind_role_name
