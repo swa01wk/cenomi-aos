@@ -28,7 +28,7 @@ git clone https://github.com/swa01wk/cenomi-aos && cd cenomi-aos
 cp .env.example .env              # add OPENAI_API_KEY only when you need the real model
 python3 -m venv .venv && source .venv/bin/activate
 make install                      # backend (editable, dev tools) + web dependencies
-make db                           # Postgres in Docker on :5432 (the tests use it)
+make db                           # Postgres in Docker on :5432, or AOS_PG_PORT from .env (the tests use it)
 make check                        # tests + aos validate; nothing may be skipped
 make up                           # full M0 stack: web http://localhost:8080, API http://localhost:8000/docs
 ```
