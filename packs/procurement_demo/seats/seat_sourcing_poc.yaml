@@ -15,8 +15,8 @@ spec:
     run_minutes: 10
     actions_per_run: 10
     daily_cost_usd: 20
-    attempt_cost_usd: 1.0
-    attempt_tokens: 40000
-    attempt_steps: 8
-    attempt_actions: 6
+    attempt_cost_usd: 1.5
+    attempt_tokens: 60000
+    attempt_steps: 12
+    attempt_actions: 10
   evals: [refusals, dry_run]

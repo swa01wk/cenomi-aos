@@ -8,10 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..registry.kinds import NATIVE_TOOLS
+from ..registry.kinds import EFFECT_COMMIT_WORK_TYPES, NATIVE_TOOLS, BudgetSpec, Participant
 from ..registry.loader import load_pack
 from . import clock, ids
 from .org import OrgModel
+from .participants import eval_participant_rule
 
 
 class PackMaterialError(Exception):
@@ -123,6 +124,32 @@ def seat_budget_block(seat_limits: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _budget_dict(raw: dict[str, Any] | BudgetSpec) -> dict[str, Any]:
+    if isinstance(raw, BudgetSpec):
+        return raw.model_dump()
+    return dict(raw)
+
+
+def contract_budget_block(
+    skill_budget: dict[str, Any] | BudgetSpec,
+    seat_limits: dict[str, Any],
+    *,
+    template_override: dict[str, Any] | BudgetSpec | None = None,
+) -> dict[str, Any]:
+    """Skill or template budget, each field capped by the Seat limits."""
+    source = _budget_dict(template_override if template_override is not None else skill_budget)
+    seat = seat_budget_block(seat_limits)
+    return {
+        "tokens": min(int(source["tokens"]), int(seat["tokens"])),
+        "cost_usd": min(float(source["cost_usd"]), float(seat["cost_usd"])),
+        "time_s": min(int(source["seconds"]), int(seat["time_s"])),
+        "steps": min(int(source["steps"]), int(seat["steps"])),
+        "actions": min(int(source["actions"]), int(seat["actions"])),
+        "retries": int(source["retries"]),
+        "children": 0,
+    }
+
+
 def max_attempts_from_budget(budget: dict[str, Any]) -> int:
     return int(budget["retries"]) + 1
 
@@ -133,6 +160,130 @@ def _tool_index(defs: dict[str, dict[str, dict]]) -> dict[str, tuple[str, dict]]
         for tname, tool in (prov.get("spec") or {}).get("tools", {}).items():
             out[tname] = (prov_name, tool)
     return out
+
+
+def _participant_spec(
+    defs: dict[str, dict[str, dict]], workflow_name: str, participant_role: str
+) -> Participant | None:
+    wf = defs.get("WorkflowDefinition", {}).get(workflow_name)
+    if not wf:
+        return None
+    spec = (wf.get("spec") or {}).get("participants") or {}
+    raw = spec.get(participant_role)
+    if not raw:
+        return None
+    return Participant.model_validate(raw)
+
+
+def _candidate_person_ids_for_role(
+    org: OrgModel,
+    participant: Participant,
+) -> list[str]:
+    if participant.bind == "at_creation":
+        org_roles = set(participant.org_roles or [])
+        return [pid for pid, person in org.people.items() if org_roles & set(person.roles)]
+    if participant.bind == "by_claim":
+        queue = (participant.queue or "").strip()
+        if not queue:
+            return []
+        return [pid for pid, person in org.people.items() if person.team == queue]
+    if participant.bind == "by_rule" and participant.rule:
+        try:
+            return [eval_participant_rule(org, participant.rule)]
+        except Exception:
+            return []
+    return []
+
+
+def participant_role_classification_ceiling(
+    seat_doc: dict,
+    defs: dict[str, dict[str, dict]],
+    *,
+    org: OrgModel | None,
+    participant_role: str,
+    workflow_name: str,
+    person_id: str | None,
+) -> str:
+    """Clearance for on_behalf_of: bound person, or lowest among candidates when unbound.
+
+    When nobody can be identified (no org, unknown role, no candidates) the answer is the lowest label: a Task
+    never gets more than its reader may see because the reader is unknown.
+    """
+    if person_id and org is not None:
+        return participant_classification_ceiling(seat_doc, defs, org=org, person_id=person_id)
+    if org is None:
+        return "shareable"
+    participant = _participant_spec(defs, workflow_name, participant_role)
+    if participant is None:
+        return "shareable"
+    candidates = _candidate_person_ids_for_role(org, participant)
+    if not candidates:
+        return "shareable"
+    ceiling = _seat_classification_ceiling(seat_doc, defs)
+    for pid in candidates:
+        clearance = participant_classification_ceiling(seat_doc, defs, org=org, person_id=pid)
+        ceiling = _min_classification(ceiling, clearance)
+    return ceiling
+
+
+def task_classification_ceiling(
+    skill_ceiling: str,
+    seat_doc: dict,
+    defs: dict[str, dict[str, dict]],
+    *,
+    org: OrgModel | None,
+    workflow_name: str,
+    participant_role: str,
+    person_id: str | None,
+) -> str:
+    clearance = participant_role_classification_ceiling(
+        seat_doc,
+        defs,
+        org=org,
+        participant_role=participant_role,
+        workflow_name=workflow_name,
+        person_id=person_id,
+    )
+    return _min_classification(str(skill_ceiling), clearance)
+
+
+def _allowed_tools_for_task(
+    skill_spec: dict[str, Any],
+    work_type: str,
+    tools_idx: dict[str, tuple[str, dict]],
+) -> list[dict[str, Any]]:
+    allowed: list[dict[str, Any]] = [{"name": "read_artifact", "kind": "kernel", "class": "kernel"}]
+    if skill_spec.get("produces"):
+        allowed.append({"name": "save_draft", "kind": "kernel", "class": "kernel"})
+        allowed.append({"name": "ask_question", "kind": "kernel", "class": "kernel"})
+    allowed.append({"name": "submit", "kind": "kernel", "class": "kernel"})
+    wt = str(work_type)
+    for tname in skill_spec.get("may_request") or []:
+        if tname in _KERNEL_TOOL_NAMES:
+            if tname in ("save_draft", "ask_question", "submit"):
+                continue
+            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
+        elif tname in tools_idx:
+            prov, tool = tools_idx[tname]
+            tool_class = tool.get("class") or tool.get("tool_class") or "read"
+            if tool_class == "committed_effect" and wt not in EFFECT_COMMIT_WORK_TYPES:
+                continue
+            allowed.append(_tool_grant(tname, tool, prov))
+    return allowed
+
+
+def _allowed_tools_for_assist(skill_spec: dict[str, Any], tools_idx: dict[str, tuple[str, dict]]) -> list[dict[str, Any]]:
+    allowed: list[dict[str, Any]] = []
+    for native in NATIVE_TOOLS:
+        if native in ("save_draft", "ask_question"):
+            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
+    for tname in skill_spec.get("may_request") or []:
+        if tname in _KERNEL_TOOL_NAMES:
+            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
+        elif tname in tools_idx:
+            prov, tool = tools_idx[tname]
+            allowed.append(_tool_grant(tname, tool, prov))
+    return allowed
 
 
 def _tool_grant(name: str, tool: dict, provider: str) -> dict[str, Any]:
@@ -191,21 +342,22 @@ def build_assist_contract(
     seat_spec = seat_doc.get("spec") or {}
     skill_spec = skill_doc.get("spec") or {}
     tools_idx = _tool_index(defs)
-    allowed: list[dict[str, Any]] = []
-    for native in NATIVE_TOOLS:
-        if native in ("save_draft", "ask_question"):
-            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
-    for tname in skill_spec.get("may_request") or []:
-        if tname in _KERNEL_TOOL_NAMES:
-            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
-        elif tname in tools_idx:
-            prov, tool = tools_idx[tname]
-            allowed.append(_tool_grant(tname, tool, prov))
+    allowed = _allowed_tools_for_assist(skill_spec, tools_idx)
     resources = list(seat_spec.get("resources") or [])
-    ceiling = _seat_classification_ceiling(seat_doc, defs)
+    skill_ceiling = str(skill_spec.get("ceiling") or "internal")
     if org is not None:
-        ceiling = participant_classification_ceiling(seat_doc, defs, org=org, person_id=person_id)
-    budget = seat_budget_block(seat_limits)
+        ceiling = task_classification_ceiling(
+            skill_ceiling,
+            seat_doc,
+            defs,
+            org=org,
+            workflow_name=workflow_name,
+            participant_role=participant_role,
+            person_id=person_id,
+        )
+    else:
+        ceiling = skill_ceiling
+    budget = contract_budget_block(skill_spec.get("budget") or {}, seat_limits)
     outputs = [
         {
             "artifact_type": at,
@@ -270,6 +422,7 @@ def build_task_contract(
     participant_role: str,
     person_id: str | None,
     seat_limits: dict[str, Any],
+    org: OrgModel | None = None,
 ) -> dict[str, Any]:
     skill_name = str(template["skill"])
     skill_doc = defs.get("Skill", {}).get(skill_name)
@@ -278,28 +431,29 @@ def build_task_contract(
     seat_spec = seat_doc.get("spec") or {}
     skill_spec = skill_doc.get("spec") or {}
     tools_idx = _tool_index(defs)
-    allowed: list[dict[str, Any]] = []
-    for native in NATIVE_TOOLS:
-        if native in ("save_draft", "ask_question"):
-            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
-    for tname in skill_spec.get("may_request") or []:
-        if tname in _KERNEL_TOOL_NAMES:
-            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
-        elif tname in tools_idx:
-            prov, tool = tools_idx[tname]
-            allowed.append(_tool_grant(tname, tool, prov))
+    work_type = str(template["work_type"])
+    allowed = _allowed_tools_for_task(skill_spec, work_type, tools_idx)
     resources = list(seat_spec.get("resources") or [])
-    prof_ref = seat_spec.get("authority_profile") or ""
-    prof_name = prof_ref.split("@")[0]
-    prof = defs.get("Policy", {}).get(prof_name) or {}
-    ceiling = "internal"
-    if prof.get("spec", {}).get("type") == "authority_profile":
-        for grant in prof.get("spec", {}).get("grants") or []:
-            if grant.get("resource") in resources:
-                c = grant.get("classification") or "internal"
-                if _class_rank(c) > _class_rank(ceiling):
-                    ceiling = c
-    budget = seat_budget_block(seat_limits)
+    skill_ceiling = str(skill_spec.get("ceiling") or "internal")
+    on_behalf_role = str(template.get("on_behalf_of") or participant_role)
+    if org is not None:
+        ceiling = task_classification_ceiling(
+            skill_ceiling,
+            seat_doc,
+            defs,
+            org=org,
+            workflow_name=workflow_name,
+            participant_role=on_behalf_role,
+            person_id=person_id,
+        )
+    else:
+        ceiling = skill_ceiling
+    template_budget = template.get("budget")
+    budget = contract_budget_block(
+        skill_spec.get("budget") or {},
+        seat_limits,
+        template_override=template_budget,
+    )
     outputs = [
         {
             "artifact_type": at,

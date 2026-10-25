@@ -4,6 +4,8 @@ metadata: {name: supplier_lookup, version: 1, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md
+  ceiling: shareable
+  budget: {tokens: 50000, cost_usd: 1.2, seconds: 300, steps: 10, actions: 10, retries: 2}
   reads: [job_snapshot, brief]
   produces: [supplier_list]
   may_request: [search_suppliers, get_supplier_history]

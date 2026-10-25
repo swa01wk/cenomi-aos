@@ -165,6 +165,18 @@ class LimitsSpec(Strict):
     attempt_actions: int = Field(gt=0, description="Tool and action calls per attempt (TaskContract budget.actions).")
 
 
+class BudgetSpec(Strict):
+    tokens: int = Field(gt=0)
+    cost_usd: float = Field(gt=0)
+    seconds: int = Field(gt=0)
+    steps: int = Field(gt=0)
+    actions: int = Field(gt=0)
+    retries: int = Field(ge=0)
+
+
+ClassificationCeiling = Literal["shareable", "internal", "restricted"]
+
+
 class DelegationSpec(Strict):
     targets: list[Name] = []
     work_types: list[WorkType] = []
@@ -194,6 +206,8 @@ class Seat(Envelope):
 class SkillSpec(Strict):
     work_types: list[WorkType] = Field(min_length=1)
     instructions: str
+    ceiling: ClassificationCeiling
+    budget: BudgetSpec
     reads: list[Name] = []
     produces: list[Name] = []
     may_request: list[Name] = []
@@ -327,6 +341,7 @@ class TaskTemplate(Strict):
     work_type: WorkType
     verifier: Name | None = None
     on_behalf_of: Name | None = None
+    budget: BudgetSpec | None = None
 
 
 class StateSpec(Strict):

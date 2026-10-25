@@ -1,0 +1,5 @@
+turns:
+  - tool_calls:
+      - name: browse_categories
+        args: {query: "loop"}
+repeat_final: true
