@@ -548,7 +548,7 @@ def participant_classification_ceiling(
     seat_ceiling = _seat_classification_ceiling(seat_doc, defs)
     person = org.people.get(person_id)
     if person is None:
-        return seat_ceiling
+        return "shareable"  # an unknown person gets the lowest label, never the Seat's
     clearance = seat_ceiling
     for role in person.roles:
         label = org.role_clearances.get(role, "internal")

@@ -915,10 +915,10 @@ async def post_turn(
         participant_ok=True,
         live_seat_attempts=live,
     )
-    if not (use_workflow and route.kind == "revise"):
-        refusal = await check_admission(conn, pre_ctx)
-        if refusal:
-            return refusal
+    # Every route, revise included, runs the gates before anything is written: a refusal leaves only its record.
+    refusal = await check_admission(conn, pre_ctx)
+    if refusal:
+        return refusal
 
     admit_ctx = pre_ctx
     try:

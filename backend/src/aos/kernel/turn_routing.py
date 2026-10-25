@@ -35,13 +35,19 @@ async def _open_decision_waiting_on_writer(
     instance_id: str,
     person_id: str,
     roles: list[str],
+    definition: WorkflowDefinition,
+    instance_state: str,
 ) -> bool:
+    """An open pack decision of the current state waits on the writer (retry cards and other states don't count)."""
+    events = [f"decision.{name}" for name, dec in definition.spec.decisions.items() if dec.state == instance_state]
+    if not events:
+        return False
     cur = await conn.execute(
         "select 1 from work.pending_items"
-        " where instance_id = %s and status = 'open' and kind = 'decision'"
+        " where instance_id = %s and status = 'open' and kind = 'decision' and event = any(%s::text[])"
         " and (for_person_id = %s or for_role = any(%s::text[]))"
         " limit 1",
-        (instance_id, person_id, roles),
+        (instance_id, events, person_id, roles),
     )
     return await cur.fetchone() is not None
 
@@ -111,7 +117,12 @@ async def resolve_turn_route(
             task_state_before=row.state,
         )
     if row.state == "COMPLETED" and await _open_decision_waiting_on_writer(
-        conn, instance_id=instance_id, person_id=writer_id, roles=writer_roles
+        conn,
+        instance_id=instance_id,
+        person_id=writer_id,
+        roles=writer_roles,
+        definition=definition,
+        instance_state=str(instance_state),
     ):
         return TurnRoute(
             kind="revise",
