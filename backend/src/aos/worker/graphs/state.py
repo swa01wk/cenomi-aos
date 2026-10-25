@@ -20,3 +20,7 @@ class AssistGraphState(TypedDict, total=False):
     agent_result: dict[str, Any]
     saved_in_attempt: dict[str, dict[str, Any]]
     ended_needs_input: bool
+    pending_submit: dict[str, Any]
+
+
+TaskGraphState = AssistGraphState

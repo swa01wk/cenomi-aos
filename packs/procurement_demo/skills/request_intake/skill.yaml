@@ -4,6 +4,8 @@ metadata: {name: request_intake, version: 1, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md
+  ceiling: internal
+  budget: {tokens: 40000, cost_usd: 1.0, seconds: 300, steps: 8, actions: 6, retries: 3}
   reads: [job_snapshot, recent_messages, brief]
   produces: [brief]
   may_request: [ask_question, browse_categories]

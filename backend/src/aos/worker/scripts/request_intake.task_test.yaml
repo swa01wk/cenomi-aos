@@ -1,0 +1,19 @@
+turns:
+  - tool_calls:
+      - name: browse_categories
+        args: {query: "cleaning trolley"}
+  - tool_calls:
+      - name: save_draft
+        args:
+          content:
+            title: "Cleaning trolleys"
+            category: CAT-JAN-EQ
+            quantity: 4
+            specification: "Heavy-duty custodial trolleys"
+            delivery_date: "2026-11-01"
+            delivery_site: "North warehouse"
+            quality_signoff: "Facilities manager"
+  - tool_calls:
+      - name: submit
+        args:
+          summary: "Saved a complete draft brief for cleaning trolleys."

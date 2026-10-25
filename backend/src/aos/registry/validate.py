@@ -165,12 +165,30 @@ class _Checker:
             for i, at in enumerate(v.spec.applies_to):
                 self.ref("Verifier", name, f"spec.applies_to[{i}]", "ArtifactType", at, self.artifacts)
 
+    def _budget_exceeds_seat(self, budget, limits, path_prefix: str, kind: str, name: str, path: str) -> None:
+        if budget.tokens > limits.attempt_tokens:
+            self.err("E_BUDGET_SEAT", kind, name, f"{path}.tokens", f"{path_prefix} tokens exceed Seat limit")
+        if budget.cost_usd > limits.attempt_cost_usd:
+            self.err("E_BUDGET_SEAT", kind, name, f"{path}.cost_usd", f"{path_prefix} cost exceeds Seat limit")
+        seat_seconds = limits.run_minutes * 60
+        if budget.seconds > seat_seconds:
+            self.err("E_BUDGET_SEAT", kind, name, f"{path}.seconds", f"{path_prefix} time exceeds Seat limit")
+        if budget.steps > limits.attempt_steps:
+            self.err("E_BUDGET_SEAT", kind, name, f"{path}.steps", f"{path_prefix} steps exceed Seat limit")
+        if budget.actions > limits.attempt_actions:
+            self.err("E_BUDGET_SEAT", kind, name, f"{path}.actions", f"{path_prefix} actions exceed Seat limit")
+
     def check_skills(self) -> None:
         for name, sk in self.skills.items():
             folder = PurePosixPath(self.p.files[("Skill", name)]).parent
             instr = (folder / sk.spec.instructions).as_posix()
             if instr not in self.p.support_files:
                 self.err("E_FILE", "Skill", name, "spec.instructions", f"instructions file {instr!r} not found")
+            for seat in self.seats.values():
+                if name in seat.spec.skills:
+                    self._budget_exceeds_seat(
+                        sk.spec.budget, seat.spec.limits, f"skill {name!r}", "Skill", name, "spec.budget"
+                    )
             for i, r in enumerate(sk.spec.reads):
                 if r not in BUILTIN_RESOLVERS and r not in self.artifacts:
                     self.err("E_REF", "Skill", name, f"spec.reads[{i}]",
@@ -317,7 +335,15 @@ class _Checker:
         seats_for_role: list[Seat],
         participants: set[str],
     ) -> None:
-        if t.on_behalf_of is not None and t.on_behalf_of not in participants:
+        if t.on_behalf_of is None:
+            self.err(
+                "E_ON_BEHALF_OF",
+                "WorkflowDefinition",
+                wname,
+                f"{path}.on_behalf_of",
+                "every task template needs on_behalf_of (participant role)",
+            )
+        elif t.on_behalf_of not in participants:
             self.err(
                 "E_REF",
                 "WorkflowDefinition",
@@ -338,6 +364,16 @@ class _Checker:
                      "which does not permit it")
         if t.verifier:
             self.ref("WorkflowDefinition", wname, f"{path}.verifier", "Verifier", t.verifier, self.verifiers)
+        if t.budget is not None:
+            for seat in seats_for_role:
+                self._budget_exceeds_seat(
+                    t.budget,
+                    seat.spec.limits,
+                    f"template {t.template!r} budget",
+                    "WorkflowDefinition",
+                    wname,
+                    path,
+                )
 
     def _org_team_paths(self) -> set[str]:
         if not self.org:

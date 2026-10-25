@@ -1,4 +1,4 @@
-"""AgentRuntime adapters: ScriptedRuntime (tests), FakeRuntime and LangGraphRuntime (assist graph)."""
+"""AgentRuntime adapters: ScriptedRuntime (tests), FakeRuntime and LangGraphRuntime."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
 from .models import load_model_registry_config, validate_real_model_startup
-from .protocol import AttemptContext
+from .protocol import AttemptContext, AttemptFailed
 from .types import AgentResult, WorkerAttempt
 
 if TYPE_CHECKING:
@@ -47,6 +47,26 @@ async def _prepare_checkpoint_thread(
     return resolved
 
 
+def _attempt_kind(attempt: WorkerAttempt) -> str:
+    contract = attempt.get("contract") if isinstance(attempt.get("contract"), dict) else {}
+    return str(contract.get("kind") or "assist")
+
+
+def _fake_script_name(attempt: WorkerAttempt, explicit: str | None) -> str:
+    if explicit and explicit.strip():
+        return explicit.strip()
+    env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
+    if env_script:
+        return env_script
+    kind = _attempt_kind(attempt)
+    if kind == "assist":
+        return "assist.stream.yaml"
+    skill = (contract.get("skill") or {}).get("name") if isinstance(contract := attempt.get("contract"), dict) else None
+    skill = str(skill or "unknown")
+    scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"
+    return f"{skill}.{scenario}.yaml"
+
+
 class ScriptedRuntime:
     """Ordered async steps for protocol tests; not the production assist graph."""
 
@@ -79,7 +99,7 @@ class ScriptedRuntime:
 
 
 class FakeRuntime:
-    """Same assist graph as production, with a scripted FakeChatModel."""
+    """Production graphs with a scripted FakeChatModel."""
 
     def __init__(
         self,
@@ -89,9 +109,6 @@ class FakeRuntime:
     ):
         self._checkpointer = checkpointer
         self._script = script
-
-    def _script_name(self) -> str:
-        return (self._script or os.environ.get("AOS_FAKE_SCRIPT") or "assist.stream.yaml").strip()
 
     async def start(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
         resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=False)
@@ -103,11 +120,28 @@ class FakeRuntime:
 
     async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
         from .fake_chat import chat_model_from_script
-        from .graph_runner import run_assist_graph
+        from .graph_runner import run_assist_graph, run_task_graph
         from .scripts_loader import load_fake_script
 
-        script = load_fake_script(self._script_name(), attempt_n=int(attempt.get("n") or 1))
+        script_name = _fake_script_name(attempt, self._script)
+        try:
+            script = load_fake_script(script_name, attempt_n=int(attempt.get("n") or 1))
+        except FileNotFoundError as exc:
+            raise AttemptFailed(
+                "model_error",
+                f"No fake model script {script_name!r} for this attempt ({exc}).",
+            ) from exc
         model = chat_model_from_script(script)
+        kind = _attempt_kind(attempt)
+        if kind == "task":
+            return await run_task_graph(
+                attempt=attempt,
+                ctx=ctx,
+                chat_model=model,
+                checkpointer=self._checkpointer,
+                resolved=resolved,
+                adapter="fake",
+            )
         return await run_assist_graph(
             attempt=attempt,
             ctx=ctx,
@@ -119,7 +153,7 @@ class FakeRuntime:
 
 
 class LangGraphRuntime:
-    """Assist graph with the configured provider chat model."""
+    """Assist or task graph with the configured provider chat model."""
 
     def __init__(self, *, checkpointer: CheckpointerHandle):
         self._checkpointer = checkpointer
@@ -135,11 +169,23 @@ class LangGraphRuntime:
         return await self._run_graph(attempt, ctx, resolved)
 
     async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
-        from .graph_runner import run_assist_graph
+        from .graph_runner import run_assist_graph, run_task_graph
         from .models import build_chat_model
 
         contract = attempt.get("contract") or {}
         model = build_chat_model(self._resolved, contract, self._cfg)
+        kind = _attempt_kind(attempt)
+        if kind == "task":
+            return await run_task_graph(
+                attempt=attempt,
+                ctx=ctx,
+                chat_model=model,
+                checkpointer=self._checkpointer,
+                resolved=resolved,
+                adapter="langgraph",
+                resolved_model=self._resolved,
+                model_cfg=self._cfg,
+            )
         return await run_assist_graph(
             attempt=attempt,
             ctx=ctx,
