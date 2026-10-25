@@ -540,6 +540,31 @@ async def assemble_context(
     obs_row = await obs_cur.fetchone()
     tool_observations = _observations_for_envelope(obs_row[0] if obs_row else [])
 
+    previous_verification: dict[str, Any] | None = None
+    if gate.kind == "task":
+        rework_cur = await conn.execute(
+            "select n, submit_response from work.attempts"
+            " where task_id = %s and outcome = 'submitted' and submit_response is not null"
+            " order by n desc",
+            (gate.task_id,),
+        )
+        for attempt_n, submit_response in await rework_cur.fetchall():
+            response = submit_response if isinstance(submit_response, dict) else json.loads(submit_response)
+            if response.get("verdict") != "REWORK":
+                continue
+            vdoc = response.get("verifier")
+            if not isinstance(vdoc, dict):
+                continue
+            if int(attempt_n) >= gate.attempt_n:
+                continue
+            previous_verification = {
+                "attempt_n": int(attempt_n),
+                "verifier": vdoc.get("name") or vdoc.get("verifier"),
+                "verdict": vdoc.get("verdict"),
+                "findings": vdoc.get("findings") if isinstance(vdoc.get("findings"), list) else [],
+            }
+            break
+
     envelope: dict[str, Any] = {
         "schema_version": "aos.context_envelope/1",
         "envelope_id": ids.new_envelope_id(),
@@ -573,6 +598,8 @@ async def assemble_context(
         "redactions": redactions,
         "skill_instructions": skill_instructions,
     }
+    if previous_verification is not None:
+        envelope["previous_verification"] = previous_verification
 
     _enforce_envelope_size(envelope)
     return envelope
