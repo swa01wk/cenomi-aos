@@ -27,7 +27,7 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             return minimal_agent_result(attempt, text="Listed categories.")
 
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
-        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         await client.aclose()
 
@@ -53,7 +53,7 @@ class WorkerRuntimeTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             "worker-test-1",
             client,
             ScriptedRuntime([blocked]),
-            ("assist",),
+            ("assist", "task"),
             heartbeat_enabled=False,
         )
         run_task = asyncio.create_task(worker.run_once())

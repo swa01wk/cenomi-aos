@@ -32,5 +32,7 @@ attempts:
                 delivery_site: "North warehouse"
                 quality_signoff: "Facilities manager"
                 budget_guidance: 15000
-      - stream_chunks: ["Thanks", ", your brief is updated."]
-        reply_text: "Thanks, your brief is updated."
+      - tool_calls:
+          - name: submit
+            args:
+              summary: "Thanks, your brief is updated."

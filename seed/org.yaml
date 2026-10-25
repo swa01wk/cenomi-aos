@@ -1,6 +1,14 @@
 # Seeded organization for the POC. Identities come from here instead of an identity provider (SSO is deferred).
 organization: {id: org_demo, name: Procurement demo organization, data_residency: sandbox}
 owner_roles: [platform_admin, risk, head_of_procurement]
+role_clearances:
+  end_user: shareable
+  sourcing_user: restricted
+  procurement_user: restricted
+  seat_owner: restricted
+  process_owner: restricted
+  platform_admin: restricted
+  risk: restricted
 departments:
   facilities:
     name: Facilities

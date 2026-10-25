@@ -27,7 +27,7 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   await conversation.getByRole("button", { name: "Send" }).click();
   await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
 
-  // Attempt 2: saves v2 and streams its reply; the completed turn replaces the streamed text.
+  // Attempt 2: saves v2 and completes; the kernel posts a progress turn with the Task summary.
   await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible({
     timeout: 120_000,
   });

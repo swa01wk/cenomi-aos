@@ -45,7 +45,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         budget_steps: int | None = None,
         budget_tokens: int | None = None,
     ) -> str:
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=invoke_hook, settings=settings)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
@@ -53,7 +53,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             if budget_steps is not None or budget_tokens is not None:
                 _patch_latest_task_budget(self.db, steps=budget_steps, tokens=budget_tokens)
             runtime = FakeRuntime(checkpointer=handle, script=script)
-            worker = Worker("worker-test-1", client, runtime, ("assist",))
+            worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
             return await asyncio.wait_for(worker.run_once(), 60)
         finally:
             await handle.close()
@@ -65,7 +65,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         async def capture(**kwargs):
             seqs.append(int(kwargs["delta_seq"]))
 
-        instance_id = await asyncio.to_thread(self._start_job)
+        instance_id = await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
@@ -73,7 +73,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             with patch("aos.kernel.worker_events.OutboxHub.publish_delta", new_callable=AsyncMock) as pub:
                 pub.side_effect = capture
                 runtime = FakeRuntime(checkpointer=handle, script="assist.stream.yaml")
-                worker = Worker("worker-test-1", client, runtime, ("assist",))
+                worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
                 outcome = await asyncio.wait_for(worker.run_once(), 60)
                 self.assertEqual(outcome, "submitted")
         finally:
@@ -108,14 +108,14 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state, "EXCEPTION")
 
     async def test_loop_records_tool_actions(self) -> None:
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
         _patch_latest_task_budget(self.db, steps=9)
         try:
             runtime = FakeRuntime(checkpointer=handle, script="assist.loop.yaml")
-            worker = Worker("worker-test-1", client, runtime, ("assist",))
+            worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
             await asyncio.wait_for(worker.run_once(), 60)
         finally:
             await handle.close()
@@ -133,18 +133,65 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(authorized, "1")
 
     async def test_budget_cross_on_post_then_fenced_no_submit(self) -> None:
-        outcome = await self._run_fake("assist.heavy.yaml", budget_tokens=50, budget_steps=10)
-        self.assertNotEqual(outcome, "submitted")
+        await asyncio.to_thread(self._start_assist_job)
+        attempt = await asyncio.to_thread(self._claim_assist)
+        over_tokens = int(attempt["contract"]["budget"]["tokens"]) + 100
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/events",
+            headers={
+                **self.worker_auth(),
+                "X-AOS-Fencing-Token": str(attempt["fencing_token"]),
+            },
+            json={
+                "events": [
+                    {
+                        "event_type": "ModelInvoked",
+                        "redacted_summary": "model step",
+                        "attributes": {
+                            "tokens_in": over_tokens,
+                            "tokens_out": 0,
+                            "cost_usd": 0.01,
+                        },
+                    }
+                ],
+            },
+        )
+        self.assertEqual(r.status_code, 202, r.text)
         state = _pg.admin_sql(
             self.db,
-            "select state from work.tasks order by updated_at desc limit 1;",
+            f"select state from work.tasks where id = '{attempt['task_id']}';",
         ).stdout.strip()
         self.assertEqual(state, "EXCEPTION")
         failure = _pg.admin_sql(
             self.db,
-            "select failure_class from work.attempts where failure_class is not null order by admitted_at desc limit 1;",
+            f"select failure_class from work.attempts where id = '{attempt['attempt_id']}';",
         ).stdout.strip()
         self.assertEqual(failure, "budget_exhausted")
+        hb = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/heartbeat",
+            headers={
+                **self.worker_auth(),
+                "X-AOS-Fencing-Token": str(attempt["fencing_token"]),
+            },
+        )
+        self.assertEqual(hb.status_code, 409, hb.text)
+        sub = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/submit",
+            headers={
+                **self.worker_auth(),
+                "X-AOS-Fencing-Token": str(attempt["fencing_token"]),
+            },
+            json={
+                "attempt_id": attempt["attempt_id"],
+                "contract_id": attempt["contract"]["contract_id"],
+                "status": "completed",
+                "summary": "Too late.",
+                "reply_blocks": [{"kind": "text", "text": "Nope."}],
+                "output_artifact_refs": [],
+                "input_versions": {},
+            },
+        )
+        self.assertEqual(sub.status_code, 409, sub.text)
 
     async def test_tool_timeout_fails_attempt(self) -> None:
         async def slow_hook(**_kw):
@@ -161,13 +208,13 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             connector_secrets=settings.connector_secrets,
             connector_urls=settings.connector_urls,
         )
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=slow_hook, settings=settings)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
         try:
             runtime = FakeRuntime(checkpointer=handle, script="assist.loop.yaml")
-            worker = Worker("worker-test-1", client, runtime, ("assist",))
+            worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
             outcome = await asyncio.wait_for(worker.run_once(), 60)
         finally:
             await handle.close()
@@ -183,14 +230,14 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             captured["model"] = model
             return model
 
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
         try:
             with patch("aos.worker.fake_chat.chat_model_from_script", side_effect=capture_model):
                 runtime = FakeRuntime(checkpointer=handle, script="assist.ask_with_lookup.yaml")
-                worker = Worker("worker-test-1", client, runtime, ("assist",))
+                worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
                 outcome = await asyncio.wait_for(worker.run_once(), 120)
         finally:
             await handle.close()
@@ -216,14 +263,14 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             captured["model"] = model
             return model
 
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
         try:
             with patch("aos.worker.fake_chat.chat_model_from_script", side_effect=capture_model):
                 runtime = FakeRuntime(checkpointer=handle, script="assist.forbidden_tool.yaml")
-                worker = Worker("worker-test-1", client, runtime, ("assist",))
+                worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
                 outcome = await asyncio.wait_for(worker.run_once(), 120)
                 self.assertEqual(outcome, "submitted", outcome)
         finally:
@@ -238,13 +285,13 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertIn("not allowed: contract.allowed_tools", blob)
 
     async def test_checkpoint_after_fake_runtime_run(self) -> None:
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
         try:
             runtime = FakeRuntime(checkpointer=handle, script="assist.stream.yaml")
-            worker = Worker("worker-test-1", client, runtime, ("assist",))
+            worker = Worker("worker-test-1", client, runtime, ("assist", "task"))
             self.assertEqual(await asyncio.wait_for(worker.run_once(), 60), "submitted")
         finally:
             await client.aclose()
@@ -261,7 +308,7 @@ class AssistGraphTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     async def test_resume_continues_checkpoint(self) -> None:
         _pg.require_runtime_extra()
         handle = await CheckpointerHandle.open(_pg.worker_checkpoint_url(self.db))
-        await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._start_assist_job)
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
         attempt = await client.claim("worker-test-1", ["assist"])
         assert attempt

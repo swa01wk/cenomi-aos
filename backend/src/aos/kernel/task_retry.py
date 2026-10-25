@@ -489,7 +489,9 @@ async def spawn_replacement_task(
     new_row = await after.fetchone()
     if new_row is None or int(count_before) == 0:
         raise DecisionError("internal", 500, "Retry failed", "Could not create a replacement task.")
-    return str(new_row[0])
+    new_id = str(new_row[0])
+    await task_ops.mark_superseded(conn, old_task_id=failed_task_id, new_task_id=new_id)
+    return new_id
 
 
 async def decide_task_retry(

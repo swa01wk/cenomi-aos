@@ -72,8 +72,8 @@ class WorkerSubmitTests(WorkerHarness):
         return r
 
     def test_save_draft_wrong_artifact_type_is_403(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
             headers=self._worker_headers(attempt),
@@ -83,8 +83,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.json()["code"], "not_permitted")
 
     def test_save_draft_same_key_without_artifact_id_versions_one_artifact(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         payload = {
             "artifact_type": "brief",
             "key": "intake",
@@ -117,8 +117,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(count, "1")
 
     def test_save_draft_wrong_field_type_is_422(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         content = _valid_brief()
         content["quantity"] = "ten"
         r = self.client.post(
@@ -133,8 +133,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertFalse(any("required" in str(e.get("message", "")).lower() for e in errors))
 
     def test_submit_output_ref_missing_required_field_is_422(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
             headers=self._worker_headers(attempt),
@@ -168,8 +168,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(sub.json()["code"], "validation_failed")
 
     def test_save_draft_partial_draft_accepted(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
             headers=self._worker_headers(attempt),
@@ -188,8 +188,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.json()["version"], 1)
 
     def test_budget_cross_via_events_ends_attempt_and_fences_next_call(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_assist_job()
+        attempt = self._claim_assist()
         budget = attempt["contract"]["budget"]
         over_tokens = int(budget["tokens"]) + 100
         r = self.client.post(
@@ -235,8 +235,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(hb.status_code, 409, hb.text)
 
     def test_agent_turn_uses_seat_display_name_from_registry(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         body = _agent_result(attempt)
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/submit",
@@ -259,8 +259,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(turn_name, display)
 
     def test_happy_assist_submit_leaves_task_waiting_input(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_assist_job()
+        attempt = self._claim_assist()
         body = _agent_result(attempt)
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/submit",
@@ -277,8 +277,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(task_state, "WAITING_INPUT")
 
     def test_submit_stale_input_versions_returns_stale_verdict(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         body = _agent_result(attempt)
         body["input_versions"] = {"brief": 999}
         r = self.client.post(
@@ -296,8 +296,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(task_state, "READY")
 
     def test_concurrent_duplicate_submit_waits_for_stored_response(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_assist_job()
+        attempt = self._claim_assist()
         body = _agent_result(attempt)
         h = self._worker_headers(attempt)
         started = threading.Event()
@@ -342,8 +342,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.json()["verdict"], "ACCEPTED")
 
     def test_duplicate_submit_returns_stored_response(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         body = _agent_result(attempt)
         h = self._worker_headers(attempt)
         r1 = self.client.post(
@@ -357,8 +357,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r1.json(), r2.json())
 
     def test_duplicate_submit_different_body_is_409(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         body = _agent_result(attempt)
         h = self._worker_headers(attempt)
         self.assertEqual(
@@ -376,22 +376,23 @@ class WorkerSubmitTests(WorkerHarness):
 
     def test_submit_output_not_from_this_attempt_is_422(self) -> None:
         inst = self._start_job()
-        a1 = self._claim()
+        a1 = self._claim_task()
         brief = self._save_brief(a1)
         self.assertEqual(brief.status_code, 201, brief.text)
         art = brief.json()
-        self.client.post(
-            f"/api/worker/attempts/{a1['attempt_id']}/submit",
+        q = self.client.post(
+            f"/api/worker/attempts/{a1['attempt_id']}/questions",
             headers=self._worker_headers(a1),
-            json=_agent_result(a1),
+            json={"blocks": [{"kind": "text", "text": "Which site?"}], "questions": ["North or south?"]},
         )
+        self.assertEqual(q.status_code, 201, q.text)
         turn = self.client.post(
             f"/api/instances/{inst}/turns",
             headers={**self._auth("faisal"), "Idempotency-Key": str(uuid.uuid4())},
             json={"text": "Again", "client_turn_id": "second-turn"},
         )
         self.assertEqual(turn.status_code, 202, turn.text)
-        a2 = self._claim()
+        a2 = self._claim_task()
         body = _agent_result(a2)
         body["output_artifact_refs"] = [
             {
@@ -408,8 +409,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.status_code, 422, r.text)
 
     def test_settlement_uses_accumulated_usage_when_consumed_lower(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/events",
             headers=self._worker_headers(attempt),
@@ -446,7 +447,7 @@ class WorkerSubmitTests(WorkerHarness):
 
     def test_ask_questions_then_post_turn_readmits(self) -> None:
         inst = self._start_job()
-        attempt = self._claim()
+        attempt = self._claim_task()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/questions",
             headers=self._worker_headers(attempt),
@@ -473,8 +474,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(live, "1")
 
     def test_stream_wrong_turn_id_is_422(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/events",
             headers=self._worker_headers(attempt),
@@ -484,8 +485,8 @@ class WorkerSubmitTests(WorkerHarness):
         self.assertEqual(r.json()["code"], "validation_failed")
 
     def test_delta_published_only_for_turn_author(self) -> None:
-        self._start_job()
-        attempt = self._claim()
+        inst = self._start_job()
+        attempt = self._claim_task()
         turn_id = attempt["turn_id"]
         assert turn_id
         with patch("aos.kernel.worker_events.OutboxHub.publish_delta", new_callable=AsyncMock) as pub:

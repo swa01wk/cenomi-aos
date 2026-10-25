@@ -171,14 +171,46 @@ class WorkerHarness(unittest.TestCase):
         self.assertEqual(r.status_code, 201, r.text)
         return r.json()["instance_id"]
 
-    def _claim(self, worker_id: str = "worker-test-1") -> dict:
+    def _park_intake_task(self, instance_id: str) -> None:
+        """Finish the intake task so assist-only worker tests claim the assist task."""
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set state = 'ENDED', outcome = 'cancelled'
+            where state in ('ADMITTED', 'CLAIMED') and task_id in (
+              select id from work.tasks where instance_id = '{instance_id}' and kind = 'task'
+            );
+            update work.tasks set state = 'COMPLETED'
+            where instance_id = '{instance_id}' and kind = 'task';
+            update work.tasks set attempts_used = 0 where instance_id = '{instance_id}' and kind = 'assist';
+            """,
+        )
+
+    def _start_assist_job(self) -> str:
+        inst = self._start_job()
+        self._park_intake_task(inst)
+        tr = self.client.post(
+            f"/api/instances/{inst}/turns",
+            headers={**self._auth("faisal"), "Idempotency-Key": str(uuid.uuid4())},
+            json={"text": "Message for the assist task.", "client_turn_id": f"assist-{uuid.uuid4()}"},
+        )
+        self.assertEqual(tr.status_code, 202, tr.text)
+        return inst
+
+    def _claim(self, worker_id: str = "worker-test-1", *, lanes: list[str] | None = None) -> dict:
         r = self.client.post(
             "/api/worker/attempts/claim",
             headers=self.worker_auth(worker_id),
-            json={"worker_id": worker_id, "lanes": ["assist"]},
+            json={"worker_id": worker_id, "lanes": lanes or ["task", "assist"]},
         )
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()
+
+    def _claim_task(self, worker_id: str = "worker-test-1") -> dict:
+        return self._claim(worker_id, lanes=["task"])
+
+    def _claim_assist(self, worker_id: str = "worker-test-1") -> dict:
+        return self._claim(worker_id, lanes=["assist"])
 
     def _ledger_settled(self) -> float:
         out = _pg.admin_sql(
@@ -205,7 +237,7 @@ class WorkerApiTests(WorkerHarness):
     def test_worker_route_without_authorization_is_401(self) -> None:
         r = self.client.post(
             "/api/worker/attempts/claim",
-            json={"worker_id": "w", "lanes": ["assist"]},
+            json={"worker_id": "w", "lanes": ["assist", "task"]},
         )
         self.assertEqual(r.status_code, 401, r.text)
 
@@ -231,7 +263,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertEqual(r.json()["code"], "not_permitted")
 
     def test_stale_fencing_token_commits_attempt_fenced(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         old_token = attempt["fencing_token"]
         _pg.admin_sql(
@@ -254,7 +286,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertEqual(count, "1")
 
     def test_expired_lease_readmits_and_late_heartbeat_is_fenced(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         old_token = attempt["fencing_token"]
         _pg.admin_sql(
@@ -285,7 +317,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertEqual(hb.json()["code"], "fenced")
 
     def test_final_failure_tells_the_participant(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         r = self.client.post(
             f"/api/worker/attempts/{attempt['attempt_id']}/fail",
@@ -304,7 +336,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertEqual(completed, "1")
 
     def test_retryable_failure_with_attempts_left_says_nothing_yet(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         _pg.admin_sql(
             self.db,
@@ -319,7 +351,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertEqual(_failure_notices(self.db), [])
 
     def test_expired_lease_with_no_attempts_left_tells_the_participant(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         _pg.admin_sql(
             self.db,
@@ -333,7 +365,7 @@ class WorkerApiTests(WorkerHarness):
         self.assertIn("I stopped responding", notices[0])
 
     def test_fail_racing_expiry_settles_budget_once(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         _pg.admin_sql(
             self.db,
@@ -402,7 +434,7 @@ class WorkerApiTests(WorkerHarness):
 
     def test_readmit_skipped_when_post_turn_already_admitted(self) -> None:
         inst_id = self._start_job()
-        attempt = self._claim()
+        attempt = self._claim_task()
         _pg.admin_sql(
             self.db,
             f"update work.attempts set lease_expires_at = now() - interval '1 minute'"
@@ -452,10 +484,10 @@ class WorkerApiTests(WorkerHarness):
             self.db,
             "select count(*) from gov.decision_records where event = 'admission.denied' and value = 'conflict';",
         ).stdout.strip()
-        self.assertEqual(dr, "1")
+        self.assertEqual(dr, "0")
 
     def test_settlement_uses_admitted_at_day_not_today(self) -> None:
-        self._start_job()
+        self._start_assist_job()
         attempt = self._claim()
         reserved = float(
             _pg.admin_sql(
@@ -500,7 +532,7 @@ class WorkerApiTests(WorkerHarness):
         a2 = self.client.post(
             "/api/worker/attempts/claim",
             headers=self.worker_auth("worker-b"),
-            json={"worker_id": "worker-b", "lanes": ["assist"]},
+            json={"worker_id": "worker-b", "lanes": ["task", "assist"]},
         )
         self.assertEqual(a2.status_code, 200, a2.text)
         a2 = a2.json()
@@ -526,7 +558,7 @@ class WorkerApiTests(WorkerHarness):
 
     def test_get_contract_returns_skill_instructions(self) -> None:
         self._start_job()
-        attempt = self._claim()
+        attempt = self._claim_task()
         r = self.client.get(
             f"/api/worker/attempts/{attempt['attempt_id']}/contract",
             headers={**self.worker_auth(), "X-AOS-Fencing-Token": str(attempt["fencing_token"])},

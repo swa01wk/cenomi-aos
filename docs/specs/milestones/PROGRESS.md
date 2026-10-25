@@ -35,7 +35,7 @@ milestone. A story's details, tests and contract references are in its milestone
 - [x] M2-BE-03 Participants, queue and claim
 - [x] M2-BE-02 Parallel region and join
 - [x] M2-BE-05 Timers, scheduler and demo clock
-- [ ] M2-AG-01 Task graph
+- [x] M2-AG-01 Task graph
 - [x] M2-AG-03 Verifiers
 - [ ] M2-AG-02 supplier_lookup and rfq_draft
 - [ ] M2-AG-04 Assist Skills that keep people informed

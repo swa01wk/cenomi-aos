@@ -616,11 +616,11 @@ async def expire_one_attempt(
     )
 
     turn_budget_exhausted = False
-    if task_kind == "assist" and turn_id:
+    if turn_id:
         turn_count = await task_ops.count_attempts_for_turn(conn, task_id, turn_id)
         turn_budget_exhausted = turn_count >= int(max_attempts)
     attempts_exhausted = (
-        turn_budget_exhausted if task_kind == "assist" else int(attempts_used) >= int(max_attempts)
+        turn_budget_exhausted if turn_id else int(attempts_used) >= int(max_attempts)
     )
     if task_state != "RUNNING" or attempts_exhausted:
         if task_kind == "assist" and task_state == "RUNNING":
@@ -686,6 +686,18 @@ async def expire_one_attempt(
             "update work.tasks set state = 'READY', updated_at = now() where id = %s",
             (task_id,),
         )
+        if turn_id:
+            return ExpireOutcome(
+                expired=True,
+                readmit=ExpiredLease(
+                    org_id=org_id,
+                    seat_name=seat_name,
+                    seat_version=int(seat_version),
+                    instance_id=instance_id,
+                    task_id=task_id,
+                    turn_id=turn_id,
+                ),
+            )
         return ExpireOutcome(expired=True)
 
     return ExpireOutcome(expired=True)
@@ -727,12 +739,15 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
     turn_count = 0
-    if task_kind == "assist" and lease.turn_id:
+    if lease.turn_id:
         turn_count = await task_ops.count_attempts_for_turn(conn, lease.task_id, lease.turn_id)
-    if task_state != "RUNNING":
+    if task_kind == "task" and lease.turn_id:
+        if task_state not in ("RUNNING", "READY", "WAITING_INPUT"):
+            return
+    elif task_state != "RUNNING":
         return
-    if task_kind == "assist":
-        if lease.turn_id and turn_count >= int(max_attempts):
+    if lease.turn_id:
+        if turn_count >= int(max_attempts):
             return
     elif int(attempts_used) >= int(max_attempts):
         return
@@ -754,7 +769,7 @@ async def readmit_after_expiry_lease(conn: AsyncConnection, lease: ExpiredLease)
         task_id=lease.task_id,
         attempts_used=int(attempts_used),
         max_attempts=int(max_attempts),
-        turn_attempts_used=turn_count if task_kind == "assist" else None,
+        turn_attempts_used=turn_count if lease.turn_id else None,
         has_live_attempt=has_live,
         dependency_versions=attributes,
         contract_dependency_versions=contract.get("dependency_versions") or {},

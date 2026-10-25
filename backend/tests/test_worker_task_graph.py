@@ -183,6 +183,7 @@ class TaskGraphWorkerTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
 
     async def test_rework_prompt_includes_previous_findings(self) -> None:
         inst = await asyncio.to_thread(self._start_job)
+        await asyncio.to_thread(self._park_intake_task, inst)
         task_id, _contract = self._insert_task_row(inst)
         attempt2 = ids.new_attempt_id()
         rework_body = json.dumps(

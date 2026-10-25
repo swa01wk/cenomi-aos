@@ -47,7 +47,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     async def test_happy_path_submits_once(self) -> None:
         await asyncio.to_thread(self._start_job)
         client = await make_http_client(self, "w1")
-        worker = Worker("w1", client, ScriptedRuntime([_ok_step]), ("assist",))
+        worker = Worker("w1", client, ScriptedRuntime([_ok_step]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "idle")
         submitted = _pg.admin_sql(
@@ -68,7 +68,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.05)
             return minimal_agent_result(attempt)
 
-        worker = Worker("w1", client, ScriptedRuntime([slow_step]), ("assist",), heartbeat_enabled=True)
+        worker = Worker("w1", client, ScriptedRuntime([slow_step]), ("assist", "task"), heartbeat_enabled=True)
         run_task = asyncio.create_task(worker.run_once())
 
         while client.heartbeat_count < 2:
@@ -92,7 +92,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.05)
             return minimal_agent_result(attempt)
 
-        worker = Worker("w1", client, ScriptedRuntime([slow_step]), ("assist",), heartbeat_enabled=False)
+        worker = Worker("w1", client, ScriptedRuntime([slow_step]), ("assist", "task"), heartbeat_enabled=False)
         run_task = asyncio.create_task(worker.run_once())
         claim_mono = time.monotonic()
         while time.monotonic() < claim_mono + lease + 1.0:
@@ -113,7 +113,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             "w1",
             client,
             ScriptedRuntime([blocked]),
-            ("assist",),
+            ("assist", "task"),
             heartbeat_enabled=False,
         )
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 5), "fenced")
@@ -134,11 +134,11 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             "A",
             client_a,
             ScriptedRuntime([stalls]),
-            ("assist",),
+            ("assist", "task"),
             heartbeat_enabled=False,
             ignore_local_lease_deadline=True,
         )
-        worker_b = Worker("B", client_b, ScriptedRuntime([_ok_step]), ("assist",))
+        worker_b = Worker("B", client_b, ScriptedRuntime([_ok_step]), ("assist", "task"))
 
         task_a = asyncio.create_task(worker_a.run_once())
         await asyncio.sleep(lease + 1.0)
@@ -169,7 +169,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return minimal_agent_result(attempt)
 
-        worker = Worker("w1", client, ScriptedRuntime([slow]), ("assist",), heartbeat_enabled=False)
+        worker = Worker("w1", client, ScriptedRuntime([slow]), ("assist", "task"), heartbeat_enabled=False)
         task = asyncio.create_task(worker.run_once())
         await asyncio.sleep(lease + 1.0)
         await asyncio.to_thread(self._run_tick)
@@ -196,7 +196,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 raise
 
         task = asyncio.create_task(
-            Worker("w1", client, ScriptedRuntime([blocked]), ("assist",), heartbeat_enabled=True).run_once()
+            Worker("w1", client, ScriptedRuntime([blocked]), ("assist", "task"), heartbeat_enabled=True).run_once()
         )
         await asyncio.sleep(0.5)
         await asyncio.to_thread(
@@ -216,7 +216,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             raise AttemptFailed("invalid_output", "output did not match the brief schema")
 
         client = await make_http_client(self, "w1")
-        worker = Worker("w1", client, ScriptedRuntime([bad]), ("assist",))
+        worker = Worker("w1", client, ScriptedRuntime([bad]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:invalid_output")
         failure_class = _pg.admin_sql(
             self.db,
@@ -232,9 +232,12 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("connector exploded")
 
         client = await make_http_client(self, "w1")
-        worker = Worker("w1", client, ScriptedRuntime([boom]), ("assist",))
+        worker = Worker("w1", client, ScriptedRuntime([boom]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:internal")
-        task_id = _pg.admin_sql(self.db, "select id from work.tasks order by created_at desc limit 1;").stdout.strip()
+        task_id = _pg.admin_sql(
+            self.db,
+            "select task_id from work.attempts order by admitted_at desc limit 1;",
+        ).stdout.strip()
         state = _pg.admin_sql(self.db, f"select state from work.tasks where id = '{task_id}';").stdout.strip()
         self.assertEqual(state, "EXCEPTION")
         admitted = _pg.admin_sql(
@@ -255,7 +258,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             return minimal_agent_result(attempt)
 
         client = await make_http_client(self, invoke_hook=mock_erp_hook)
-        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         await client.aclose()
 
@@ -272,7 +275,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 seen["rule"] = exc.rule
             return minimal_agent_result(attempt)
 
-        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         self.assertEqual(seen.get("code"), "not_permitted")
         self.assertEqual(seen.get("rule"), "contract.allowed_tools")
@@ -291,7 +294,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 seen["errors"] = exc.errors
             return minimal_agent_result(attempt)
 
-        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         self.assertEqual(seen.get("code"), "validation_failed")
         errors = seen.get("errors")
@@ -312,7 +315,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 seen["effect_unknown"] = exc.effect_unknown
             return minimal_agent_result(attempt)
 
-        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([script]), ("assist", "task"))
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "submitted")
         self.assertEqual(seen.get("code"), "connector_failed")
         self.assertIs(seen.get("effect_unknown"), False)
@@ -327,7 +330,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
             r["contract_id"] = "not-the-contract"
             return r
 
-        worker = Worker("w1", client, ScriptedRuntime([bad_submit]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
+        worker = Worker("w1", client, ScriptedRuntime([bad_submit]), ("assist", "task"), poll_min_s=0.2, poll_max_s=0.5)
         self.assertEqual(await asyncio.wait_for(worker.run_once(), 30), "failed:invalid_output")
         failure_class = _pg.admin_sql(
             self.db,
@@ -345,7 +348,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         await asyncio.to_thread(self._start_job)
         client = await make_http_client(self, "w1")
         client._token = "not-a-valid-token"
-        worker = Worker("w1", client, ScriptedRuntime([]), ("assist",))
+        worker = Worker("w1", client, ScriptedRuntime([]), ("assist", "task"))
         with self.assertRaises(SystemExit) as ctx:
             await worker.run_forever()
         self.assertEqual(ctx.exception.code, 1)
@@ -372,7 +375,7 @@ class WorkerProtocolTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
                 cancelled.set()
                 raise
 
-        worker = Worker("worker-test-1", client, ScriptedRuntime([blocked]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([blocked]), ("assist", "task"))
         task = asyncio.create_task(worker.run_forever())
         await asyncio.sleep(0.5)
         t0 = time.monotonic()
@@ -418,7 +421,7 @@ class WorkerResilienceTests(unittest.IsolatedAsyncioTestCase):
 
         raw = httpx.AsyncClient(transport=httpx.MockTransport(boom), base_url="http://x/api")
         client = HttpKernelClient("http://x/api", "t", client=raw)
-        worker = Worker("w", client, ScriptedRuntime([]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
+        worker = Worker("w", client, ScriptedRuntime([]), ("assist", "task"), poll_min_s=0.2, poll_max_s=0.5)
         task = asyncio.create_task(worker.run_forever())
         done, _ = await asyncio.wait({task}, timeout=2.5)
         self.assertFalse(done, "run_forever exited while kernel was unreachable")
@@ -440,7 +443,7 @@ class WorkerResilienceTests(unittest.IsolatedAsyncioTestCase):
 
         raw = httpx.AsyncClient(transport=httpx.MockTransport(forbidden), base_url="http://x/api")
         client = HttpKernelClient("http://x/api", "t", client=raw)
-        worker = Worker("w", client, ScriptedRuntime([]), ("assist",), poll_min_s=0.2, poll_max_s=0.5)
+        worker = Worker("w", client, ScriptedRuntime([]), ("assist", "task"), poll_min_s=0.2, poll_max_s=0.5)
         task = asyncio.create_task(worker.run_forever())
         done, _ = await asyncio.wait({task}, timeout=2.5)
         self.assertFalse(done, "run_forever exited after a non-401 claim problem")

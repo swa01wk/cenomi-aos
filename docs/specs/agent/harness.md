@@ -66,9 +66,12 @@ assist graph: load ─▶ assemble_context ─▶ model_step ─┬─▶ read t
 ## Checkpoints and threads (ADR 001)
 
 - Saver: `AsyncPostgresSaver` in schema `lg_checkpoints`, connected as `aos_worker` (the only schema it can write).
-- `thread_id = <task_id>:<first attempt of this run>`. A **resume** after approval or input continues that thread from
-  `attempt.resume.checkpoint_id` on a new attempt. A **retry or REWORK** starts a new thread: the previous attempt's
-  drafts reach the model only through the envelope, never through its checkpoint.
+- `thread_id = <task_id>:<attempt n>`. Each admitted attempt starts a **fresh** thread unless the attempt carries
+  `resume.checkpoint_id` (M3 approval interrupts).
+- **Resume-on-input** (for example intake after `ask_question`): the kernel admits a new attempt with the person's
+  `turn_id` as signal. The graph does **not** continue the prior LangGraph checkpoint; `recent_messages` and artifact
+  drafts in the envelope carry the answer and saved draft. Same rule for **retry** and **REWORK**: only approval
+  interrupts resume a checkpoint thread.
 - Checkpoints are working memory. Losing one costs a re-run of the attempt, nothing more.
 
 ## Prompt template
