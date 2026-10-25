@@ -213,4 +213,13 @@ async def run_task_verifier(
     if handler is None:
         return "FAIL", [f"Verifier {verifier_name!r} has no implementation available ({impl_str!r})."]
     inp = await build_verifier_input(conn, gate=gate, result=result, defs=defs)
-    return handler(inp)
+    refs = result.get("output_artifact_refs") or []
+    if len(inp["outputs"]) != len(refs):
+        return "FAIL", ["An output named in the result was not found on this job."]
+    try:
+        verdict, findings = handler(inp)
+    except Exception as exc:  # noqa: BLE001 - a broken verifier never passes work
+        return "FAIL", [f"Verifier {verifier_name!r} could not run ({type(exc).__name__})."]
+    if verdict not in ("PASS", "REWORK", "FAIL") or not isinstance(findings, list):
+        return "FAIL", [f"Verifier {verifier_name!r} returned an invalid result."]
+    return verdict, [str(f) for f in findings]

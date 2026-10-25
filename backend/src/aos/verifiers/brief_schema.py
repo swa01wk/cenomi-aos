@@ -33,11 +33,8 @@ def _parse_now(inp: dict[str, Any]) -> datetime:
         return raw
     if isinstance(raw, str):
         text = raw.strip().replace("Z", "+00:00")
-        try:
-            return datetime.fromisoformat(text)
-        except ValueError:
-            pass
-    return datetime.now()
+        return datetime.fromisoformat(text)
+    raise ValueError("verifier input has no `now`")
 
 
 def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:

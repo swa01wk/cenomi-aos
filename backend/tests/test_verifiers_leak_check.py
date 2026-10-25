@@ -78,3 +78,52 @@ class LeakCheckVerifierTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealPackTypes(unittest.TestCase):
+    """The pack's own classifications, not hand-written ones: an honest RFQ must pass."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from pathlib import Path
+
+        from aos.registry.loader import load_pack
+
+        pack = load_pack(Path(__file__).resolve().parents[2] / "packs" / "procurement_demo")
+        cls.types = {}
+        for name, at in pack.get("ArtifactType").items():
+            s = at.spec
+            cls.types[name] = {
+                "classification": s.classification,
+                "row_based": s.row_based,
+                "row_key": s.row_key,
+                "fields": {
+                    f: {"type": fs.type, "classification": fs.classification or s.classification}
+                    for f, fs in s.fields.items()
+                },
+            }
+        cls.brief = {
+            "title": "Cleaning trolleys", "category": "CAT-0042", "quantity": 40,
+            "specification": "Stainless steel, three shelves", "delivery_date": "2026-11-20",
+            "delivery_site": "Mall A loading bay", "budget_guidance": 40000,
+        }
+
+    def _run(self, body: str):
+        return leak_check.verify({
+            "artifact_types": self.types,
+            "outputs": [{"artifact_type": "rfq_email", "content": {
+                "supplier_id": "S1", "to": "a@b.c", "subject": "RFQ: Cleaning trolleys", "body": body}}],
+            "instance_artifacts": [{"artifact_type": "brief", "content": self.brief}],
+        })
+
+    def test_honest_rfq_passes(self) -> None:
+        verdict, findings = self._run(
+            "Please quote 40 Cleaning trolleys (Stainless steel, three shelves) for delivery to "
+            "Mall A loading bay by 2026-11-20."
+        )
+        self.assertEqual((verdict, findings), ("PASS", []))
+
+    def test_budget_in_rfq_is_caught(self) -> None:
+        verdict, findings = self._run("Please quote 40 Cleaning trolleys; our budget is SAR 40,000.")
+        self.assertEqual(verdict, "REWORK")
+        self.assertEqual(findings, ["body: leaks brief.budget_guidance"])

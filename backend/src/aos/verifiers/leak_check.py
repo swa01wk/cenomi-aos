@@ -74,14 +74,14 @@ def _shareable_outputs(outputs: list[dict[str, Any]], artifact_types: dict[str, 
     for out in outputs:
         atype = str(out.get("artifact_type") or "")
         spec = artifact_types.get(atype) or {}
-        if str(spec.get("classification") or "internal") != "shareable":
-            continue
         content = out.get("content")
         if not isinstance(content, dict):
             continue
         row_based = bool(spec.get("row_based"))
         for fname, val in iter_field_values(content, row_based=row_based):
             if val is None:
+                continue
+            if field_classification(atype, fname, artifact_types) != "shareable":
                 continue
             if isinstance(val, str):
                 text = val
