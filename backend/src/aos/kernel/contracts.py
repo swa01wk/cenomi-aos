@@ -204,17 +204,21 @@ def participant_role_classification_ceiling(
     workflow_name: str,
     person_id: str | None,
 ) -> str:
-    """Clearance for on_behalf_of: bound person, or lowest among candidates when unbound."""
+    """Clearance for on_behalf_of: bound person, or lowest among candidates when unbound.
+
+    When nobody can be identified (no org, unknown role, no candidates) the answer is the lowest label: a Task
+    never gets more than its reader may see because the reader is unknown.
+    """
     if person_id and org is not None:
         return participant_classification_ceiling(seat_doc, defs, org=org, person_id=person_id)
     if org is None:
-        return _seat_classification_ceiling(seat_doc, defs)
+        return "shareable"
     participant = _participant_spec(defs, workflow_name, participant_role)
     if participant is None:
-        return _seat_classification_ceiling(seat_doc, defs)
+        return "shareable"
     candidates = _candidate_person_ids_for_role(org, participant)
     if not candidates:
-        return _seat_classification_ceiling(seat_doc, defs)
+        return "shareable"
     ceiling = _seat_classification_ceiling(seat_doc, defs)
     for pid in candidates:
         clearance = participant_classification_ceiling(seat_doc, defs, org=org, person_id=pid)

@@ -110,6 +110,11 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
   class `committed_effect` only when the template's work type is in `EFFECT_COMMIT_WORK_TYPES` (kinds.py), the same
   rule the Console's `needs_approval` uses. **Test:** the `rfq_draft` contract has no `send_message`; the
   `rfq_send` contract does.
+- **Carried from M2-AG-01 part 1 (review), for part 2:** a person's clearance is computed in
+  `participant_classification_ceiling` by a hard-coded org role (`end_user` → shareable). Clearance is org data:
+  give the org model a clearance per org role (seed: end_user shareable, the procurement roles restricted) and read
+  it from there, so no org role name lives in kernel code. Part 2 binds intake to the requester, so this matters
+  there. **Test:** an org whose requester role is named differently still gets the requester's clearance from data.
 - **Carried from M2-AG-03:** when the context envelope includes `previous_verification`, the task prompt should
   surface those findings to the model (rendering belongs in this story's graph/prompt assembly).
 ### M2-AG-02 supplier_lookup and rfq_draft

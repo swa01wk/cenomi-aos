@@ -55,12 +55,12 @@ def _attempt_kind(attempt: WorkerAttempt) -> str:
 def _fake_script_name(attempt: WorkerAttempt, explicit: str | None) -> str:
     if explicit and explicit.strip():
         return explicit.strip()
-    env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
-    if env_script:
-        return env_script
     kind = _attempt_kind(attempt)
     if kind == "assist":
-        return "assist.stream.yaml"
+        # AOS_FAKE_SCRIPT configures the chat (assist) attempts, as in M1. It never applies to workflow Tasks:
+        # .env sets it to the intake chat script, which a Task graph can't play.
+        env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
+        return env_script or "assist.stream.yaml"
     skill = (contract.get("skill") or {}).get("name") if isinstance(contract := attempt.get("contract"), dict) else None
     skill = str(skill or "unknown")
     scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"

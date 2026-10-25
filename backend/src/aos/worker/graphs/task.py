@@ -109,15 +109,22 @@ async def model_step_node(state: TaskGraphState, config) -> dict[str, Any]:
     )
     ctx.record_model_usage(tokens_in, tokens_out, cost_val)
     tool_calls = list(getattr(ai, "tool_calls", None) or [])
-    return {
-        "pending_tool_calls": tool_calls,
-        "worker_notes": [],
-    }
+    out: dict[str, Any] = {"pending_tool_calls": tool_calls, "worker_notes": []}
+    if not tool_calls:
+        # Models sometimes answer in prose before using tools. One nudge, then the attempt fails.
+        out["text_only_steps"] = int(state.get("text_only_steps") or 0) + 1
+        out["worker_notes"] = [
+            "Your last step had no tool call. Text alone does nothing here: use a tool, save the draft, or call "
+            "submit with a short summary when the output is ready."
+        ]
+    return out
 
 
-def _route_after_model(state: TaskGraphState) -> Literal["tools", "__invalid__"]:
+def _route_after_model(state: TaskGraphState) -> Literal["tools", "assemble_context", "__invalid__"]:
     if state.get("pending_tool_calls"):
         return "tools"
+    if int(state.get("text_only_steps") or 0) <= 1:
+        return "assemble_context"
     return "__invalid__"
 
 
@@ -194,13 +201,31 @@ async def finish_node(state: TaskGraphState, config) -> dict[str, Any]:
     if not summary:
         raise AttemptFailed("invalid_output", "submit requires a summary.")
     saved = dict(state.get("saved_in_attempt") or {})
+    refs = _output_refs(saved)
+    produced_types = set(saved.keys())  # saved_in_attempt is keyed by artifact type
+    expected = [
+        str(o.get("artifact_type"))
+        for o in (contract.get("expected_outputs") or [])
+        if isinstance(o, dict) and o.get("artifact_type")
+    ]
+    for art in (ctx.envelope or {}).get("artifacts") or []:
+        atype = str(art.get("artifact_type") or "")
+        if atype in expected and atype not in produced_types and art.get("artifact_id") and art.get("version"):
+            refs.append(
+                {
+                    "artifact_id": str(art["artifact_id"]),
+                    "version": int(art["version"]),
+                    "content_hash": str(art.get("content_hash") or ""),
+                }
+            )
+            produced_types.add(atype)
     consumed = ctx.consumed_budget()
     result: AgentResult = {
         "schema_version": "aos.agent_result/1",
         "contract_id": contract["contract_id"],
         "attempt_id": attempt["attempt_id"],
         "status": "completed",
-        "output_artifact_refs": _output_refs(saved),
+        "output_artifact_refs": refs,
         "evidence_refs": [],
         "input_versions": dict(contract.get("dependency_versions") or {}),
         "consumed_budget": consumed,
@@ -228,7 +253,7 @@ def build_task_graph(
     graph.add_conditional_edges(
         "model_step",
         _route_after_model,
-        {"tools": "tools", "__invalid__": "invalid_output"},
+        {"tools": "tools", "assemble_context": "assemble_context", "__invalid__": "invalid_output"},
     )
     graph.add_conditional_edges(
         "tools",

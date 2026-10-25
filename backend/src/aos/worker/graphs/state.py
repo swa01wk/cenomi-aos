@@ -21,6 +21,7 @@ class AssistGraphState(TypedDict, total=False):
     saved_in_attempt: dict[str, dict[str, Any]]
     ended_needs_input: bool
     pending_submit: dict[str, Any]
+    text_only_steps: int
 
 
 TaskGraphState = AssistGraphState
