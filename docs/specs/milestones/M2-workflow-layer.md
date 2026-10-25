@@ -110,6 +110,8 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
   class `committed_effect` only when the template's work type is in `EFFECT_COMMIT_WORK_TYPES` (kinds.py), the same
   rule the Console's `needs_approval` uses. **Test:** the `rfq_draft` contract has no `send_message`; the
   `rfq_send` contract does.
+- **Carried from M2-AG-03:** when the context envelope includes `previous_verification`, the task prompt should
+  surface those findings to the model (rendering belongs in this story's graph/prompt assembly).
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).

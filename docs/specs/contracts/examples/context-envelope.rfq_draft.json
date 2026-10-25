@@ -127,5 +127,11 @@
       "field": "budget_guidance",
       "reason": "classification"
     }
-  ]
+  ],
+  "previous_verification": {
+    "attempt_n": 1,
+    "verifier": "leak_check",
+    "verdict": "REWORK",
+    "findings": ["body: leaks brief.budget_guidance"]
+  }
 }
