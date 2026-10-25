@@ -336,9 +336,16 @@ class JobsConversationTests(unittest.TestCase):
             self.assertEqual(r.status_code, 201, r.text)
             inst_id = r.json()["instance_id"]
             skill = _pg.admin_sql(
-                self.db, f"select skill from work.tasks where instance_id = '{inst_id}'"
+                self.db,
+                f"select skill from work.tasks where instance_id = '{inst_id}'"
+                f" and kind = 'task' and template = 'alt_intake'",
             ).stdout.strip()
             self.assertEqual(skill, "alt_intake")
+            assist = _pg.admin_sql(
+                self.db,
+                f"select skill from work.tasks where instance_id = '{inst_id}' and kind = 'assist'",
+            ).stdout.strip()
+            self.assertEqual(assist, "alt_intake")
 
     def test_start_budget_backstop_leaves_no_partial_rows(self) -> None:
         self._activate_seat()

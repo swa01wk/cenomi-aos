@@ -100,26 +100,22 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
     `on_behalf_of` role. M2-BE-01 uses a placeholder (the Seat's highest grant), harmless only while no Task runs.
   - **Tests:** a template without `on_behalf_of` fails validation; the `supplier_lookup` contract's ceiling is
     `shareable` and `request_intake`'s is `internal`.
-- **Carried from M2-BE-06 (review):** `aos simulate` completes Tasks with a stub executor (placeholder artifacts by
-  field type, verifiers skipped, only on `-SIM-` jobs) because the Task graphs don't exist yet. Once they do, run
-  the simulation's Tasks and intake through the real graphs with `FakeRuntime` and the pack's `happy` scripts, so
-  the exit gate's "with the fake model" is literally true; keep the stub only as a fallback for Skills without a
-  script. **Test:** the dry run reaches `closed` through FakeRuntime with verifiers running.
 - **Carried from M2-BE-06 (review):** `build_task_contract` grants every tool the Skill may request, so the
   `rfq_draft` Task (work type `document_draft`) gets `send_message` because `rfq_authoring` lists it. Grant tools of
   class `committed_effect` only when the template's work type is in `EFFECT_COMMIT_WORK_TYPES` (kinds.py), the same
   rule the Console's `needs_approval` uses. **Test:** the `rfq_draft` contract has no `send_message`; the
   `rfq_send` contract does.
-- **Carried from M2-AG-01 part 1 (review), for part 2:** a person's clearance is computed in
-  `participant_classification_ceiling` by a hard-coded org role (`end_user` → shareable). Clearance is org data:
-  give the org model a clearance per org role (seed: end_user shareable, the procurement roles restricted) and read
-  it from there, so no org role name lives in kernel code. Part 2 binds intake to the requester, so this matters
-  there. **Test:** an org whose requester role is named differently still gets the requester's clearance from data.
 - **Carried from M2-AG-03:** when the context envelope includes `previous_verification`, the task prompt should
   surface those findings to the model (rendering belongs in this story's graph/prompt assembly).
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
+- **Carried from M2-BE-06 (review):** `aos simulate` completes Tasks with a stub executor (placeholder artifacts by
+  field type, verifiers skipped, only on `-SIM-` jobs) because the Task graphs don't exist yet. Once every Skill has a
+  `happy` script and the worker can run inside the simulation transaction, run the simulation's Tasks and intake
+  through the real graphs with `FakeRuntime`, so the exit gate's "with the fake model" is literally true; keep the
+  stub only as a fallback for Skills without a script. **Test:** the dry run reaches `closed` through FakeRuntime
+  with verifiers running.
 ### M2-AG-04 Assist Skills that keep people informed
 - **`sourcing_assist`:**
   - the Seat's default assist Skill, with spec `agent/skills/sourcing_assist.md`;

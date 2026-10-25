@@ -22,7 +22,7 @@ class WorkerTokenRedactionTests(WorkerHarness, unittest.IsolatedAsyncioTestCase)
         await asyncio.to_thread(self._start_job)
         token = self.worker_auth()["Authorization"].split(" ", 1)[1]
         client = await make_http_client(self)
-        worker = Worker("worker-test-1", client, ScriptedRuntime([assist_complete]), ("assist",))
+        worker = Worker("worker-test-1", client, ScriptedRuntime([assist_complete]), ("assist", "task"))
 
         root = logging.getLogger()
         prior_root = root.level
@@ -51,7 +51,7 @@ class WorkerTokenRedactionTests(WorkerHarness, unittest.IsolatedAsyncioTestCase)
             api_url="http://test/api",
             worker_token=token,
             worker_id="worker-test-1",
-            lanes=("assist",),
+            lanes=("assist", "task"),
             runtime="fake",
             checkpoint_database_url="postgresql://aos_worker:aos_worker_dev@127.0.0.1:5432/aos",
             poll_min_s=1.0,

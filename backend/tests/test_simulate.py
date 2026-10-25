@@ -166,7 +166,7 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts["quote_comparison"], 1)
         self.assertEqual(counts["po_create"], 1)
         self.assertEqual(counts["quote_triage"], 2)
-        self.assertNotIn("request_intake", counts)
+        self.assertEqual(counts["request_intake"], 1)
 
     async def test_simulate_pack_version_matches(self) -> None:
         from psycopg_pool import AsyncConnectionPool

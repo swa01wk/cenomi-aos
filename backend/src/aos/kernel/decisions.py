@@ -74,14 +74,12 @@ async def _state_tasks_complete(
 ) -> bool:
     if not templates:
         return True
-    cur = await conn.execute(
-        "select template, state from work.tasks where instance_id = %s and template = any(%s)",
-        (instance_id, templates),
-    )
-    rows = await cur.fetchall()
-    by_template = {t: s for t, s in rows}
+    from . import tasks as task_ops
+
+    latest = await task_ops.latest_task_rows_for_templates(conn, instance_id, templates)
     for tpl in templates:
-        if by_template.get(tpl) != "COMPLETED":
+        row = latest.get(tpl)
+        if row is None or row.state != "COMPLETED":
             return False
     return True
 
@@ -784,6 +782,22 @@ async def decide_pending(
     await open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
 
     return record_body
+
+
+async def void_open_decisions_for_state_view(
+    conn: AsyncConnection,
+    *,
+    instance_id: str,
+    view_type: str,
+    voided_by: str,
+) -> int:
+    """Void open decisions bound to the latest artifact for this view type."""
+    bound = await _latest_view_artifact(conn, instance_id, view_type)
+    if bound is None:
+        return 0
+    return await void_open_decisions_for_artifact(
+        conn, instance_id=instance_id, artifact_id=bound[0], voided_by=voided_by
+    )
 
 
 async def void_open_decisions_for_artifact(

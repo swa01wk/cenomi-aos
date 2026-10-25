@@ -45,6 +45,7 @@ class Organization(_S):
 class OrgModel(_S):
     organization: Organization
     owner_roles: list[str] = []
+    role_clearances: dict[str, str] = Field(default_factory=dict)
     departments: dict[str, Department]
     people: dict[str, Person]
 
@@ -52,11 +53,18 @@ class OrgModel(_S):
     def _consistent(self) -> "OrgModel":
         teams = {f"{d}/{t}" for d, dept in self.departments.items() for t in dept.teams}
         problems = []
+        valid_labels = {"shareable", "internal", "restricted"}
+        for role, label in self.role_clearances.items():
+            if label not in valid_labels:
+                problems.append(f"role_clearances.{role}: unknown classification {label!r}")
         for pid, p in self.people.items():
             if p.team not in teams:
                 problems.append(f"person {pid}: no team {p.team}")
             if p.console and not CONSOLE_ROLES & set(p.roles):
                 problems.append(f"person {pid}: console access needs one of {sorted(CONSOLE_ROLES)}")
+            for role in p.roles:
+                if role not in self.role_clearances:
+                    problems.append(f"person {pid}: role {role!r} has no entry in role_clearances")
         for did, d in self.departments.items():
             if d.head not in self.people:
                 problems.append(f"department {did}: head {d.head} is not a person")

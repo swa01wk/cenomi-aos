@@ -498,11 +498,25 @@ class ContextEnvelopeTests(unittest.TestCase):
             self.db,
             f"update work.instances set title = '{DISTINCT_QQ2_TITLE}' where id = '{inst2}';",
         )
-        self.client.post(
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set state = 'ENDED', outcome = 'cancelled'
+            where task_id in (select id from work.tasks where instance_id = '{inst1}' and kind = 'task')
+              and state in ('ADMITTED', 'CLAIMED');
+            update work.tasks set state = 'COMPLETED'
+            where instance_id = '{inst1}' and kind = 'task';
+            """,
+        )
+        tr = self.client.post(
             f"/api/instances/{inst1}/turns",
             headers={**self._auth("faisal"), "Idempotency-Key": str(uuid.uuid4())},
-            json={"text": f"What is the price on {inst2}?"},
+            json={
+                "text": f"What is the price on {inst2}?",
+                "client_turn_id": "c07-cross-job",
+            },
         )
+        self.assertEqual(tr.status_code, 202, tr.text)
         attempt = self._claim(lanes=["assist"])
         envelope = self._assemble(attempt["attempt_id"], attempt["fencing_token"])
         self.assertEqual(envelope["ids"]["instance_id"], inst1)

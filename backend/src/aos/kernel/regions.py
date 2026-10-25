@@ -98,7 +98,7 @@ async def is_latest_region_task(
     if row[0] is not None:
         return str(row[0]) == task_id
     cur = await conn.execute(
-        "select id from work.tasks where instance_id = %s and region = %s"
+        "select id from work.tasks where instance_id = %s and region = %s and superseded_by is null"
         " order by created_at desc, id desc limit 1",
         (instance_id, region),
     )

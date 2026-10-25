@@ -274,8 +274,8 @@ def _allowed_tools_for_task(
 
 def _allowed_tools_for_assist(skill_spec: dict[str, Any], tools_idx: dict[str, tuple[str, dict]]) -> list[dict[str, Any]]:
     allowed: list[dict[str, Any]] = []
-    for native in NATIVE_TOOLS:
-        if native in ("save_draft", "ask_question"):
+    if skill_spec.get("produces"):
+        for native in ("save_draft", "ask_question"):
             allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
     for tname in skill_spec.get("may_request") or []:
         if tname in _KERNEL_TOOL_NAMES:
@@ -547,10 +547,13 @@ def participant_classification_ceiling(
     """Highest classification labels this person may receive in context and progress turns."""
     seat_ceiling = _seat_classification_ceiling(seat_doc, defs)
     person = org.people.get(person_id)
-    org_roles = list(person.roles) if person else []
-    if org_roles == ["end_user"]:
-        return _min_classification(seat_ceiling, "shareable")
-    return seat_ceiling
+    if person is None:
+        return "shareable"  # an unknown person gets the lowest label, never the Seat's
+    clearance = seat_ceiling
+    for role in person.roles:
+        label = org.role_clearances.get(role, "internal")
+        clearance = _min_classification(clearance, str(label))
+    return clearance
 
 
 _ASSIST_CONTRACT_IDENTITY_KEYS = frozenset(

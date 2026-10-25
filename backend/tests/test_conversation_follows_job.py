@@ -178,7 +178,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
                 f"""
                 select a.id from work.attempts a
                 join work.tasks t on t.id = a.task_id
-                where t.instance_id = '{inst_id}' and t.kind = 'assist'
+                where t.instance_id = '{inst_id}'
                 order by a.admitted_at desc limit 1;
                 """,
             ).stdout.strip()
@@ -187,11 +187,25 @@ class ConversationFollowsJobTests(unittest.TestCase):
         claim = self.client.post(
             "/api/worker/attempts/claim",
             headers=self.worker_auth(),
-            json={"worker_id": "w-conv", "lanes": ["assist"]},
+            json={"worker_id": "w-conv", "lanes": ["assist", "task"]},
         )
         self.assertEqual(claim.status_code, 200, claim.text)
         body = claim.json()
-        self.assertEqual(body["attempt_id"], attempt_id)
+        attempt_id = body["attempt_id"]
+        contract = body["contract"]
+        if contract.get("kind") == "task":
+            task_id = _pg.admin_sql(
+                self.db, f"select task_id from work.attempts where id = '{attempt_id}';"
+            ).stdout.strip()
+            _pg.admin_sql(
+                self.db,
+                f"""
+                update work.attempts set state = 'ENDED', outcome = 'needs_input'
+                where id = '{attempt_id}';
+                update work.tasks set state = 'WAITING_INPUT' where id = '{task_id}';
+                """,
+            )
+            return
         sub = self.client.post(
             f"/api/worker/attempts/{attempt_id}/submit",
             headers={
@@ -200,7 +214,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
             },
             json={
                 "attempt_id": attempt_id,
-                "contract_id": body["contract"]["contract_id"],
+                "contract_id": contract["contract_id"],
                 "status": "completed",
                 "summary": "Done.",
                 "reply_blocks": [{"kind": "text", "text": "Reply."}],
@@ -228,8 +242,19 @@ class ConversationFollowsJobTests(unittest.TestCase):
 
     def test_seventh_message_admitted(self) -> None:
         inst = self._start()
-        self._complete_assist(inst, "faisal", "turn-1", post=False)
-        for i in range(2, 8):
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set state = 'ENDED', outcome = 'cancelled'
+            where task_id in (
+              select id from work.tasks where instance_id = '{inst}' and kind = 'task'
+            ) and state in ('ADMITTED', 'CLAIMED');
+            update work.tasks set state = 'COMPLETED', updated_at = now()
+            where instance_id = '{inst}' and template = 'request_intake' and superseded_by is null;
+            update work.tasks set attempts_used = 0 where instance_id = '{inst}' and kind = 'assist';
+            """,
+        )
+        for i in range(1, 8):
             self._complete_assist(inst, "faisal", f"turn-{i}", f"Message {i}")
 
     def test_shortlisting_uses_sourcing_assist_contract(self) -> None:
@@ -294,7 +319,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
         claim = self.client.post(
             "/api/worker/attempts/claim",
             headers=self.worker_auth("w-conv2"),
-            json={"worker_id": "w-conv2", "lanes": ["assist"]},
+            json={"worker_id": "w-conv2", "lanes": ["assist", "task"]},
         ).json()
         v2 = claim["contract"]["contract_version"]
         self.assertGreater(int(v2), int(v1))
@@ -447,7 +472,17 @@ class ConversationFollowsJobTests(unittest.TestCase):
 
     def test_turn_retry_shares_budget(self) -> None:
         inst = self._start()
-        self._complete_assist(inst, "faisal", "first-msg", post=False)
+        _pg.admin_sql(
+            self.db,
+            f"""
+            update work.attempts set state = 'ENDED', outcome = 'cancelled'
+            where task_id in (select id from work.tasks where instance_id = '{inst}' and kind = 'task')
+              and state in ('ADMITTED', 'CLAIMED');
+            update work.tasks set state = 'COMPLETED'
+            where instance_id = '{inst}' and kind = 'task';
+            update work.tasks set attempts_used = 0 where instance_id = '{inst}' and kind = 'assist';
+            """,
+        )
         tr = self.client.post(
             f"/api/instances/{inst}/turns",
             headers=self.login("faisal"),
