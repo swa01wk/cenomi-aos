@@ -521,8 +521,12 @@ async def assemble_context(
         redactions.extend(
             artifact_redaction_entries(projected, at.spec, viewer_roles, classification_ceiling=ceiling)
         )
+        if at.spec.row_based and at.spec.row_key:
+            selected = await _selected_row_keys(conn, instance_id, aid, version_n)
+            if selected is not None:
+                projected = _only_selected_rows(projected, rec.content, at.spec.row_key, selected)
         st = envelope_artifact_status(status)
-        envelope_artifacts.append(envelope_artifact_item(projected, status=st))
+        envelope_artifacts.append(envelope_artifact_item(projected, status=st, key=_key))
         provenance.append(
             {
                 "source_ref": f"artifact://{aid}@{version_n}",
@@ -573,6 +577,54 @@ async def assemble_context(
         "redactions": redactions,
         "skill_instructions": skill_instructions,
     }
+    rework = await _previous_rework(conn, task_id=gate.task_id, attempt_id=gate.attempt_id)
+    if rework is not None:
+        envelope["rework"] = rework
 
     _enforce_envelope_size(envelope)
     return envelope
+
+
+async def _selected_row_keys(
+    conn: AsyncConnection, instance_id: str, artifact_id: str, version: int
+) -> set[str] | None:
+    """Row keys people chose from this exact version (the latest such decision), or None when nobody chose."""
+    cur = await conn.execute(
+        "select selection from gov.decision_records"
+        " where subject_kind = 'instance' and subject_id = %s and selection is not null"
+        " and artifact_ref->>'artifact_id' = %s and (artifact_ref->>'version')::int = %s"
+        " order by at desc limit 1",
+        (instance_id, artifact_id, version),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        return None
+    raw = row[0] if isinstance(row[0], list) else json.loads(row[0])
+    return {str(s) for s in raw}
+
+
+def _only_selected_rows(
+    projected: dict[str, Any], stored: dict[str, Any], row_key: str, selected: set[str]
+) -> dict[str, Any]:
+    """Keep the projected rows whose stored row key was selected (projection keeps row order)."""
+    stored_rows = [r for r in (stored.get("rows") or []) if isinstance(r, dict)]
+    shown = list((projected.get("content") or {}).get("rows") or [])
+    kept = [p for p, s in zip(shown, stored_rows) if str(s.get(row_key)) in selected]
+    return {**projected, "content": {**projected["content"], "rows": kept}}
+
+
+async def _previous_rework(conn: AsyncConnection, *, task_id: str, attempt_id: str) -> dict[str, Any] | None:
+    """The verifier findings that sent this Task's last submitted attempt back, if it was sent back."""
+    cur = await conn.execute(
+        "select submit_response from work.attempts"
+        " where task_id = %s and id <> %s and outcome = 'submitted' order by n desc limit 1",
+        (task_id, attempt_id),
+    )
+    row = await cur.fetchone()
+    response = (row[0] if isinstance(row[0], dict) else json.loads(row[0])) if row and row[0] else None
+    if not response or response.get("verdict") != "REWORK":
+        return None
+    verifier = response.get("verifier") or {}
+    if not verifier.get("name"):
+        return None
+    return {"verifier": str(verifier["name"]), "findings": [str(f) for f in verifier.get("findings") or []]}

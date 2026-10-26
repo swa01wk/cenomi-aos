@@ -2,6 +2,7 @@
 events:
   - {type: seat_ui.new_job, actor: faisal, text: "40 cleaning trolleys for Mall A by 20 Nov"}
   - {type: event.intent_identified}
+  - {type: turn, actor: faisal, text: "North warehouse by 20 November, budget 15000"}
   - {type: decision.brief_confirmed, actor: faisal}
   - {type: claim, actor: noura, role: buyer}
   - {type: decision.shortlist_confirmed, actor: noura, attributes: {shortlist_count: 3}}

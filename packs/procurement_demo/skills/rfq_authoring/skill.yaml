@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Skill
-metadata: {name: rfq_authoring, version: 1, owner: head_of_procurement}
+metadata: {name: rfq_authoring, version: 2, owner: head_of_procurement}
 spec:
   work_types: [document_draft, outbound_communication]
   instructions: instructions.md
@@ -8,3 +8,10 @@ spec:
   produces: [rfq_email]
   may_request: [ask_question, draft_message, send_message, leak_check_diff]
   verifiers: [leak_check]
+  runs:
+    document_draft:
+      classification_ceiling: shareable
+      budget: {tokens: 60000, cost_usd: 1.50, time_s: 600, steps: 12, actions: 10, retries: 2}
+    outbound_communication:
+      classification_ceiling: shareable
+      budget: {tokens: 20000, cost_usd: 0.50, time_s: 300, steps: 6, actions: 10, retries: 2}

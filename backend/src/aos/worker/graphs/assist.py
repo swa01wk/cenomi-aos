@@ -13,10 +13,10 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from ..budget import require_model_budget
-from ..draft_body import build_save_draft_body
+from ..draft_body import build_save_draft_body, draft_slot
 from ..errors import AttemptWaitingForInput, Fenced, ToolInvocationError
 from ..models import ModelRegistryConfig, ResolvedModel, compute_cost_usd
-from ..prompt_render import prompt_version as assist_prompt_version
+from ..prompt_render import prompt_version_for
 from ..protocol import AttemptContext, AttemptFailed
 from ..prompt_render import render_context_message, render_system_message
 from ..streaming import LiveStreamBatcher
@@ -132,12 +132,13 @@ async def load_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx.contract_bundle = bundle
     if not ctx.agent_started:
         adapter = _configurable(config).get("adapter", "fake")
+        graph_name = "task" if contract.get("kind") == "task" else "assist"
         await ctx.post_events(
             events=[
                 {
                     "event_type": "AgentStarted",
-                    "redacted_summary": "Assist graph started.",
-                    "attributes": {"adapter": adapter, "graph": "assist"},
+                    "redacted_summary": f"{graph_name.capitalize()} graph started.",
+                    "attributes": {"adapter": adapter, "graph": graph_name},
                 }
             ]
         )
@@ -179,7 +180,10 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     model = _chat_model(config)
     tools = envelope.get("commands") or []
     bound = model.bind_tools(tools) if tools else model
-    turn_id = str((state.get("ids") or {}).get("turn_id") or ctx.attempt.get("turn_id") or "")
+    # A Task's final text is its result summary, not a chat reply, so only assist runs stream to the turn.
+    turn_id = ""
+    if contract.get("kind") != "task":
+        turn_id = str((state.get("ids") or {}).get("turn_id") or ctx.attempt.get("turn_id") or "")
     stream_seq = int(state.get("stream_seq") or 0)
     try:
         ai, stream_seq = await _invoke_model_step(
@@ -208,7 +212,7 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
                 "attributes": {
                     "provider": provider,
                     "model": model_id,
-                    "prompt_version": assist_prompt_version(),
+                    "prompt_version": prompt_version_for(contract),
                     "tokens_in": tokens_in,
                     "tokens_out": tokens_out,
                     "cost_usd": cost_val,
@@ -323,16 +327,25 @@ async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
                 )
                 saved_row = await ctx.save_draft(body)
                 at = str(body["artifact_type"])
-                saved[at] = {
+                key = str(body.get("key") or "")
+                saved[draft_slot(at, key)] = {
                     "artifact_id": saved_row.get("artifact_id"),
                     "version": saved_row.get("version"),
+                    "content_hash": saved_row.get("content_hash"),
                     "args_sha": args_sha,
                     "content": body["content"],
                 }
-                actions.append(
-                    f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save it "
-                    "again unless something changed. Next, ask for what is still missing or reply."
-                )
+                if contract.get("kind") == "task":
+                    label = f"{at} for {key}" if key else at
+                    actions.append(
+                        f"save_draft: saved {label} v{saved_row.get('version')}. Don't save it again unless something "
+                        "changed. Next, save what is still missing, ask, or finish with a short summary."
+                    )
+                else:
+                    actions.append(
+                        f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save "
+                        "it again unless something changed. Next, ask for what is still missing or reply."
+                    )
             elif name == "ask_question":
                 questions_raw = args.get("questions")
                 questions = (

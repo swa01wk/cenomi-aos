@@ -1,4 +1,4 @@
-"""Render assist_v1: trusted system text vs per-step context message."""
+"""Render assist_v1 / task_v1: trusted system text vs per-step context message."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .models import PROMPT_VERSION_ASSIST
+from .models import PROMPT_VERSION_ASSIST, PROMPT_VERSION_TASK
 from .untrusted import format_observation_for_context, wrap_untrusted
 
 _PROMPTS = Path(__file__).resolve().parent / "prompts"
@@ -40,7 +40,7 @@ def render_system_message(*, contract: dict[str, Any], skill_instructions: str, 
     scope = envelope.get("scope") if isinstance(envelope.get("scope"), dict) else {}
     org_id = str(scope.get("org_id") or "the organization")
     seat = str(scope.get("seat") or "digital worker")
-    tmpl = _env().get_template("assist_v1.jinja")
+    tmpl = _env().get_template(f"{prompt_version_for(contract)}.jinja")
     return tmpl.render(
         org_id=org_id,
         seat_label=seat,
@@ -70,8 +70,10 @@ def render_context_message(
         "remaining_budget": envelope.get("remaining_budget"),
         "redactions": envelope.get("redactions"),
     }
+    if isinstance(envelope.get("rework"), dict):
+        payload["rework"] = envelope["rework"]
     return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 
-def prompt_version() -> str:
-    return PROMPT_VERSION_ASSIST
+def prompt_version_for(contract: dict[str, Any]) -> str:
+    return PROMPT_VERSION_TASK if contract.get("kind") == "task" else PROMPT_VERSION_ASSIST

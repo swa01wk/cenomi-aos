@@ -41,7 +41,9 @@ REWORK otherwise, naming the rows.
 ## Fake model script `happy`
 
 `search_suppliers {category}` → `get_supplier_history` × 5 → `save_draft` supplier_list (5 rows, Najd 88, Al Noor 81,
-Desert Clean 77, Gulf Janitorial 64, Riyadh Facility Mart 58) → finish.
+Desert Clean 77, Gulf Janitorial 64, Riyadh Facility Mart 58) → finish. The script can't know receipt refs in
+advance: a source written `{{receipt:TOOL}}` or `{{receipt:TOOL:TEXT}}` is filled in by the fake model with the ref of
+the latest TOOL result whose arguments contain TEXT.
 
 ## Evals and tests
 

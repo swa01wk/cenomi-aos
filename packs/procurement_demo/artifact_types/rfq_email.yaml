@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: ArtifactType
-metadata: {name: rfq_email, version: 1, owner: head_of_procurement}
+metadata: {name: rfq_email, version: 2, owner: head_of_procurement}
 spec:
   description: One request for quotation per shortlisted supplier. Shareable fields only.
   fields:
@@ -9,6 +9,7 @@ spec:
     subject: {type: string, required: true}
     body: {type: text, required: true}
     attachments: {type: list}
+  item_key: supplier_id
   classification: shareable
   view: {type: message_composer}
   visibility:

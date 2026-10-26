@@ -8,6 +8,12 @@
   white-space: nowrap;
 }
 
+.workspace {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font: 700 12px/1.5 var(--sans);
+}
+
 .ok {
   background: var(--ok-soft);
   color: var(--ok);

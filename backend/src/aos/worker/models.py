@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 PROMPT_VERSION_ASSIST = "assist_v1"
+PROMPT_VERSION_TASK = "task_v1"
 
 
 @dataclass(frozen=True)

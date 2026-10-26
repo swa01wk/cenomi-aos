@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Skill
-metadata: {name: supplier_lookup, version: 1, owner: head_of_procurement}
+metadata: {name: supplier_lookup, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md
@@ -8,3 +8,7 @@ spec:
   produces: [supplier_list]
   may_request: [search_suppliers, get_supplier_history]
   verifiers: [sources_cited]
+  runs:
+    analysis:
+      classification_ceiling: shareable
+      budget: {tokens: 50000, cost_usd: 1.20, time_s: 300, steps: 10, actions: 10, retries: 2}

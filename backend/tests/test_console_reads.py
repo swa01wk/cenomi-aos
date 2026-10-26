@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 import unittest
@@ -154,7 +155,7 @@ class ConsoleReadsTests(unittest.TestCase):
         )
         pack_yaml = alt_packs / "procurement_demo" / "pack.yaml"
         pack_yaml.write_text(
-            pack_yaml.read_text().replace("version: 1", "version: 2", 1)
+            re.sub(r"version: (\d+)", lambda m: f"version: {int(m.group(1)) + 1}", pack_yaml.read_text(), count=1)
         )
 
         async def _run() -> str:

@@ -87,7 +87,6 @@ class WorkerSubmitTests(WorkerHarness):
         attempt = self._claim()
         payload = {
             "artifact_type": "brief",
-            "key": "intake",
             "content": _valid_brief(),
             "inputs": [],
         }
@@ -112,9 +111,20 @@ class WorkerSubmitTests(WorkerHarness):
             self.db,
             f"select count(*) from work.artifacts where instance_id = ("
             f" select instance_id from work.tasks where id = '{attempt['task_id']}')"
-            f" and artifact_type = 'brief' and key = 'intake';",
+            f" and artifact_type = 'brief' and key = '';",
         ).stdout.strip()
         self.assertEqual(count, "1")
+
+    def test_key_on_a_type_without_items_is_422(self) -> None:
+        self._start_job()
+        attempt = self._claim()
+        r = self.client.post(
+            f"/api/worker/attempts/{attempt['attempt_id']}/drafts",
+            headers=self._worker_headers(attempt),
+            json={"artifact_type": "brief", "key": "intake", "content": _valid_brief(), "inputs": []},
+        )
+        self.assertEqual(r.status_code, 422, r.text)
+        self.assertEqual(r.json()["errors"], [{"pointer": "/key", "message": "must be empty"}])
 
     def test_save_draft_wrong_field_type_is_422(self) -> None:
         self._start_job()

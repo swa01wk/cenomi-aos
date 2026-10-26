@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Pack
-metadata: {name: procurement_demo, version: 1, owner: head_of_procurement}
+metadata: {name: procurement_demo, version: 4, owner: head_of_procurement}
 spec:
   kernel: aos/v1
   description: Quick Quote on the Sourcing Agent. A request for quotation from intake to purchase order.

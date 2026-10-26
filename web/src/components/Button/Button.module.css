@@ -15,6 +15,8 @@
 
 .workspace {
   min-height: var(--touch-workspace);
+  border-radius: 12px;
+  font-weight: 700;
 }
 
 .console {
@@ -45,6 +47,15 @@
   background: var(--ink);
   border-color: var(--ink);
   color: #fff;
+}
+
+.workspace.dark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.workspace.secondary {
+  border-color: var(--line-input, var(--border-secondary));
 }
 
 .danger {

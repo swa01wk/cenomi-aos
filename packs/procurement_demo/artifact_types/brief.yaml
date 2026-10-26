@@ -1,31 +1,34 @@
 apiVersion: aos/v1
 kind: ArtifactType
-metadata: {name: brief, version: 1, owner: head_of_procurement}
+metadata: {name: brief, version: 2, owner: head_of_procurement}
 spec:
   description: What the requester needs, confirmed by them.
   fields:
-    title: {type: string, required: true}
+    title: {type: string, required: true, classification: shareable}
     category:
       type: string
       required: true
+      classification: shareable
       description: >-
         The ERP category id from browse_categories (e.g. CAT-...). Fill it in the first draft, with the closest
         category; the requester can change it.
-    quantity: {type: integer, required: true}
-    specification: {type: string, required: true}
+    quantity: {type: integer, required: true, classification: shareable}
+    specification: {type: string, required: true, classification: shareable}
     delivery_date:
       type: date
       required: true
+      classification: shareable
       description: Only a date the requester gave; never a guess.
-    delivery_site: {type: string, required: true}
+    delivery_site: {type: string, required: true, classification: shareable}
     quality_signoff:
       type: string
+      classification: shareable
       description: Who signs off on quality, as the requester said.
     budget_guidance:
       type: money
       classification: internal
       description: A budget the requester mentions, as a number. Internal; never shared with suppliers.
-    attachments: {type: list}
+    attachments: {type: list, classification: shareable}
   view: {type: document}
   visibility:
     requester: all

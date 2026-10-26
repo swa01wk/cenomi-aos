@@ -129,6 +129,13 @@ class _Checker:
                     "spec.row_key",
                     f"no field {at.spec.row_key!r}",
                 )
+            if at.spec.item_key is not None:
+                item = fields.get(at.spec.item_key)
+                if item is None:
+                    self.err("E_REF", "ArtifactType", name, "spec.item_key", f"no field {at.spec.item_key!r}")
+                elif not item.required or at.spec.row_based:
+                    self.err("E_ITEM_KEY", "ArtifactType", name, "spec.item_key",
+                             "item_key must name a required field of an artifact type that is not row-based")
         self._check_decision_row_keys()
 
     def _decision_sets_artifact_version(self, wf: WorkflowDefinition, attr_name: str) -> bool:
@@ -185,6 +192,23 @@ class _Checker:
                     if not set(self.verifiers[v].spec.applies_to) & set(sk.spec.produces):
                         self.warn("W_VERIFIER_SCOPE", "Skill", name, f"spec.verifiers[{i}]",
                                   f"verifier {v!r} checks none of the artifacts this skill produces")
+            for wt, run in sk.spec.runs.items():
+                if wt not in sk.spec.work_types:
+                    self.err("E_SKILL_RUN", "Skill", name, f"spec.runs.{wt}",
+                             f"{wt!r} is not one of this skill's work_types {sk.spec.work_types}")
+                if run.budget is None:
+                    continue
+                for seat_name, seat in self.seats.items():
+                    if name not in seat.spec.skills:
+                        continue
+                    lim = seat.spec.limits
+                    if run.budget.time_s > lim.run_minutes * 60:
+                        self.err("E_SKILL_BUDGET", "Skill", name, f"spec.runs.{wt}.budget.time_s",
+                                 f"{run.budget.time_s}s is over Seat {seat_name!r} run_minutes ({lim.run_minutes})")
+                    if run.budget.actions > lim.actions_per_run:
+                        self.err("E_SKILL_BUDGET", "Skill", name, f"spec.runs.{wt}.budget.actions",
+                                 f"{run.budget.actions} is over Seat {seat_name!r} actions_per_run "
+                                 f"({lim.actions_per_run})")
 
     def _check_expr(
         self,
@@ -317,7 +341,15 @@ class _Checker:
         seats_for_role: list[Seat],
         participants: set[str],
     ) -> None:
-        if t.on_behalf_of is not None and t.on_behalf_of not in participants:
+        if t.on_behalf_of is None:
+            self.err(
+                "E_ON_BEHALF_OF",
+                "WorkflowDefinition",
+                wname,
+                f"{path}.on_behalf_of",
+                f"template {t.template!r} needs on_behalf_of: the participant the Task works for",
+            )
+        elif t.on_behalf_of not in participants:
             self.err(
                 "E_REF",
                 "WorkflowDefinition",

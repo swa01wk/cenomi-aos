@@ -7,6 +7,7 @@ import type { Problem } from "../api/problems";
 import { Button, EmptyState, ProblemNotice } from "../components";
 import { newClientTurnId } from "../components/clientTurnId";
 import { invalidateWorkspaceLists, useDigitalWorkers, workspaceKeys } from "./useWorkspaceQueries";
+import { SparkleIcon } from "./icons";
 import styles from "./newJob.module.css";
 
 export default function NewJobPage() {
@@ -71,24 +72,32 @@ export default function NewJobPage() {
     );
   }
 
+  const greeter = activeWorkers.find((w) => w.seat === seat) ?? activeWorkers[0]!;
+
   return (
     <div className={styles.layout}>
       <section aria-label="Start a job" className={styles.main}>
-        <div>
-          <h1>What do you need?</h1>
-          <p className="sub">
-            Pick a workflow, then describe the need in your own words. The digital worker asks for anything missing.
+        <div className={styles.hero}>
+          <span className={styles.heroMark} aria-hidden="true">
+            <SparkleIcon size={28} />
+          </span>
+          <span className={styles.hello}>Hi, I&apos;m your {greeter.display_name}.</span>
+          <h1 className={styles.heroTitle}>
+            What do you <span className={styles.heroAccent}>need</span>?
+          </h1>
+          <p className={styles.heroSub}>
+            Pick a workflow, then describe the need in your own words. I&apos;ll ask for anything missing.
           </p>
         </div>
 
         <fieldset className={styles.workflows}>
-          <legend style={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}>Workflow</legend>
+          <legend className="ws-sr-only">Workflow</legend>
           {activeWorkers.map((w) =>
             w.workflows.map((wf) => {
               const selected = seat === w.seat && workflow === wf.name;
               return (
                 <label key={`${w.seat}-${wf.name}`} className={selected ? styles.cardSelected : styles.card}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className={styles.cardHead}>
                     <input
                       type="radio"
                       name="workflow"
@@ -98,14 +107,10 @@ export default function NewJobPage() {
                         setWorkflow(wf.name);
                       }}
                     />
-                    <span style={{ fontWeight: 600 }}>{wf.title}</span>
+                    <span className={styles.cardTitle}>{wf.title}</span>
                   </span>
-                  <span className="sub" style={{ fontSize: 13 }}>
-                    {wf.description}
-                  </span>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {w.display_name}
-                  </span>
+                  <span className={styles.cardText}>{wf.description}</span>
+                  <span className={styles.cardMeta}>{w.display_name}</span>
                 </label>
               );
             }),
@@ -113,16 +118,25 @@ export default function NewJobPage() {
         </fieldset>
 
         <div className={styles.need}>
-          <label htmlFor="need-text">Describe the need</label>
-          <textarea
-            id="need-text"
-            rows={4}
-            maxLength={4000}
-            value={need}
-            onChange={(e) => setNeed(e.target.value)}
-          />
-          <div className={styles.actions}>
-            <Button variant="primary" disabledReason={!seat || !workflow || !need.trim() ? "Describe the need first" : busy ? "Starting…" : undefined} onClick={() => void start()}>
+          <label htmlFor="need-text" className={styles.needLabel}>
+            Describe the need
+          </label>
+          <div className={styles.needBox}>
+            <textarea
+              id="need-text"
+              rows={3}
+              maxLength={4000}
+              value={need}
+              placeholder="What you need, where, how much and by when"
+              onChange={(e) => setNeed(e.target.value)}
+            />
+            <Button
+              variant="primary"
+              disabledReason={
+                !seat || !workflow ? "Pick a workflow first" : !need.trim() ? "Describe the need first" : busy ? "Starting…" : undefined
+              }
+              onClick={() => void start()}
+            >
               Start
             </Button>
           </div>
@@ -130,21 +144,29 @@ export default function NewJobPage() {
         {problem && <ProblemNotice problem={problem} />}
       </section>
 
-      {selectedWorkflow && (
-        <aside aria-label="How this workflow works" className={styles.aside}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>How it works</h2>
-          <p className="sub" style={{ fontSize: 13 }}>
-            {selectedWorkflow.description}
+      <aside aria-label="How this workflow works" className={styles.aside}>
+        <header className={styles.asideHead}>
+          <div>
+            <div className="eyebrow">Work in progress</div>
+            <div className={styles.asideTitle}>{selectedWorkflow?.title ?? "New job"}</div>
+          </div>
+          <span className="pill">Empty</span>
+        </header>
+        <div className={styles.asideBody}>
+          <p className={styles.asideLead}>
+            {selectedWorkflow
+              ? selectedWorkflow.description
+              : "Pick a workflow on the left. Its documents fill in here as we talk."}
           </p>
           <div className={styles.asideBox}>
-            <span style={{ fontWeight: 500 }}>What you&apos;ll see</span>
-            <span className="sub" style={{ fontSize: 13 }}>
+            <span style={{ fontWeight: 700 }}>What you&apos;ll see</span>
+            <span>
               Progress through each stage and the documents the worker saves for you. Details you cannot see stay with
               other roles.
             </span>
           </div>
-        </aside>
-      )}
+        </div>
+      </aside>
     </div>
   );
 }

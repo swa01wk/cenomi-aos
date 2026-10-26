@@ -35,6 +35,18 @@ def script_path(name: str) -> Path:
     raise FileNotFoundError(f"fake model script not found: {name!r}")
 
 
+def task_script(contract: dict[str, Any], scenario: str = "happy") -> str | None:
+    """The fake model script for a Task: ``<template>.<scenario>``, else ``<skill>.<scenario>``; a scenario a Task
+    has no script for runs its ``happy`` one. None when the Task has no script at all."""
+    template = str(contract.get("template") or "")
+    skill = str((contract.get("skill") or {}).get("name") or "")
+    for name in dict.fromkeys(n for n in (template, skill) if n):
+        for sc in dict.fromkeys((scenario, "happy")):
+            if (SCRIPTS_DIR / f"{name}.{sc}.yaml").is_file():
+                return f"{name}.{sc}.yaml"
+    return None
+
+
 def _turn_from_dict(raw: dict[str, Any]) -> ScriptedTurn:
     chunks = raw.get("stream_chunks")
     if chunks is None and raw.get("text"):

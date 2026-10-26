@@ -1,96 +1,225 @@
 .layout {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
-  margin: calc(-1 * var(--space-32)) calc(-1 * var(--space-40));
-  min-height: calc(100% + var(--space-32));
+  min-height: 100vh;
 }
 
 .main {
-  flex: 999 1 480px;
+  flex: 999 1 440px;
   min-width: 0;
-  padding: var(--space-32) var(--space-40);
+  padding: 40px 28px 24px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-24);
-  border-right: 1px solid var(--line);
+  justify-content: center;
+  gap: 24px;
+  background: radial-gradient(ellipse at 50% 30%, var(--accent-soft) 0%, var(--canvas) 60%);
 }
 
-.aside {
-  flex: 1 1 360px;
-  min-width: 0;
-  padding: var(--space-28) var(--space-24);
-  background: var(--panel);
+.hero {
   display: flex;
   flex-direction: column;
-  gap: var(--space-18);
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.heroMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--seat-gradient);
+  color: #fff;
+  box-shadow: 0 0 0 8px var(--accent-soft-2);
+  margin-bottom: 8px;
+}
+
+.hello {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.heroAccent {
+  background: linear-gradient(90deg, var(--accent-strong), #7e22ce);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.heroSub {
+  margin: 0;
+  max-width: 440px;
+  color: var(--ink-2);
 }
 
 .workflows {
   border: none;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
+  width: 100%;
+  max-width: 560px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-12);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
 }
 
 .card,
 .cardSelected {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-16);
-  border-radius: 10px;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
   cursor: pointer;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
+}
+
+.card:hover {
+  border-color: var(--accent-line);
 }
 
 .cardSelected {
   border: 2px solid var(--accent);
+  padding: 11px 13px;
+  background: var(--accent-soft);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardHead input {
+  accent-color: var(--accent);
+}
+
+.cardTitle {
+  font-weight: 700;
+}
+
+.cardText {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.cardMeta {
+  font-size: 12px;
+  color: var(--ink-3);
 }
 
 .need {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: 6px;
 }
 
-.need label {
-  font-weight: 500;
+.needLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-.need textarea {
-  box-sizing: border-box;
-  padding: var(--space-12) var(--space-14);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.needBox {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line-input);
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.3);
+}
+
+.needBox:focus-within {
+  border-color: var(--accent);
+}
+
+.needBox textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
   font: inherit;
   resize: vertical;
-  min-height: 100px;
 }
 
-.actions {
+.needBox textarea:focus-visible {
+  outline: none;
+}
+
+.aside {
+  flex: 1 1 560px;
+  min-width: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+}
+
+.asideHead {
+  padding: 16px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.asideTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.asideBody {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.asideLead {
+  margin: 0;
+  color: var(--ink-2);
 }
 
 .asideBox {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-14);
-  border-radius: 10px;
-  background: var(--canvas);
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent-line);
+  font-size: 13px;
+  color: var(--ink-2);
 }
 
 @media (max-width: 720px) {
-  .layout {
-    margin: 0;
-  }
-  .main {
-    border-right: none;
-    padding: 0;
+  .aside {
+    border-left: none;
+    border-top: 1px solid var(--line);
   }
 }

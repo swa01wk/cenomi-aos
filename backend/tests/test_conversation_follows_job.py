@@ -23,6 +23,7 @@ from aos.kernel.registry_store import sync_pack
 from aos.kernel.settings import REPO, Settings
 
 from . import _pg
+from ._packs import copy_demo_pack
 
 ORG = load_org(REPO / "seed" / "org.yaml")
 ORG_ID = ORG.organization.id
@@ -36,7 +37,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.db = _pg.create_migrated()
         cls.packs = Path(tempfile.mkdtemp(prefix="aos-conv-job-"))
-        shutil.copytree(REPO / "packs" / "procurement_demo", cls.packs / "procurement_demo")
+        copy_demo_pack(cls.packs, intake_task=False)
         cls.settings = Settings.from_env(
             database_url=_pg.kernel_url(cls.db),
             packs_dir=cls.packs,

@@ -15,6 +15,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from .kernel.auth import issue_worker_token
 from .kernel.org import load_org, seed_sql
+from . import sim_worker
 from .kernel.simulate import run_simulation_cli_rolled_back
 from .kernel.settings import Settings
 from .registry import validate_pack
@@ -56,6 +57,7 @@ def _simulate(args: argparse.Namespace) -> int:
                 pack_dir=pack_dir,
                 workflow_name=args.workflow,
                 script_name=script,
+                run_attempt=sim_worker.run_attempt,
             )
         finally:
             await pool.close()

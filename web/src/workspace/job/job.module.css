@@ -1,36 +1,107 @@
 .jobLayout {
   display: flex;
   flex-wrap: wrap;
-  margin: calc(-1 * var(--space-32)) calc(-1 * var(--space-40));
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
+}
+
+/* Side by side, the page fits the window: the turns and the panel scroll, the composer stays put. */
+@media (min-width: 1080px) {
+  .jobLayout {
+    height: 100vh;
+  }
+
+  .conversation,
+  .workPanel {
+    height: 100vh;
+  }
+
+  .workPanel {
+    overflow-y: auto;
+  }
 }
 
 .conversation {
-  flex: 999 1 480px;
+  flex: 999 1 440px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--line);
   background: var(--canvas);
 }
 
 .convHeader {
-  padding: var(--space-18) var(--space-28);
-  background: var(--panel);
+  padding: 16px 28px 14px;
   border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--space-12);
+  gap: 10px;
+}
+
+.convMeta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.convTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.convTitleRow h1 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.stageBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-soft-2);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.progress {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segment {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--track);
+}
+
+.segment_done {
+  background: var(--accent-line);
+}
+
+.segment_current {
+  background: var(--accent);
 }
 
 .turns {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: var(--space-24) var(--space-28);
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-20);
-  min-height: 280px;
+  gap: 18px;
+}
+
+.turns > :first-child {
+  margin-top: auto;
 }
 
 .agentBlock {
@@ -41,67 +112,121 @@
 
 .agentStream {
   display: flex;
+  gap: 12px;
+}
+
+.agentStreamBody {
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  padding-top: 3px;
 }
 
 .composerWrap {
-  padding: var(--space-16) var(--space-28) var(--space-20);
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+  padding: 0 28px 20px;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
 }
 
 .workPanel {
-  flex: 1 1 400px;
+  flex: 1 1 560px;
   min-width: 0;
-  background: var(--panel);
+  background: var(--panel-2);
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 320px;
 }
 
-.workMeta {
+.workHead {
+  padding: 16px 24px;
+  background: var(--panel);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-12) var(--space-20);
+  justify-content: space-between;
+  gap: 8px 12px;
   border-bottom: 1px solid var(--line);
 }
 
-.workTabs {
+.workTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.workBadges {
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-12) var(--space-16) 0;
-  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.workTab {
-  padding: var(--space-10) var(--space-12);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font: inherit;
-  color: var(--ink-2);
-  cursor: pointer;
-  min-height: 44px;
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--ok-soft);
+  color: var(--ok);
+  white-space: nowrap;
 }
 
-.workTab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
+.versionBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok-dot);
+}
+
+.versionSelect {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-input);
+  background: var(--panel);
   color: var(--ink);
-  font-weight: 500;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.workBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workByline {
+  padding: 12px 24px 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.workEmpty {
+  margin: 0;
+  padding: 24px;
+  color: var(--ink-2);
+}
+
+.workFoot {
+  margin-top: auto;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--panel);
 }
 
 @media (max-width: 720px) {
-  .jobLayout {
-    margin: 0;
-  }
-  .conversation {
-    border-right: none;
+  .workPanel {
+    border-left: none;
+    border-top: 1px solid var(--line);
   }
 }

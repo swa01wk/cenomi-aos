@@ -16,6 +16,7 @@ from aos.kernel import ids, workflow
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.registry_store import sync_pack
 from aos.kernel.workflow import WorkflowEffectError
+from aos.registry.loader import parse_yaml
 
 from . import _pg
 
@@ -27,10 +28,12 @@ SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
 
 
-async def _sync_published(conn, packs_dir: Path, *, version: int | None = None) -> str:
+async def _sync_published(conn, packs_dir: Path, *, newer: bool = False) -> str:
+    """Sync and publish the pack; ``newer`` publishes the next version with a stricter shortlist guard."""
     root = packs_dir / "procurement_demo"
-    if version is not None:
+    if newer:
         pack_yaml = root / "pack.yaml"
+        version = int(parse_yaml(pack_yaml.read_text())["metadata"]["version"]) + 1
         lines = pack_yaml.read_text().splitlines()
         pack_yaml.write_text(
             "\n".join(
@@ -41,15 +44,14 @@ async def _sync_published(conn, packs_dir: Path, *, version: int | None = None) 
             )
             + "\n"
         )
-        if version == 2:
-            wf = root / "workflows" / "quick_quote.yaml"
-            wf.write_text(
-                wf.read_text().replace(
-                    'guard: "attr.shortlist_count >= 3"',
-                    'guard: "attr.shortlist_count >= 5"',
-                    1,
-                )
+        wf = root / "workflows" / "quick_quote.yaml"
+        wf.write_text(
+            wf.read_text().replace(
+                'guard: "attr.shortlist_count >= 3"',
+                'guard: "attr.shortlist_count >= 5"',
+                1,
             )
+        )
     result = await sync_pack(
         conn,
         org=ORG,
@@ -385,7 +387,7 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
             shutil.copytree(PACKS / "procurement_demo", tmp / "procurement_demo")
             async with await psycopg.AsyncConnection.connect(self.url) as conn:
                 async with conn.transaction():
-                    v2_id = await _sync_published(conn, tmp, version=2)
+                    v2_id = await _sync_published(conn, tmp, newer=True)
                     self.assertNotEqual(v2_id, self.v1_id)
                     await _insert_instance(
                         conn,

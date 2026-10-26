@@ -37,6 +37,14 @@ class TransitionMatch:
 
 
 @dataclass(frozen=True)
+class CreatedTask:
+    task_id: str
+    template: str
+    person_id: str | None
+    contract: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ApplyEventResult:
     applied: bool
     from_state: str
@@ -173,9 +181,8 @@ async def _create_entry_tasks(
     seat_limits: dict[str, Any],
     entry_tasks: list[TaskTemplate],
     participants: list[tuple[str, str]],
-) -> None:
-    if not entry_tasks:
-        return
+) -> list[CreatedTask]:
+    created: list[CreatedTask] = []
     for tpl in entry_tasks:
         if tpl.on_behalf_of is None:
             raise WorkflowEffectError(
@@ -213,6 +220,8 @@ async def _create_entry_tasks(
             contract=contract,
             max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
         )
+        created.append(CreatedTask(task_id=task_id, template=tpl.template, person_id=person_id, contract=contract))
+    return created
 
 
 async def _run_effects(

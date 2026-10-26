@@ -1,15 +1,17 @@
+import type { ReactNode } from "react";
 import {
   AgentMessage,
   Composer,
   ConnectionBanner,
   PersonMessage,
   SeatNotice,
-  StageStepper,
   StreamingText,
   ToolActivity,
 } from "../../components";
 import type { MessageDelta, ToolActivity as ToolActivityType, Turn } from "../../components/types";
+import { SeatMark } from "../icons";
 import { useWorkflowTitle } from "../useWorkspaceQueries";
+import { JobProgress, stageBadgeText } from "./JobProgress";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
@@ -47,6 +49,7 @@ export function Conversation({
   const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
   const streamingOnly = streamingTurnId && !turnIds.has(streamingTurnId);
+  const badge = stageBadgeText(snapshot.stages);
 
   return (
     <section aria-label="Conversation" className={styles.conversation}>
@@ -54,13 +57,14 @@ export function Conversation({
       {bannerMode === "synced" && <ConnectionBanner mode="synced" updateCount={syncCount} />}
 
       <header className={styles.convHeader}>
-        <div>
-          <span className="muted" style={{ fontSize: 12 }}>
-            {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
-          </span>
-          <h1 style={{ margin: "4px 0 0", fontSize: 20 }}>{snapshot.title}</h1>
+        <span className={styles.convMeta}>
+          {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
+        </span>
+        <div className={styles.convTitleRow}>
+          <h1>{snapshot.title}</h1>
+          {badge && <span className={styles.stageBadge}>{badge}</span>}
         </div>
-        <StageStepper stages={snapshot.stages} />
+        <JobProgress stages={snapshot.stages} />
       </header>
 
       <div className={styles.turns}>
@@ -80,15 +84,15 @@ export function Conversation({
           />
         ))}
         {streamingOnly && (
-          <div className={styles.agentStream}>
+          <AgentStream>
             <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
             {toolActivity && <ToolActivity activity={toolActivity} />}
-          </div>
+          </AgentStream>
         )}
         {!streamingTurnId && toolActivity && (
-          <div className={styles.agentStream}>
+          <AgentStream>
             <ToolActivity activity={toolActivity} />
-          </div>
+          </AgentStream>
         )}
       </div>
 
@@ -101,9 +105,6 @@ export function Conversation({
       )}
 
       <div className={styles.composerWrap}>
-        <label className="muted" style={{ fontSize: 12 }}>
-          Reply
-        </label>
         <Composer
           onSend={onSend}
           disabledReason={composerDisabledReason}
@@ -112,6 +113,15 @@ export function Conversation({
         />
       </div>
     </section>
+  );
+}
+
+function AgentStream({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles.agentStream}>
+      <SeatMark small />
+      <div className={styles.agentStreamBody}>{children}</div>
+    </div>
   );
 }
 
@@ -136,10 +146,10 @@ function TurnView({
       <>
         <PersonMessage turn={turn} />
         {isStreaming && (
-          <div className={styles.agentStream}>
+          <AgentStream>
             <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
             {toolActivity && <ToolActivity activity={toolActivity} />}
-          </div>
+          </AgentStream>
         )}
       </>
     );
@@ -148,6 +158,7 @@ function TurnView({
     <article className={styles.agentBlock} aria-label={`Reply from ${turn.author.name}`}>
       <AgentMessage
         turn={turn}
+        avatar={<SeatMark small />}
         onOpenArtifact={(id) => onOpenArtifact(id)}
       />
       {isStreaming && (

@@ -34,6 +34,7 @@ from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
 from ..kernel.seats import EvalRunJob, SeatError
+from .. import sim_worker
 from ..kernel.simulate import run_simulation_rolled_back
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
@@ -235,6 +236,7 @@ async def simulate_pack_version(
         workflow_name=body.workflow,
         script_name=body.script,
         packs_dir=k.settings.packs_dir,
+        run_attempt=sim_worker.run_attempt,
     )
 
 

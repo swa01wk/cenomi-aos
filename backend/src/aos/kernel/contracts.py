@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..registry.kinds import NATIVE_TOOLS
+from ..registry.kinds import EFFECT_COMMIT_WORK_TYPES, NATIVE_TOOLS
 from ..registry.loader import load_pack
 from . import clock, ids
 from .org import OrgModel
@@ -123,6 +123,21 @@ def seat_budget_block(seat_limits: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def run_budget_block(run_budget: dict[str, Any] | None, seat_limits: dict[str, Any]) -> dict[str, Any]:
+    """A Skill run's own budget (validated against the Seat's run limits at publish), else the Seat's attempt limits."""
+    if not run_budget:
+        return seat_budget_block(seat_limits)
+    return {
+        "tokens": int(run_budget["tokens"]),
+        "cost_usd": float(run_budget["cost_usd"]),
+        "time_s": int(run_budget["time_s"]),
+        "steps": int(run_budget["steps"]),
+        "actions": int(run_budget["actions"]),
+        "retries": int(run_budget["retries"]),
+        "children": 0,
+    }
+
+
 def max_attempts_from_budget(budget: dict[str, Any]) -> int:
     return int(budget["retries"]) + 1
 
@@ -135,8 +150,12 @@ def _tool_index(defs: dict[str, dict[str, dict]]) -> dict[str, tuple[str, dict]]
     return out
 
 
+def _tool_class(tool: dict) -> str:
+    return str(tool.get("class") or tool.get("tool_class") or "read")
+
+
 def _tool_grant(name: str, tool: dict, provider: str) -> dict[str, Any]:
-    tool_class = tool.get("class") or tool.get("tool_class") or "read"
+    tool_class = _tool_class(tool)
     kind = "compute" if tool_class == "compute" else "connector"
     if name in _KERNEL_TOOL_NAMES:
         kind = "kernel"
@@ -152,6 +171,31 @@ def _tool_grant(name: str, tool: dict, provider: str) -> dict[str, Any]:
     if isinstance(tool.get("input_schema"), dict):
         grant["input_schema"] = tool["input_schema"]
     return grant
+
+
+def _allowed_tools(defs: dict[str, dict[str, dict]], skill_spec: dict, work_type: str) -> list[dict[str, Any]]:
+    """Kernel tools plus what the Skill may request; committed effects only for effect-committing Work Types."""
+    tools_idx = _tool_index(defs)
+    allowed: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for native in NATIVE_TOOLS:
+        if native in ("save_draft", "ask_question"):
+            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
+            names.add(native)
+    for tname in skill_spec.get("may_request") or []:
+        if tname in names:
+            continue
+        if tname in _KERNEL_TOOL_NAMES:
+            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
+        elif tname in tools_idx:
+            prov, tool = tools_idx[tname]
+            if _tool_class(tool) == "committed_effect" and work_type not in EFFECT_COMMIT_WORK_TYPES:
+                continue
+            allowed.append(_tool_grant(tname, tool, prov))
+        else:
+            continue
+        names.add(tname)
+    return allowed
 
 
 def _gate_policy_ref(defs: dict[str, dict[str, dict]], workflow_name: str) -> str:
@@ -190,17 +234,7 @@ def build_assist_contract(
         raise ValueError(f"Skill {skill_name!r} missing from pinned pack")
     seat_spec = seat_doc.get("spec") or {}
     skill_spec = skill_doc.get("spec") or {}
-    tools_idx = _tool_index(defs)
-    allowed: list[dict[str, Any]] = []
-    for native in NATIVE_TOOLS:
-        if native in ("save_draft", "ask_question"):
-            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
-    for tname in skill_spec.get("may_request") or []:
-        if tname in _KERNEL_TOOL_NAMES:
-            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
-        elif tname in tools_idx:
-            prov, tool = tools_idx[tname]
-            allowed.append(_tool_grant(tname, tool, prov))
+    allowed = _allowed_tools(defs, skill_spec, work_type)
     resources = list(seat_spec.get("resources") or [])
     ceiling = _seat_classification_ceiling(seat_doc, defs)
     if org is not None:
@@ -277,29 +311,16 @@ def build_task_contract(
         raise ValueError(f"Skill {skill_name!r} missing from pinned pack")
     seat_spec = seat_doc.get("spec") or {}
     skill_spec = skill_doc.get("spec") or {}
-    tools_idx = _tool_index(defs)
-    allowed: list[dict[str, Any]] = []
-    for native in NATIVE_TOOLS:
-        if native in ("save_draft", "ask_question"):
-            allowed.append({"name": native, "kind": "kernel", "class": "kernel"})
-    for tname in skill_spec.get("may_request") or []:
-        if tname in _KERNEL_TOOL_NAMES:
-            allowed.append({"name": tname, "kind": "kernel", "class": "kernel"})
-        elif tname in tools_idx:
-            prov, tool = tools_idx[tname]
-            allowed.append(_tool_grant(tname, tool, prov))
+    work_type = str(template["work_type"])
+    run = (skill_spec.get("runs") or {}).get(work_type) or {}
+    allowed = _allowed_tools(defs, skill_spec, work_type)
     resources = list(seat_spec.get("resources") or [])
-    prof_ref = seat_spec.get("authority_profile") or ""
-    prof_name = prof_ref.split("@")[0]
-    prof = defs.get("Policy", {}).get(prof_name) or {}
-    ceiling = "internal"
-    if prof.get("spec", {}).get("type") == "authority_profile":
-        for grant in prof.get("spec", {}).get("grants") or []:
-            if grant.get("resource") in resources:
-                c = grant.get("classification") or "internal"
-                if _class_rank(c) > _class_rank(ceiling):
-                    ceiling = c
-    budget = seat_budget_block(seat_limits)
+    ceiling = _min_classification(
+        _seat_classification_ceiling(seat_doc, defs), role_clearance(defs, participant_role)
+    )
+    if run.get("classification_ceiling"):
+        ceiling = _min_classification(ceiling, str(run["classification_ceiling"]))
+    budget = run_budget_block(run.get("budget"), seat_limits)
     outputs = [
         {
             "artifact_type": at,
@@ -325,7 +346,7 @@ def build_task_contract(
             "version": int(skill_doc.get("metadata", {}).get("version", 1)),
             "instructions_sha256": _instructions_sha256(packs_dir, pack_name, skill_doc),
         },
-        "work_type": template["work_type"],
+        "work_type": work_type,
         "objective": f"Run workflow template {tpl_name}.",
         "on_behalf_of": {"role": participant_role, "person_id": person_id},
         "immutable_input_refs": [],
@@ -358,6 +379,23 @@ def _min_classification(a: str, b: str) -> str:
     return a if _class_rank(a) <= _class_rank(b) else b
 
 
+def role_clearance(defs: dict[str, dict[str, dict]], participant_role: str) -> str:
+    """Highest classification among the artifact fields this participant role may see on the pack."""
+    best = "shareable"
+    for at in defs.get("ArtifactType", {}).values():
+        spec = at.get("spec") or {}
+        vis = (spec.get("visibility") or {}).get(participant_role)
+        fields = spec.get("fields") or {}
+        if vis is None or vis == "none":
+            continue
+        names = list(fields) if vis == "all" else [f for f in vis if f in fields]
+        for name in names:
+            label = (fields[name] or {}).get("classification") or spec.get("classification") or "internal"
+            if _class_rank(label) > _class_rank(best):
+                best = label
+    return best
+
+
 def resolve_assist_skill(seat_doc: dict, workflow_doc: dict, instance_state: str) -> str:
     seat_spec = seat_doc.get("spec") or {}
     states = (workflow_doc.get("spec") or {}).get("states") or {}
@@ -373,11 +411,13 @@ def _seat_classification_ceiling(seat_doc: dict, defs: dict[str, dict[str, dict]
     prof_ref = seat_spec.get("authority_profile") or ""
     prof_name = prof_ref.split("@")[0]
     prof = defs.get("Policy", {}).get(prof_name) or {}
-    ceiling = "internal"
+    resource_docs = defs.get("Resource", {})
+    ceiling = "shareable"
     if prof.get("spec", {}).get("type") == "authority_profile":
         for grant in prof.get("spec", {}).get("grants") or []:
-            if grant.get("resource") in resources:
-                c = grant.get("classification") or "internal"
+            res = grant.get("resource")
+            if res in resources:
+                c = ((resource_docs.get(res) or {}).get("spec") or {}).get("classification") or "internal"
                 if _class_rank(c) > _class_rank(ceiling):
                     ceiling = c
     return ceiling
@@ -393,10 +433,12 @@ def participant_classification_ceiling(
     """Highest classification labels this person may receive in context and progress turns."""
     seat_ceiling = _seat_classification_ceiling(seat_doc, defs)
     person = org.people.get(person_id)
-    org_roles = list(person.roles) if person else []
-    if org_roles == ["end_user"]:
-        return _min_classification(seat_ceiling, "shareable")
-    return seat_ceiling
+    return _min_classification(seat_ceiling, person_clearance(list(person.roles) if person else []))
+
+
+def person_clearance(org_roles: list[str]) -> str:
+    """Highest classification a person may receive, from their org roles alone."""
+    return "shareable" if list(org_roles) == ["end_user"] else "restricted"
 
 
 _ASSIST_CONTRACT_IDENTITY_KEYS = frozenset(

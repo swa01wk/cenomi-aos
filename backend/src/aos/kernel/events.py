@@ -481,7 +481,7 @@ async def on_workflow_task_completed(
         return
     region_name, template = row[0], str(row[1])
     if not region_name:
-        await workflow.apply_event(
+        moved = await workflow.apply_event(
             conn,
             instance_id,
             f"task.completed.{template}",
@@ -490,6 +490,11 @@ async def on_workflow_task_completed(
             org=org,
             actor={"kind": "kernel", "id": "kernel"},
         )
+        if not moved.applied:
+            # No transition on this Task: a decision of the current state may have been waiting for it.
+            from . import decisions as decision_ops
+
+            await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
         return
 
     region_name = str(region_name)

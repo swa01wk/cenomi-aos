@@ -1,16 +1,23 @@
 apiVersion: aos/v1
 kind: ArtifactType
-metadata: {name: supplier_list, version: 1, owner: head_of_procurement}
+metadata: {name: supplier_list, version: 2, owner: head_of_procurement}
 spec:
   description: Suppliers found in the ERP, ranked with cited sources.
   fields:
-    rank: {type: integer, required: true}
-    supplier: {type: string, required: true}
-    supplier_id: {type: string, required: true}
-    past_pos: {type: integer}
-    on_time_pct: {type: number}
-    score: {type: number, required: true}
-    sources: {type: list, required: true}
+    rank: {type: integer, required: true, classification: shareable}
+    supplier: {type: string, required: true, classification: shareable}
+    supplier_id: {type: string, required: true, classification: shareable}
+    email:
+      type: string
+      classification: shareable
+      description: The supplier's email from search_suppliers; requests for quotation go here.
+    past_pos: {type: integer, description: "Past purchase orders in this category, from get_supplier_history."}
+    on_time_pct: {type: number, description: "Share of those orders delivered on time, from get_supplier_history."}
+    score: {type: number, required: true, classification: shareable}
+    sources:
+      type: list
+      required: true
+      description: The receipt refs of the search_suppliers and get_supplier_history calls this row comes from.
   row_based: true
   row_key: supplier_id
   view: {type: sheet, columns: [rank, supplier, past_pos, on_time_pct, score]}

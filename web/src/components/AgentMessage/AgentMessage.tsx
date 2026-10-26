@@ -17,11 +17,14 @@ export function AgentMessage({
   onOpenArtifact,
   onOpenSource,
   decisionHref,
+  avatar,
 }: {
   turn: Turn;
   onOpenArtifact?: (artifactId: string, version: number) => void;
   onOpenSource?: (sourceRef: string) => void;
   decisionHref?: (decisionId: string) => string | undefined;
+  /** Replaces the author's initials, e.g. with the shell's Seat mark. */
+  avatar?: ReactNode;
 }) {
   const body: ReactNode[] = [];
   let chipRun: ChipBlockData[] = [];
@@ -59,9 +62,11 @@ export function AgentMessage({
 
   return (
     <div className={styles.row}>
-      <span className={styles.avatar} aria-hidden="true">
-        {initials(turn.author.name)}
-      </span>
+      {avatar ?? (
+        <span className={styles.avatar} aria-hidden="true">
+          {initials(turn.author.name)}
+        </span>
+      )}
       <div className={styles.body}>{body}</div>
     </div>
   );

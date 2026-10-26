@@ -2916,6 +2916,8 @@ export interface components {
                 artifact_type: string;
                 artifact_id: string;
                 version: number;
+                /** @description Set on per-item artifacts (types with item_key): the item this draft is for. */
+                key?: string;
                 /** @description Stored version hash when the full content is included; projected-content hash when fields were redacted. Freshness and submit inputs are keyed on artifact_id and version, not this hash alone. */
                 content_hash: string;
                 /** @enum {unknown} */
@@ -2964,6 +2966,11 @@ export interface components {
                 /** @enum {unknown} */
                 reason: "visibility" | "classification";
             }[];
+            /** @description Present when this Task's previous attempt was sent back by its verifier: what to fix. Findings name fields, never protected values. */
+            rework?: {
+                verifier: string;
+                findings: string[];
+            };
         };
         /**
          * @description Why an attempt or task failed; kernel events and worker reports use these names.

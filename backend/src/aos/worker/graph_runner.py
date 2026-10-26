@@ -1,4 +1,4 @@
-"""Run the compiled assist graph for one attempt."""
+"""Run the compiled graph for one attempt: the Task graph for task contracts, else the assist graph."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def _recursion_limit(contract: dict[str, Any]) -> int:
     return 25
 
 
-async def run_assist_graph(
+async def run_attempt_graph(
     *,
     attempt: WorkerAttempt,
     ctx: AttemptContext,
@@ -32,8 +32,8 @@ async def run_assist_graph(
     resolved_model: ResolvedModel | None = None,
     model_cfg: ModelRegistryConfig | None = None,
 ) -> AgentResult:
-    graph = checkpointer.assist_graph()
     contract = attempt.get("contract") or {}
+    graph = checkpointer.graph_for(contract)
     configurable: dict[str, Any] = {
         "thread_id": resolved.thread_id,
         "ctx": ctx,
@@ -68,5 +68,5 @@ async def run_assist_graph(
         raise
     result = final.get("agent_result")
     if not isinstance(result, dict):
-        raise RuntimeError("assist graph ended without agent_result")
+        raise RuntimeError(f"{contract.get('kind') or 'assist'} graph ended without agent_result")
     return result  # type: ignore[return-value]

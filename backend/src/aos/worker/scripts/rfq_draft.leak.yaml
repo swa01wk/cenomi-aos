@@ -1,0 +1,75 @@
+attempts:
+  - turns:
+      - tool_calls:
+          - name: save_draft
+            args:
+              key: SUP-10482
+              content:
+                supplier_id: SUP-10482
+                to: sales@najd.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: &leaky |
+                  Hello,
+
+                  We would like a quotation for 4 heavy-duty custodial cleaning trolleys, delivered to our North
+                  warehouse by 2026-11-20. Our budget is SAR 15,000, so please quote within it.
+
+                  Please reply to this email with your unit price, total price and delivery lead time within 5
+                  working days.
+
+                  Thank you.
+          - name: save_draft
+            args:
+              key: SUP-10217
+              content:
+                supplier_id: SUP-10217
+                to: rfq@alnoor.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: *leaky
+          - name: save_draft
+            args:
+              key: SUP-10355
+              content:
+                supplier_id: SUP-10355
+                to: tenders@desertclean.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: *leaky
+      - reply_text: I drafted a request for quotation for each of the 3 shortlisted suppliers.
+  - turns:
+      - tool_calls:
+          - name: save_draft
+            args:
+              key: SUP-10482
+              content:
+                supplier_id: SUP-10482
+                to: sales@najd.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: &body |
+                  Hello,
+
+                  We would like a quotation for 4 heavy-duty custodial cleaning trolleys, delivered to our North
+                  warehouse by 2026-11-20. Quality sign-off is by our facilities manager.
+
+                  Please reply to this email with your unit price, total price and delivery lead time within 5
+                  working days.
+
+                  Thank you.
+          - name: save_draft
+            args:
+              key: SUP-10217
+              content:
+                supplier_id: SUP-10217
+                to: rfq@alnoor.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: *body
+          - name: save_draft
+            args:
+              key: SUP-10355
+              content:
+                supplier_id: SUP-10355
+                to: tenders@desertclean.example
+                subject: "Request for quotation: Cleaning trolleys"
+                body: *body
+      - reply_text: >-
+          I removed the budget figure from all 3 requests for quotation, as the check asked. Next, the buyer reviews
+          the emails and asks to send them.

@@ -55,7 +55,8 @@ smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and bo
 		tests.test_worker_models.RealModelSmokeTests tests.test_request_intake_assist.RequestIntakeRealModelSmoke
 
 db: ## start only Postgres (for make test and make dev-api on a laptop)
-	$(COMPOSE) up -d --wait postgres
+	@# Postgres doesn't need the worker token, but Compose interpolates the whole file.
+	AOS_WORKER_TOKEN=$${AOS_WORKER_TOKEN:-unused} $(COMPOSE) up -d --wait postgres
 
 up: ## build and start the stack (mints a worker token into .env if missing); waits until healthy
 	@bash scripts/dev-worker-token.sh --if-missing

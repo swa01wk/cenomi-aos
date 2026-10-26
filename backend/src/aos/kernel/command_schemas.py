@@ -65,6 +65,14 @@ def artifact_content_schema(type_spec: ArtifactTypeSpec) -> dict[str, Any]:
     return schema
 
 
+def _key_property(item_keys: list[str]) -> dict[str, Any]:
+    names = " or ".join(sorted(set(item_keys)))
+    return {
+        "type": "string",
+        "description": f"One draft per item: the draft's {names} value. Drafts with different keys are separate.",
+    }
+
+
 def save_draft_command_schema(contract: dict[str, Any], defs: dict[str, dict[str, dict]]) -> dict[str, Any]:
     outputs = [
         o for o in (contract.get("expected_outputs") or []) if isinstance(o, dict) and o.get("artifact_type")
@@ -75,19 +83,26 @@ def save_draft_command_schema(contract: dict[str, Any], defs: dict[str, dict[str
 
         at = parse_artifact_type(defs, at_name)
         content_schema = artifact_content_schema(at.spec)
-        return {
+        schema: dict[str, Any] = {
             "type": "object",
             "required": ["content"],
             "properties": {"content": content_schema},
             "additionalProperties": False,
         }
+        if at.spec.item_key:
+            schema["required"] = ["key", "content"]
+            schema["properties"]["key"] = _key_property([at.spec.item_key])
+        return schema
     content_schemas = []
+    item_keys: list[str] = []
     for out in outputs:
         at_name = str(out["artifact_type"])
         from .artifacts import parse_artifact_type
 
         at = parse_artifact_type(defs, at_name)
         content_schemas.append(artifact_content_schema(at.spec))
+        if at.spec.item_key:
+            item_keys.append(at.spec.item_key)
     content_prop: dict[str, Any] = {"type": "object"}
     if len(content_schemas) == 1:
         content_prop = content_schemas[0]
@@ -97,10 +112,13 @@ def save_draft_command_schema(contract: dict[str, Any], defs: dict[str, dict[str
     type_prop: dict[str, Any] = {"type": "string"}
     if types:
         type_prop = {"enum": types}
+    properties: dict[str, Any] = {"artifact_type": type_prop, "content": content_prop}
+    if item_keys:
+        properties["key"] = _key_property(item_keys)
     return {
         "type": "object",
         "required": ["artifact_type", "content"],
-        "properties": {"artifact_type": type_prop, "content": content_prop},
+        "properties": properties,
         "additionalProperties": False,
     }
 

@@ -32,6 +32,11 @@ create table if not exists po(id text primary key, reference text unique not nul
 """
 
 SEED_CATEGORIES = [("CAT-JAN-EQ", "Janitorial equipment"), ("CAT-FAC-SVC", "Facility services")]
+# Item words a requester uses that the category name doesn't carry; every query word must hit name or terms.
+CATEGORY_TERMS = {
+    "CAT-JAN-EQ": "cleaning trolley trolleys cart carts mop mops bucket buckets custodial",
+    "CAT-FAC-SVC": "cleaning maintenance service services contract",
+}
 SEED_SUPPLIERS = [
     ("SUP-10482", "Najd Supplies", "CAT-JAN-EQ", "sales@najd.example"),
     ("SUP-10217", "Al Noor Trading", "CAT-JAN-EQ", "rfq@alnoor.example"),
@@ -82,9 +87,15 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
 
     @server.tool()
     def browse_categories(query: str = "", token: str | None = None) -> dict:
-        """List ERP categories whose name contains the query."""
+        """List ERP categories whose name or search terms contain every word of the query."""
         guard(token, "erp_supplier", "read", "browse_categories")
-        return {"items": store.q("select id, name from category where lower(name) like ?", (f"%{query.lower()}%",))}
+        words = query.lower().split()
+        items = []
+        for row in store.q("select id, name from category order by id", ()):
+            haystack = f"{row['name']} {CATEGORY_TERMS.get(row['id'], '')}".lower()
+            if all(w in haystack for w in words):
+                items.append(row)
+        return {"items": items}
 
     @server.tool()
     def search_suppliers(category_id: str, token: str | None = None) -> dict:
