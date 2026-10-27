@@ -13,7 +13,7 @@ import psycopg
 from fastapi.testclient import TestClient
 
 from aos.api import create_app
-from aos.kernel import ids, instances, participants
+from aos.kernel import decisions, ids, instances, participants
 from aos.kernel.contracts import _canonical_json
 from aos.kernel.org import OrgModel, Person, load_org, seed_sql
 from aos.kernel.registry_store import sync_pack
@@ -64,6 +64,7 @@ async def _insert_instance(
     version: int = 1,
     attributes: dict | None = None,
     with_buyer: bool = False,
+    created_by: str = "faisal",
 ) -> None:
     attrs = attributes or {}
     await conn.execute(
@@ -71,7 +72,7 @@ async def _insert_instance(
         insert into work.instances (
           id, org_id, workflow, pack_version_id, seat, seat_version, title, state, version,
           attributes, created_by, correlation_id
-        ) values (%s, %s, %s, %s, %s, 1, 'Test job', %s, %s, %s, 'faisal', %s)
+        ) values (%s, %s, %s, %s, %s, 1, 'Test job', %s, %s, %s, %s, %s)
         """,
         (
             instance_id,
@@ -82,13 +83,14 @@ async def _insert_instance(
             state,
             version,
             json.dumps(attrs),
+            created_by,
             f"corr_{instance_id}",
         ),
     )
     await conn.execute(
         "insert into work.participants (instance_id, role, person_id, bound_by)"
-        " values (%s, 'requester', 'faisal', 'creation')",
-        (instance_id,),
+        " values (%s, 'requester', %s, 'creation')",
+        (instance_id, created_by),
     )
     if with_buyer:
         await conn.execute(
@@ -250,6 +252,70 @@ class ParticipantsKernelTests(unittest.IsolatedAsyncioTestCase):
                 )
             items_after = await participants.list_queue_instances(conn, self.org, ORG_ID, "noura", QUEUE)
             self.assertEqual(items_after, [])
+            self.assertEqual(items[0]["claim_role"], "buyer")
+
+    async def test_approve_records_the_comment_on_the_job(self) -> None:
+        inst = "QQ-P06"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(conn, instance_id=inst, pack_version_id=self.pack_version_id)
+                snap = await participants.claim_instance(
+                    conn, self.org, ORG_ID, "noura", inst, "buyer", 1,
+                    packs_dir=self.packs_dir, decision="approve", note="  Taking this one.  ",
+                )
+        texts = [b["text"] for t in snap["turns"] for b in t["blocks"] if b.get("kind") == "text"]
+        self.assertIn("Approved. Taking this one.", texts)
+        self.assertEqual(snap["turns"][-1]["author"]["id"], "noura")
+        self.assertIn("buyer", snap["my_roles"])
+
+    async def test_reject_closes_the_job_and_requires_a_comment(self) -> None:
+        inst = "QQ-P07"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(conn, instance_id=inst, pack_version_id=self.pack_version_id)
+                await conn.execute(
+                    "insert into work.tasks (id, instance_id, kind, template, skill, work_type, state,"
+                    " contract, contract_hash) values ('task_rej', %s, 'assist', 'assist', 'assist',"
+                    " 'analysis', 'READY', '{}', 'hash')",
+                    (inst,),
+                )
+                await conn.execute(
+                    "insert into work.pending_items (id, instance_id, kind, event, title, for_role, for_person_id)"
+                    " values ('pend_rej', %s, 'decision', 'decision.brief_confirmed', 'Confirm the brief',"
+                    " 'requester', 'faisal')",
+                    (inst,),
+                )
+            with self.assertRaises(participants.ParticipantError) as ctx:
+                async with conn.transaction():
+                    await participants.claim_instance(
+                        conn, self.org, ORG_ID, "noura", inst, "buyer", 1,
+                        packs_dir=self.packs_dir, decision="reject", note="   ",
+                    )
+            self.assertEqual(ctx.exception.status, 422)
+            async with conn.transaction():
+                result = await participants.claim_instance(
+                    conn, self.org, ORG_ID, "noura", inst, "buyer", 1,
+                    packs_dir=self.packs_dir, decision="reject", note="Specs are not complete enough to source.",
+                )
+            self.assertEqual(result, {
+                "instance_id": inst,
+                "decision": "rejected",
+                "note": "Specs are not complete enough to source.",
+            })
+            status = await conn.execute("select status from work.instances where id = %s", (inst,))
+            self.assertEqual((await status.fetchone())[0], "cancelled")
+            buyer = await conn.execute(
+                "select 1 from work.participants where instance_id = %s and role = 'buyer'", (inst,)
+            )
+            self.assertIsNone(await buyer.fetchone())
+            task = await conn.execute("select state from work.tasks where id = 'task_rej'")
+            self.assertEqual((await task.fetchone())[0], "CANCELLED")
+            pend = await conn.execute("select status from work.pending_items where id = 'pend_rej'")
+            self.assertEqual((await pend.fetchone())[0], "voided")
+            turns = await conn.execute("select blocks from work.turns where instance_id = %s", (inst,))
+            self.assertIn("Specs are not complete enough to source.", (await turns.fetchone())[0][0]["text"])
+            items = await participants.list_queue_instances(conn, self.org, ORG_ID, "noura", QUEUE)
+            self.assertEqual(items, [])
 
     async def test_requester_cannot_claim(self) -> None:
         inst = "QQ-P03"
@@ -269,6 +335,64 @@ class ParticipantsKernelTests(unittest.IsolatedAsyncioTestCase):
                         packs_dir=self.packs_dir,
                     )
             self.assertEqual(ctx.exception.status, 403)
+
+    async def test_queue_member_who_started_the_job_keeps_the_work(self) -> None:
+        inst = "QQ-P10"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(
+                    conn,
+                    instance_id=inst,
+                    pack_version_id=self.pack_version_id,
+                    state="shortlisting",
+                    version=2,
+                    attributes={"brief_version": 1},
+                    created_by="noura",
+                )
+                await _insert_supplier_list(conn, inst)
+                await _region_done(conn, inst)
+            async with conn.transaction():
+                opened = await decisions.open_ready_decisions(
+                    conn, inst, org=self.org, packs_dir=self.packs_dir
+                )
+            self.assertEqual(len(opened), 1)
+            cur = await conn.execute(
+                "select person_id, bound_by from work.participants where instance_id = %s and role = 'buyer'",
+                (inst,),
+            )
+            self.assertEqual(await cur.fetchone(), ("noura", "claim"))
+            snap = await instances.build_snapshot(conn, self.org, ORG_ID, inst, "noura")
+            self.assertEqual(snap["pending"][0]["event"], "decision.shortlist_confirmed")
+            self.assertEqual(snap["pending"][0]["for_person_id"], "noura")
+            self.assertEqual(snap["pending"][0]["select_min"], 3)
+            self.assertIn("at least 3", snap["pending"][0]["detail"])
+            listed = await participants.list_queue_instances(conn, self.org, ORG_ID, "noura", QUEUE)
+            self.assertEqual(listed, [])
+
+    async def test_someone_off_the_queue_does_not_take_the_work(self) -> None:
+        inst = "QQ-P11"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await _insert_instance(
+                    conn,
+                    instance_id=inst,
+                    pack_version_id=self.pack_version_id,
+                    state="shortlisting",
+                    version=2,
+                    attributes={"brief_version": 1},
+                )
+                await _insert_supplier_list(conn, inst)
+                await _region_done(conn, inst)
+            async with conn.transaction():
+                opened = await decisions.open_ready_decisions(
+                    conn, inst, org=self.org, packs_dir=self.packs_dir
+                )
+            self.assertEqual(opened, [])
+            cur = await conn.execute(
+                "select count(*) from work.participants where instance_id = %s and role = 'buyer'",
+                (inst,),
+            )
+            self.assertEqual((await cur.fetchone())[0], 0)
 
     async def test_stale_version_on_claim(self) -> None:
         inst = "QQ-P04"

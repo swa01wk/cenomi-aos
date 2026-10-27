@@ -366,6 +366,11 @@ async def assemble_context(
             f"Skill {skill_name!r} is not on the pinned pack.",
         )
     reads = set((skill_doc.get("spec") or {}).get("reads") or [])
+    if contract.get("kind") == "assist":
+        state_spec = (wdoc.get("spec") or {}).get("states", {}).get(str(state)) or {}
+        view_type = state_spec.get("view")
+        if view_type:
+            reads.add(str(view_type))
 
     redactions: list[dict[str, Any]] = []
     resolvers: dict[str, Any] = {}

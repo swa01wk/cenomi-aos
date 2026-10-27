@@ -61,6 +61,25 @@ describe("artifact views", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
+  it("renders sheet rows from the columns", () => {
+    const View = artifactViewComponent("sheet");
+    render(
+      <View
+        view={{ ...sheetView, row_key: "item_code" }}
+        version={version({
+          rows: [
+            { item_code: "WX-9", units: 12 },
+            { item_code: "ZX-1", units: 3 },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Item code")).toBeInTheDocument();
+    expect(screen.getByText("WX-9")).toBeInTheDocument();
+    expect(screen.getByText("ZX-1")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+  });
+
   it("renders fallback field list for unknown view types", () => {
     const View = artifactViewComponent("dashboard");
     render(

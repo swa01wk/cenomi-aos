@@ -7,6 +7,7 @@ from typing import Any
 from psycopg import AsyncConnection
 
 from . import _records
+from . import supplier_scoring
 
 ARTIFACT_TYPE = "supplier_list"
 SEARCH_TOOL = "search_suppliers"
@@ -41,6 +42,7 @@ def check_rows(rows: list[dict[str, Any]], *, receipt_refs: set[str], searched_i
             findings.append(f"{name} cites {len(unknown)} source(s) that are not receipts from this Task's tool calls.")
         if str(row.get("supplier_id") or "") not in searched_ids:
             findings.append(f"{name} has a supplier_id that no {SEARCH_TOOL} call in this Task returned.")
+        findings.extend(supplier_scoring.check_row_scoring(row, row_label=name))
 
     ranks = [row.get("rank") for row in rows]
     if not all(isinstance(r, int) and not isinstance(r, bool) for r in ranks) or sorted(ranks) != list(

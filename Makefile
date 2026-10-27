@@ -36,6 +36,9 @@ test: ## run all backend tests (Postgres tests skip if no local Postgres)
 validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
 
+sync-pack: ## sync on-disk pack into Postgres, publish it, and repoint seats (after pack.yaml version bumps)
+	bash scripts/sync-pack.sh
+
 api-types: ## regenerate the web API types from openapi.yaml; fails if the committed file is out of date (as CI does)
 	cd web && npm run --silent gen:api && git diff --exit-code -- src/api/schema.d.ts
 

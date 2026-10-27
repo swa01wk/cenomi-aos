@@ -16,7 +16,7 @@ During intake, the requester's turns still go to `request_intake` (its own `assi
 ## Contract
 
 - **Inputs:** `job_snapshot` (goal, stages, open decisions and who they wait on, work in progress), `recent_messages`,
-  and the artifacts of the current state, each projected for the participant.
+  `supplier_list` when one exists, and other artifacts named in `reads`, each projected for the participant.
 - **Tools:** read-only. `read_artifact`, `browse_categories`, `get_supplier_history`, and `explain_outcome` from M4.
   No `save_draft`, no actions.
 - **Budget per attempt:** 20,000 tokens · USD 0.50 · 120 s · 4 steps · 4 actions · 1 retry. One attempt per message.
@@ -32,6 +32,7 @@ During intake, the requester's turns still go to `request_intake` (its own `assi
 | Never says a step happened unless the records show it | standing rule; conversation suite (must) |
 | Never shows a field the participant can't see | visibility projection on every input; conversation suite (must) |
 | Plain sentences; no JSON, field names or document dumps | standing rule; gate must-check |
+| "Why is X ranked …?" answered from `supplier_list` and the rubric above; no new ERP lookups | conversation suite (stop 6) |
 
 ## Progress turns (kernel, not this Skill)
 

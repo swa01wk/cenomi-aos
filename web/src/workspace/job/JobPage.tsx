@@ -93,6 +93,7 @@ export default function JobPage() {
       <Conversation
         snapshot={job.snapshot}
         streamingTurnId={job.streamingTurnId}
+        awaitingTurnId={job.awaitingTurnId}
         deltas={job.deltas}
         toolActivity={job.toolActivity}
         bannerMode={job.bannerMode}
@@ -102,11 +103,18 @@ export default function JobPage() {
         initialComposerText={getComposerDraft(instanceId)}
         onComposerTextChange={(t) => setComposerDraft(instanceId, t)}
         onSend={onSend}
+        onDecide={job.decide}
         onOpenArtifact={openArtifact}
         onLoadOlder={() => void job.loadOlderTurns()}
         showLoadOlder={job.snapshot.turns.length >= 50}
       />
-      <WorkPanel snapshot={job.snapshot} panelArtifactId={panelId} onSelectArtifact={openArtifact} />
+      <WorkPanel
+        instanceId={instanceId}
+        snapshot={job.snapshot}
+        panelArtifactId={panelId}
+        onSelectArtifact={openArtifact}
+        onSendRfqs={job.sendRfqs}
+      />
       {composerProblem && (
         <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 10 }}>
           <ProblemNotice problem={composerProblem} />

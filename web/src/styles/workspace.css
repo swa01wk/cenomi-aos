@@ -378,6 +378,32 @@
   align-items: center;
 }
 
+.ws-queue-actions {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+}
+
+.ws-queue-comment {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+}
+
+.ws-queue-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .ws-open-job {
   min-height: 44px;
   display: inline-flex;

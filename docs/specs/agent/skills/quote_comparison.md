@@ -23,7 +23,7 @@ Compares the captured quotes, then prepares and requests the purchase order. **M
 - **Budget:** 30,000 tokens · USD 0.80 · 300 s · 6 steps · 6 actions · 2 retries.
 - **Output:** `po_payload`. **Acceptance:** `payload_match` on the executed action.
 - **Policy:** `quick_quote_gates#po_create`: REQUIRE_APPROVAL, chain `participant:buyer` (content) then
-  `participant:procurement_approver` when `artifact.po_amount > 25000`; segregation `not_requester`,
+  `participant:procurement_approver` on every PO, whatever the amount; segregation `not_requester`,
   `distinct_approvers`; due 1 day.
 
 ## Behaviour
@@ -56,7 +56,8 @@ Clean no quote) → finish. Order: `save_draft` po_payload (SAR 38,400) → `req
 
 ## Tests
 
-- Two-step chain above SAR 25,000; one step below (QQ-0003, SAR 18,600).
+- Two-step chain at any amount: SAR 38,400 and SAR 18,600 (QQ-0003) both need the buyer, then the procurement
+  approver.
 - Noura cannot approve step 2; Khalid cannot approve step 1 after approving step 2 (distinct approvers).
 - ERP `timeout_after_commit` → UNKNOWN → reconciled → exactly one PO (stop 13, guidebook C04).
 - A changed comparison after selection is impossible: the artifact is locked (409).

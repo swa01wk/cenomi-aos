@@ -47,9 +47,15 @@ services:
   mock-mail:
     build: {context: .., dockerfile: backend/Dockerfile}
     command: ["python", "-m", "aos.connectors.mock_mail", "--host", "0.0.0.0", "--db", "/data/mock_mail.sqlite"]
+    env_file:
+      - ../.env
     environment:
       MOCK_MAIL_SECRET: ${MOCK_MAIL_SECRET:-dev-mail-secret}
       AOS_INBOUND_SECRET: ${AOS_INBOUND_SECRET:-dev-inbound-secret}
+      SMTP_SERVER: ${SMTP_SERVER:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes: [mockdata:/data]
     ports: ["8102:8102"]
 

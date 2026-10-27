@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Policy
-metadata: {name: quick_quote_gates, version: 1, owner: risk}
+metadata: {name: quick_quote_gates, version: 2, owner: risk}
 spec:
   type: gate_rules
   workflow: quick_quote
@@ -18,7 +18,7 @@ spec:
       approval:
         chain:
           - {approver: participant:buyer, kind: content}
-          - {approver: participant:procurement_approver, when: "artifact.po_amount > 25000"}
+          - {approver: participant:procurement_approver}
         segregation: [not_requester, distinct_approvers]
         due: 1d
       conditions:

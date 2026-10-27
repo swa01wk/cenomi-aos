@@ -11,10 +11,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import smtplib
 import threading
 import urllib.request
 import uuid
 from datetime import datetime, timezone
+from email.mime.text import MIMEText
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -27,7 +29,7 @@ SCHEMA = """
 create table if not exists message(id text primary key, conversation_id text not null, folder text not null,
     sender text not null, recipient text not null, subject text not null, body text not null,
     attachments text not null default '[]', idempotency_key text, ref text,
-    created_at text not null, sent_at text);
+    created_at text not null, sent_at text, smtp_relayed integer not null default 0);
 create unique index if not exists message_key on message(idempotency_key, folder);
 create table if not exists notification(id integer primary key, payload text not null, signature text not null,
     delivered integer not null default 0, created_at text not null);
@@ -36,6 +38,34 @@ create table if not exists notification(id integer primary key, payload text not
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _smtp_configured() -> bool:
+    return bool(
+        os.environ.get("SMTP_SERVER")
+        and os.environ.get("SMTP_USERNAME")
+        and os.environ.get("SMTP_PASSWORD")
+    )
+
+
+def _relay_via_smtp(*, to: str, subject: str, body: str) -> None:
+    """When SMTP_* env vars are set, deliver the message to the real recipient (POC demo)."""
+    if not _smtp_configured():
+        return
+    host = os.environ["SMTP_SERVER"]
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    user = os.environ["SMTP_USERNAME"]
+    password = os.environ["SMTP_PASSWORD"]
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = user
+    msg["To"] = to
+    with smtplib.SMTP(host, port, timeout=30) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.ehlo()
+        smtp.login(user, password)
+        smtp.sendmail(user, [to], msg.as_string())
 
 
 def conversation_for(ref: str) -> str:
@@ -49,9 +79,25 @@ def _view(row: dict | None) -> dict | None:
     return {**row, "attachments": json.loads(row["attachments"])}
 
 
+def _migrate_smtp_relayed(store: Store) -> None:
+    cols = {row["name"] for row in store.q("pragma table_info(message)")}
+    if "smtp_relayed" not in cols:
+        store.x("alter table message add column smtp_relayed integer not null default 0")
+
+
+def _relay_sent_row(store: Store, row: dict) -> None:
+    if int(row.get("smtp_relayed") or 0):
+        return
+    if not _smtp_configured():
+        return
+    _relay_via_smtp(to=row["recipient"], subject=row["subject"], body=row["body"])
+    store.x("update message set smtp_relayed = 1 where id = ?", (row["id"],))
+
+
 def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
                  inbound_secret: str = "dev-inbound-secret") -> tuple[MCPServer, Store]:
     store = Store(cfg.db_path, SCHEMA)
+    _migrate_smtp_relayed(store)
     server = MCPServer("mock_mail", version="0.1.0",
                        instructions="Mock sourcing mailbox for the AOS POC. Every call needs a broker token.")
 
@@ -103,6 +149,11 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
         guard(token, "send", "send_message")
         sent = store.one("select * from message where idempotency_key = ? and folder = 'sent'", (idempotency_key,))
         if sent:
+            try:
+                _relay_sent_row(store, sent)
+            except Exception as exc:  # noqa: BLE001
+                raise ToolError(f"smtp: {exc}") from exc
+            sent = store.one("select * from message where id = ?", (sent["id"],))
             return {**_view(sent), "duplicate": True}
         draft = store.one("select * from message where id = ? and folder = 'drafts'", (draft_id,))
         if draft is None:
@@ -111,7 +162,17 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
             raise ToolError("validation: the idempotency key does not match the approved draft")
         if cfg.faults.take("fail_validation"):
             raise ToolError("validation: recipient rejected by mail policy (injected fault)")
-        store.x("update message set folder = 'sent', sent_at = ? where id = ?", (_now(), draft_id))
+        sent_row = store.one("select * from message where id = ?", (draft_id,))
+        if sent_row is None:
+            raise ToolError(f"not_found: no draft {draft_id}")
+        try:
+            _relay_via_smtp(to=sent_row["recipient"], subject=sent_row["subject"], body=sent_row["body"])
+        except Exception as exc:  # noqa: BLE001 — surface as tool error so the kernel never assumes delivery
+            raise ToolError(f"smtp: {exc}") from exc
+        store.x(
+            "update message set folder = 'sent', sent_at = ?, smtp_relayed = ? where id = ?",
+            (_now(), 1 if _smtp_configured() else 0, draft_id),
+        )
         if cfg.faults.take("timeout_after_commit"):
             await stall(cfg)
         return {**_view(store.one("select * from message where id = ?", (draft_id,))), "duplicate": False}

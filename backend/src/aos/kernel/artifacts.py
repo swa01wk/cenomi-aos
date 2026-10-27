@@ -352,6 +352,8 @@ def build_artifact_view(type_spec: ArtifactTypeSpec, allowed: set[str]) -> dict[
     out: dict[str, Any] = {"type": view.type, "fields": fields}
     if columns:
         out["columns"] = columns
+    if type_spec.row_key and type_spec.row_key in allowed:
+        out["row_key"] = type_spec.row_key
     if view.export is not None:
         out["export"] = view.export
     return out

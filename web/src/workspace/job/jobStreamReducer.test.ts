@@ -134,6 +134,16 @@ describe("reduceJobStreamEvent", () => {
     expect(r.aux.deltas).toHaveLength(0);
   });
 
+  it("reloads documents when a person gains a role", () => {
+    const r = reduceJobStreamEvent(baseSnapshot(), emptyJobStreamAux("instance:inst-1:0"), {
+      id: "instance:inst-1:2",
+      type: "participant.bound",
+      at: "t",
+      data: { instance_id: "inst-1", role: "buyer", person_id: "p1", name: "N", bound_by: "claim" },
+    });
+    expect(r.effects).toEqual([{ kind: "refetch_snapshot" }, { kind: "invalidate_documents" }]);
+  });
+
   it("requests snapshot refetch on snapshot.required", () => {
     const aux = emptyJobStreamAux("instance:inst-1:3");
     const r = reduceJobStreamEvent(baseSnapshot(), aux, {

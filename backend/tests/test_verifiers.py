@@ -21,7 +21,7 @@ from aos.kernel.settings import REPO
 from aos.kernel.worker_fence import evaluate_claimed_fence
 from aos.kernel.worker_submit import submit_result
 from aos.registry.kinds import ArtifactTypeSpec
-from aos.verifiers import brief_schema, leak_check, sources_cited
+from aos.verifiers import brief_schema, leak_check, sources_cited, supplier_scoring
 
 from . import _pg
 from .test_context_envelope import _schema_validator
@@ -45,9 +45,40 @@ def _brief(**overrides) -> dict:
     return {k: v for k, v in content.items() if v is not None}
 
 
-def _row(rank: int, sid: str, score: float, sources: list | None = None) -> dict:
-    return {"rank": rank, "supplier": f"Supplier {sid}", "supplier_id": sid, "score": score,
-            "sources": ["tp_search"] if sources is None else sources}
+def _row(
+    rank: int,
+    sid: str,
+    score: float | None = None,
+    sources: list | None = None,
+    *,
+    past_pos: int = 3,
+    on_time_pct: float | None = 100,
+) -> dict:
+    breakdown = supplier_scoring.score_breakdown(past_pos, on_time_pct)
+    resolved = score if score is not None else breakdown["score"]
+    return {
+        "rank": rank,
+        "supplier": f"Supplier {sid}",
+        "supplier_id": sid,
+        "past_pos": past_pos,
+        "on_time_pct": on_time_pct,
+        "points_asl": breakdown["points_asl"],
+        "points_history": breakdown["points_history"],
+        "points_delivery": breakdown["points_delivery"],
+        "score": resolved,
+        "sources": ["tp_search"] if sources is None else sources,
+    }
+
+
+class SupplierScoringRules(unittest.TestCase):
+    def test_breakdown_sums_to_score(self) -> None:
+        bd = supplier_scoring.score_breakdown(7, 71.4)
+        self.assertEqual(bd, {"points_asl": 20, "points_history": 35, "points_delivery": 21, "score": 76})
+
+    def test_no_history_skips_delivery_points(self) -> None:
+        bd = supplier_scoring.score_breakdown(0, None)
+        self.assertEqual(bd["points_delivery"], 0)
+        self.assertEqual(bd["score"], 20)
 
 
 class BriefSchemaRules(unittest.TestCase):
@@ -92,28 +123,41 @@ class SourcesCitedRules(unittest.TestCase):
         return sources_cited.check_rows(rows, receipt_refs={"tp_search", "tp_hist"}, searched_ids={"S1", "S2", "S3"})
 
     def test_ranked_cited_list_passes(self) -> None:
-        self.assertEqual(self.check([_row(1, "S1", 0.9, ["tp_search", "tp_hist"]), _row(2, "S2", 0.7),
-                                     _row(3, "S3", 0.7)]), [])
+        self.assertEqual(
+            self.check(
+                [
+                    _row(1, "S1", sources=["tp_search", "tp_hist"], past_pos=3, on_time_pct=100),
+                    _row(2, "S2", sources=["tp_search", "tp_hist"], past_pos=1, on_time_pct=100),
+                    _row(3, "S3", sources=["tp_search", "tp_hist"], past_pos=1, on_time_pct=50),
+                ]
+            ),
+            [],
+        )
+
+    def test_score_must_match_rubric(self) -> None:
+        self.assertTrue(
+            any("does not match the rubric" in f for f in self.check([_row(1, "S1", score=99, past_pos=0)]))
+        )
 
     def test_row_without_sources(self) -> None:
-        self.assertEqual(self.check([_row(1, "S1", 0.9, [])]), ["Row 1 (Supplier S1) cites no source."])
+        self.assertEqual(self.check([_row(1, "S1", sources=[])]), ["Row 1 (Supplier S1) cites no source."])
 
     def test_source_that_is_not_this_tasks_receipt(self) -> None:
         self.assertEqual(
-            self.check([_row(1, "S1", 0.9, ["tp_search", "tp_other"])]),
+            self.check([_row(1, "S1", sources=["tp_search", "tp_other"])]),
             ["Row 1 (Supplier S1) cites 1 source(s) that are not receipts from this Task's tool calls."],
         )
 
     def test_supplier_not_returned_by_a_search(self) -> None:
         self.assertEqual(
-            self.check([_row(1, "S9", 0.9)]),
+            self.check([_row(1, "S9")]),
             ["Row 1 (Supplier S9) has a supplier_id that no search_suppliers call in this Task returned."],
         )
 
     def test_ranks_without_gaps_in_score_order(self) -> None:
-        self.assertEqual(self.check([_row(1, "S1", 0.9), _row(3, "S2", 0.8)]),
+        self.assertEqual(self.check([_row(1, "S1"), _row(3, "S2", past_pos=1)]),
                          ["Ranks must run 1 to 2 with no gaps or repeats."])
-        self.assertEqual(self.check([_row(1, "S1", 0.5), _row(2, "S2", 0.8)]),
+        self.assertEqual(self.check([_row(1, "S1", past_pos=0), _row(2, "S2", past_pos=10)]),
                          ["Rank order must follow score, highest first."])
 
     def test_empty_list(self) -> None:
@@ -169,7 +213,7 @@ class LeakCheckRules(unittest.TestCase):
                          ["rfq_email.body contains the value of memo.note."])
 
     def test_type_default_classification_is_not_a_secret(self) -> None:
-        supplier_list = {"rows": [_row(1, "SUP-10482", 0.92)]}
+        supplier_list = {"rows": [_row(1, "SUP-10482", past_pos=3, on_time_pct=100)]}
         self.assertEqual(self.findings("Dear Supplier SUP-10482, rank 1.", supplier_list, "supplier_list"), [])
 
 

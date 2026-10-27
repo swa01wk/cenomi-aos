@@ -62,7 +62,9 @@ def verify_pinned_pack_on_disk(
             "conflict",
             409,
             "Pack version mismatch",
-            f"On-disk pack is v{meta.version}; this job is pinned to v{pack_version}.",
+            f"On-disk pack is v{meta.version}; the active seat is pinned to v{pack_version}."
+            " Sync the pack from the Console (or run make sync-pack), publish the new version,"
+            " and point the seat at it.",
         )
     if loaded.digest != expected_digest:
         raise PackMaterialError(

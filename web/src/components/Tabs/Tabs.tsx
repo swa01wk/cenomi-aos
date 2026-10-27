@@ -5,6 +5,7 @@ export type TabDef = {
   id: string;
   label: string;
   panel: ReactNode;
+  tabClassName?: string;
 };
 
 export function Tabs({
@@ -51,7 +52,7 @@ export function Tabs({
               aria-selected={selected}
               aria-controls={`${baseId}-panel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              className={styles.tab}
+              className={[styles.tab, tab.tabClassName].filter(Boolean).join(" ")}
               onClick={() => onChange(tab.id)}
               onKeyDown={(e) => onKeyDown(e, i)}
             >

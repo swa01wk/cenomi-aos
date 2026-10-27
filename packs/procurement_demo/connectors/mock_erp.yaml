@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: ToolProvider
-metadata: {name: mock_erp, version: 1, owner: platform_admin}
+metadata: {name: mock_erp, version: 2, owner: platform_admin}
 spec:
   description: Mock ERP for categories, suppliers and purchase orders, served as an MCP server.
   transport: mcp
@@ -9,7 +9,8 @@ spec:
     browse_categories:
       description: >-
         List ERP purchasing categories (id and name). An empty query lists them all; otherwise it returns the
-        categories whose name contains the query. Category names are broad (e.g. equipment, services), not items.
+        categories whose name, description or catalogue items contain every word of the query (plurals match,
+        e.g. "macbooks", "sweepers", "27-inch monitors"). Use one or two item words, not a whole sentence.
       resource: erp_supplier
       action: read
       class: read

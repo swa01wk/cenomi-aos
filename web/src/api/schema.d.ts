@@ -486,6 +486,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/instances/{id}/send-rfqs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Buyer approves and sends every rfq_email draft on the job through the mail connector (idempotent per supplier).
+         *     Completes the rfq_send workflow step when the job is in rfq_sending. Until governed request_action is wired in
+         *     the worker, this is the human approval path for the POC demo.
+         */
+        post: operations["sendRfqs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/instances/{id}/turns": {
         parameters: {
             query?: never;
@@ -535,7 +556,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Bind the caller as the participant role claimed from a queue (buyer). Exactly one claim wins; others get 409 already_claimed. */
+        /**
+         * @description Review an unclaimed job from the caller's team queue. `decision` `approve` (the default) binds the caller as
+         *     the claimed role. `reject` does not bind anyone: it closes the job, voids open decisions, and records the
+         *     comment. A comment is required to reject. Exactly one approve wins; others get 409 already_claimed.
+         */
         post: operations["claimInstance"];
         delete?: never;
         options?: never;
@@ -1555,6 +1580,14 @@ export interface components {
             closed_at?: string | null;
             /** Format: date-time */
             last_activity_at?: string;
+            /** @description On a queue item */
+            claim_role?: string;
+        };
+        QueueRejection: {
+            instance_id: string;
+            /** @constant */
+            decision: "rejected";
+            note: string;
         };
         InstanceSnapshot: {
             instance_id: string;
@@ -1605,6 +1638,8 @@ export interface components {
             type: "document" | "sheet" | "form" | "comparison" | "message_composer" | "rubric" | "tracker" | "approval_pack" | "record_preview" | "file_viewer" | "dashboard";
             /** @description Field order for row views (sheet */
             columns?: string[];
+            /** @description Field that identifies one row */
+            row_key?: string;
             /** @enum {unknown} */
             export?: "excel" | "csv" | null;
             fields: {
@@ -2106,6 +2141,8 @@ export interface components {
                 artifact_id?: string;
                 version?: number;
             } | null;
+            /** @description How many rows this decision needs. Present only when the decision is a selection. */
+            select_min?: number;
             approval_id?: string | null;
             /** Format: date-time */
             due_at?: string | null;
@@ -2469,6 +2506,8 @@ export interface components {
                         artifact_id?: string;
                         version?: number;
                     } | null;
+                    /** @description How many rows this decision needs. Present only when the decision is a selection. */
+                    select_min?: number;
                     approval_id?: string | null;
                     /** Format: date-time */
                     due_at?: string | null;
@@ -3825,6 +3864,45 @@ export interface operations {
             404: components["responses"]["Problem"];
         };
     };
+    sendRfqs: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: components["parameters"]["InstanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Send receipts and an updated snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent_count: number;
+                        snapshot_digest?: string;
+                        receipts: {
+                            supplier_id: string;
+                            to: string;
+                            idempotency_key: string;
+                            message_id?: string | null;
+                            duplicate?: boolean;
+                        }[];
+                        snapshot: components["schemas"]["InstanceSnapshot"];
+                    };
+                };
+            };
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
     listTurns: {
         parameters: {
             query?: {
@@ -3931,21 +4009,30 @@ export interface operations {
                     /** @example buyer */
                     role: string;
                     expected_version: number;
+                    /**
+                     * @description Omitted means approve.
+                     * @default approve
+                     * @enum {string}
+                     */
+                    decision?: "approve" | "reject";
+                    /** @description Comment recorded on the job. Required when decision is reject. */
+                    note?: string;
                 };
             };
         };
         responses: {
-            /** @description Claimed */
+            /** @description Approved and claimed, or rejected and closed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstanceSnapshot"];
+                    "application/json": components["schemas"]["InstanceSnapshot"] | components["schemas"]["QueueRejection"];
                 };
             };
             403: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     listQueue: {

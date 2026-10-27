@@ -21,7 +21,9 @@ newer than the one it ranked against.
 
 ## Behaviour
 
-- Search the category, fetch history for each match, score on category match, past orders and on-time rate.
+- Search the category, fetch history for each match, then score with a fixed rubric: 20 for approved-list presence,
+  up to 50 from past POs in the category (5 each), up to 30 from on-time % on those POs (30% of the percentage). Store
+  `points_asl`, `points_history`, `points_delivery`, and `score` on each row; the verifier checks the sum.
 - No prices: the ERP tools return none, and the ceiling would strip them anyway.
 - Every row carries `sources`: the receipt refs of the `search_suppliers` and `get_supplier_history` calls it used.
 - "Why is X second?" in an assist turn is answered from the saved `supplier_list` and its sources; the assist

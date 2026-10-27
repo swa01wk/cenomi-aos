@@ -15,7 +15,8 @@ one who asked for it.
   versions and the requesting attempt. Any change to the payload voids the approval.
 - Chains are ordered steps resolved to people from the instance's participant roles at request time.
   In the pack (`policies/quick_quote_gates.yaml`): RFQ send needs `participant:buyer`; PO create needs
-  `participant:buyer` (content), then `participant:procurement_approver` when `po_amount > 25000`.
+  `participant:buyer` (content), then `participant:procurement_approver` on every PO. A step may carry a `when`
+  condition; the demo pack's PO chain has none.
 - Segregation of duties (`segregation: [not_requester, distinct_approvers]`): the requester cannot
   approve, and no person may approve two steps of the same request.
 - Each decision is an audit record (ADR 008) and emits `decision.approved|rejected` with `by`.

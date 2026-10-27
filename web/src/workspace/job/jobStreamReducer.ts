@@ -7,7 +7,8 @@ export type InstanceSnapshot = components["schemas"]["InstanceSnapshot"];
 
 export type JobStreamSideEffect =
   | { kind: "refetch_snapshot" }
-  | { kind: "invalidate_artifact"; artifactId: string; version: number };
+  | { kind: "invalidate_artifact"; artifactId: string; version: number }
+  | { kind: "invalidate_documents" };
 
 export type JobStreamAuxState = {
   deltas: MessageDelta[];
@@ -159,6 +160,11 @@ export function reduceJobStreamEvent(
       };
       break;
     }
+    case "participant.bound":
+      // A new role can reveal columns that were hidden. Reload the documents.
+      effects.push({ kind: "refetch_snapshot" });
+      effects.push({ kind: "invalidate_documents" });
+      break;
     case "pending.created": {
       const data = event.data as { pending: InstanceSnapshot["pending"][0] };
       next = {

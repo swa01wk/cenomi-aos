@@ -18,6 +18,7 @@ from ..kernel import (
     decisions,
     demo,
     instances,
+    outbound_mail,
     participants,
     publish,
     registry_store,
@@ -56,6 +57,10 @@ def _raise_seat_error(exc: SeatError) -> None:
 
 
 def _raise_instance_error(exc: instances.InstanceError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_outbound_mail_error(exc: outbound_mail.OutboundMailError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -635,6 +640,45 @@ async def post_turn(
     return result
 
 
+@router.post("/instances/{id}/send-rfqs", tags=["instances"])
+async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep) -> dict:
+    try:
+        async with k.pool.connection() as conn:
+            async with conn.transaction():
+                plan = await outbound_mail.plan_send_rfqs(
+                    conn,
+                    org_id=p.org_id,
+                    instance_id=id,
+                    person_id=p.person_id,
+                )
+        sent_keys, receipts = await outbound_mail.execute_rfqs_mail(
+            k.gateway,
+            k.broker,
+            org_id=p.org_id,
+            instance_id=id,
+            plan=plan,
+        )
+        async with k.pool.connection() as conn:
+            async with conn.transaction():
+                body = await outbound_mail.finalize_send_rfqs(
+                    conn,
+                    k.org,
+                    org_id=p.org_id,
+                    instance_id=id,
+                    person_id=p.person_id,
+                    plan=plan,
+                    sent_keys=sent_keys,
+                    receipts=receipts,
+                    packs_dir=k.settings.packs_dir,
+                )
+                snapshot = await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
+        return {**body, "snapshot": snapshot}
+    except outbound_mail.OutboundMailError as exc:
+        _raise_outbound_mail_error(exc)
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+
+
 @router.get("/instances/{id}/events", tags=["instances"])
 async def stream_instance_events(
     request: Request,
@@ -716,6 +760,8 @@ async def create_artifact_version(
 class ClaimInstanceBody(BaseModel):
     role: str
     expected_version: int
+    decision: str = "approve"
+    note: str | None = None
 
 
 @router.get("/queues/{queue:path}/instances", tags=["decisions"])
@@ -747,6 +793,8 @@ async def claim_instance(
             body.role,
             body.expected_version,
             packs_dir=k.settings.packs_dir,
+            decision=body.decision,
+            note=body.note,
         )
     except participants.ParticipantError as exc:
         _raise_participant_error(exc)

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   AgentMessage,
   Composer,
@@ -12,12 +12,15 @@ import type { MessageDelta, ToolActivity as ToolActivityType, Turn } from "../..
 import { SeatMark } from "../icons";
 import { useWorkflowTitle } from "../useWorkspaceQueries";
 import { JobProgress, stageBadgeText } from "./JobProgress";
+import { DecisionCard } from "./DecisionCard";
+import { ThinkingStatus } from "./ThinkingStatus";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
 export function Conversation({
   snapshot,
   streamingTurnId,
+  awaitingTurnId,
   deltas,
   toolActivity,
   bannerMode,
@@ -28,11 +31,13 @@ export function Conversation({
   onComposerTextChange,
   onSend,
   onOpenArtifact,
+  onDecide,
   onLoadOlder,
   showLoadOlder,
 }: {
   snapshot: InstanceSnapshot;
   streamingTurnId: string | null;
+  awaitingTurnId: string | null;
   deltas: MessageDelta[];
   toolActivity?: ToolActivityType;
   bannerMode: "hidden" | "reconnecting" | "synced";
@@ -43,13 +48,40 @@ export function Conversation({
   onComposerTextChange?: (text: string) => void;
   onSend: (text: string, clientTurnId: string) => Promise<void>;
   onOpenArtifact: (artifactId: string) => void;
+  onDecide: (input: {
+    pendingId: string;
+    value: string;
+    artifactVersion?: number;
+    note?: string;
+    selection?: string[];
+    idempotencyKey: string;
+  }) => Promise<void>;
   onLoadOlder?: () => void;
   showLoadOlder?: boolean;
 }) {
   const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
+  const pendingInTurns = new Set<string>();
+  for (const turn of snapshot.turns) {
+    for (const block of turn.blocks ?? []) {
+      if ("pending_id" in block && block.kind === "pending_ref") pendingInTurns.add(block.pending_id);
+    }
+  }
+  const orphanPending = snapshot.pending.filter(
+    (p) => p.status === "open" && p.kind === "decision" && !pendingInTurns.has(p.pending_id),
+  );
   const streamingOnly = streamingTurnId && !turnIds.has(streamingTurnId);
   const badge = stageBadgeText(snapshot.stages);
+  const awaitingHasText = Boolean(awaitingTurnId && deltas.some((d) => d.turn_id === awaitingTurnId));
+  const showThinking = Boolean(awaitingTurnId) && !awaitingHasText;
+  const scroller = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !stick.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [snapshot.turns.length, deltas.length, showThinking, toolActivity?.state]);
 
   return (
     <section aria-label="Conversation" className={styles.conversation}>
@@ -67,7 +99,15 @@ export function Conversation({
         <JobProgress stages={snapshot.stages} />
       </header>
 
-      <div className={styles.turns}>
+      <div
+        className={styles.turns}
+        ref={scroller}
+        onScroll={() => {
+          const el = scroller.current;
+          if (!el) return;
+          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+      >
         {showLoadOlder && (
           <button type="button" className="btn" onClick={() => onLoadOlder?.()}>
             Show earlier messages
@@ -78,18 +118,29 @@ export function Conversation({
             key={turn.turn_id}
             turn={turn}
             streamingTurnId={streamingTurnId}
+            awaitingTurnId={showThinking ? awaitingTurnId : null}
             deltas={deltas}
             toolActivity={toolActivity}
             onOpenArtifact={onOpenArtifact}
+            renderPending={(pendingId) => {
+              const pending = snapshot.pending.find((item) => item.pending_id === pendingId && item.status === "open");
+              if (!pending || pending.kind !== "decision") return null;
+              const artifact = snapshot.artifacts.find((item) => item.artifact_id === pending.artifact_ref?.artifact_id);
+              return <DecisionCard pending={pending} view={artifact?.view} onApprove={onDecide} />;
+            }}
           />
         ))}
         {streamingOnly && (
           <AgentStream>
-            <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
+            {showThinking ? (
+              <ThinkingStatus />
+            ) : (
+              <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
+            )}
             {toolActivity && <ToolActivity activity={toolActivity} />}
           </AgentStream>
         )}
-        {!streamingTurnId && toolActivity && (
+        {!streamingTurnId && !showThinking && toolActivity && (
           <AgentStream>
             <ToolActivity activity={toolActivity} />
           </AgentStream>
@@ -102,6 +153,17 @@ export function Conversation({
           title={seatNotice.kind === "killed" ? "Digital worker stopped" : "Digital worker paused"}
           detail={seatNotice.text}
         />
+      )}
+
+      {orphanPending.length > 0 && (
+        <div className={styles.openPendingStrip}>
+          {orphanPending.map((pending) => {
+            const artifact = snapshot.artifacts.find((a) => a.artifact_id === pending.artifact_ref?.artifact_id);
+            return (
+              <DecisionCard key={pending.pending_id} pending={pending} view={artifact?.view} onApprove={onDecide} />
+            );
+          })}
+        </div>
       )}
 
       <div className={styles.composerWrap}>
@@ -128,15 +190,19 @@ function AgentStream({ children }: { children: ReactNode }) {
 function TurnView({
   turn,
   streamingTurnId,
+  awaitingTurnId,
   deltas,
   toolActivity,
   onOpenArtifact,
+  renderPending,
 }: {
   turn: Turn;
   streamingTurnId: string | null;
+  awaitingTurnId: string | null;
   deltas: MessageDelta[];
   toolActivity?: ToolActivityType;
   onOpenArtifact: (artifactId: string) => void;
+  renderPending?: (pendingId: string) => ReactNode;
 }) {
   const isStreaming = turn.turn_id === streamingTurnId;
   if (turn.author.kind === "person") {
@@ -145,9 +211,13 @@ function TurnView({
     return (
       <>
         <PersonMessage turn={turn} />
-        {isStreaming && (
+        {(isStreaming || turn.turn_id === awaitingTurnId) && (
           <AgentStream>
-            <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
+            {turn.turn_id === awaitingTurnId && !isStreaming ? (
+              <ThinkingStatus />
+            ) : (
+              <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
+            )}
             {toolActivity && <ToolActivity activity={toolActivity} />}
           </AgentStream>
         )}
@@ -160,6 +230,7 @@ function TurnView({
         turn={turn}
         avatar={<SeatMark small />}
         onOpenArtifact={(id) => onOpenArtifact(id)}
+        renderPending={renderPending}
       />
       {isStreaming && (
         <>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,10 @@ from aos.registry.kinds import ArtifactType, WorkflowDecisionSpec, WorkflowDefin
 from . import audit_store, clock, ids, workflow
 from .contracts import _canonical_json
 from .org import OrgModel
+
+_AT_LEAST = re.compile(r">=\s*(\d+)")
+
+
 class DecisionError(Exception):
     def __init__(self, code: str, status: int, title: str, detail: str = "", **extra: Any) -> None:
         self.code = code
@@ -125,28 +130,30 @@ async def pending_for_viewer(
         if artifact_ref is None:
             art = None
         elif isinstance(artifact_ref, dict):
-            art = artifact_ref
+            art = dict(artifact_ref)
         else:
-            art = json.loads(artifact_ref)
+            art = dict(json.loads(artifact_ref))
+        select_min = art.pop("select_min", None) if art is not None else None
         created: datetime | str = created_at
-        out.append(
-            {
-                "pending_id": pid,
-                "instance_id": inst_id,
-                "kind": kind,
-                "event": event,
-                "title": title,
-                "detail": detail or "",
-                "for_role": for_role,
-                "for_person_id": for_person,
-                "options": options_doc,
-                "artifact_ref": art,
-                "approval_id": approval_id,
-                "due_at": due_at.isoformat() if due_at is not None else None,
-                "status": status,
-                "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
-            }
-        )
+        item: dict[str, Any] = {
+            "pending_id": pid,
+            "instance_id": inst_id,
+            "kind": kind,
+            "event": event,
+            "title": title,
+            "detail": detail or "",
+            "for_role": for_role,
+            "for_person_id": for_person,
+            "options": options_doc,
+            "artifact_ref": art,
+            "approval_id": approval_id,
+            "due_at": due_at.isoformat() if due_at is not None else None,
+            "status": status,
+            "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
+        }
+        if isinstance(select_min, int) and select_min >= 1:
+            item["select_min"] = select_min
+        out.append(item)
     return out
 
 
@@ -173,6 +180,15 @@ async def _latest_view_artifact(
     return aid, ver, str(vrow[0])
 
 
+def _selection_minimum(definition: WorkflowDefinition, event: str) -> int:
+    for tr in definition.spec.transitions:
+        if event in tr.events and tr.guard:
+            match = _AT_LEAST.search(tr.guard)
+            if match:
+                return int(match.group(1))
+    return 1
+
+
 def _pending_payload(
     *,
     pending_id: str,
@@ -183,24 +199,32 @@ def _pending_payload(
     for_person_id: str,
     artifact_ref: dict[str, Any] | None,
     created_at: datetime,
+    detail: str = "",
+    select_min: int | None = None,
 ) -> dict[str, Any]:
     options = [{"value": "confirm", "label": title}]
-    return {
+    public_ref = None
+    if artifact_ref is not None:
+        public_ref = {"artifact_id": artifact_ref.get("artifact_id"), "version": artifact_ref.get("version")}
+    payload: dict[str, Any] = {
         "pending_id": pending_id,
         "instance_id": instance_id,
         "kind": "decision",
         "event": event,
         "title": title,
-        "detail": "",
+        "detail": detail,
         "for_role": for_role,
         "for_person_id": for_person_id,
         "options": options,
-        "artifact_ref": artifact_ref,
+        "artifact_ref": public_ref,
         "approval_id": None,
         "due_at": None,
         "status": "open",
         "created_at": created_at.isoformat(),
     }
+    if select_min is not None:
+        payload["select_min"] = select_min
+    return payload
 
 
 async def _emit_pending_created(
@@ -322,6 +346,11 @@ async def open_ready_decisions(
                 continue
             aid, ver, ch = bound
             artifact_ref = {"artifact_id": aid, "version": ver, "content_hash": ch}
+        select_min = _selection_minimum(definition, event) if dec.selection else None
+        detail = f"Choose at least {select_min}." if select_min else ""
+        stored_ref = dict(artifact_ref) if artifact_ref is not None else None
+        if select_min is not None and stored_ref is not None:
+            stored_ref["select_min"] = select_min
         pending_id = ids.new_pending_id()
         pending_doc = _pending_payload(
             pending_id=pending_id,
@@ -332,21 +361,24 @@ async def open_ready_decisions(
             for_person_id=person_id,
             artifact_ref=artifact_ref,
             created_at=ts,
+            detail=detail,
+            select_min=select_min if stored_ref is not None else None,
         )
         await conn.execute(
             "insert into work.pending_items ("
             " id, instance_id, kind, event, title, detail, for_role, for_person_id,"
             " options, artifact_ref, status, created_at"
-            ") values (%s, %s, 'decision', %s, %s, '', %s, %s, %s, %s, 'open', %s)",
+            ") values (%s, %s, 'decision', %s, %s, %s, %s, %s, %s, %s, 'open', %s)",
             (
                 pending_id,
                 instance_id,
                 event,
                 dec.label,
+                detail,
                 dec.for_,
                 person_id,
                 Jsonb(pending_doc["options"]),
-                Jsonb(artifact_ref) if artifact_ref else None,
+                Jsonb(stored_ref) if stored_ref else None,
                 ts,
             ),
         )

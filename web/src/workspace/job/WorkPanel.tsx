@@ -6,16 +6,23 @@ import { when } from "../../lib/ui";
 import { workspaceKeys } from "../useWorkspaceQueries";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import { artifactViewComponent } from "./views";
+import { messageComposerArtifacts } from "./workComposerHint";
+import { WorkPanelComposerHint } from "./WorkPanelComposerHint";
+import { WorkPanelSendRfqs } from "./WorkPanelSendRfqs";
 import styles from "./job.module.css";
 
 export function WorkPanel({
+  instanceId,
   snapshot,
   panelArtifactId,
   onSelectArtifact,
+  onSendRfqs,
 }: {
+  instanceId: string;
   snapshot: InstanceSnapshot;
   panelArtifactId: string | null;
   onSelectArtifact: (artifactId: string) => void;
+  onSendRfqs?: () => Promise<void>;
 }) {
   const artifacts = snapshot.artifacts;
   const activeId = panelArtifactId ?? artifacts[0]?.artifact_id ?? "";
@@ -80,8 +87,15 @@ export function WorkPanel({
     </div>
   ) : null;
 
+  const composerDrafts = messageComposerArtifacts(artifacts);
+  const highlightComposerTabs = composerDrafts.length > 0;
+  const composerTabIds = new Set(composerDrafts.map((a) => a.artifact_id));
+
   return (
-    <aside aria-label="Work in progress" className={styles.workPanel}>
+    <aside
+      aria-label="Work in progress"
+      className={[styles.workPanel, highlightComposerTabs ? styles.workPanelComposerGlow : ""].filter(Boolean).join(" ")}
+    >
       <header className={styles.workHead}>
         <div style={{ minWidth: 0 }}>
           <div className="eyebrow">Work in progress</div>
@@ -111,20 +125,34 @@ export function WorkPanel({
           </div>
         )}
       </header>
-      <Tabs
-        label="Documents"
-        activeId={activeId}
-        onChange={(id) => {
-          onSelectArtifact(id);
-          const a = artifacts.find((x) => x.artifact_id === id);
-          if (a) setViewVersion(a.latest_version);
-        }}
-        tabs={artifacts.map((a) => ({
-          id: a.artifact_id,
-          label: `${a.name} v${a.latest_version}`,
-          panel: a.artifact_id === activeId ? body : null,
-        }))}
-      />
+      <div
+        className={[styles.workTabsWrap, highlightComposerTabs ? styles.workTabsWrapHighlight : ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <WorkPanelComposerHint
+          instanceId={instanceId}
+          snapshot={snapshot}
+          activeArtifactId={activeId}
+          onOpenDraft={onSelectArtifact}
+        />
+        {onSendRfqs ? <WorkPanelSendRfqs snapshot={snapshot} onSend={onSendRfqs} /> : null}
+        <Tabs
+          label="Documents"
+          activeId={activeId}
+          onChange={(id) => {
+            onSelectArtifact(id);
+            const a = artifacts.find((x) => x.artifact_id === id);
+            if (a) setViewVersion(a.latest_version);
+          }}
+          tabs={artifacts.map((a) => ({
+            id: a.artifact_id,
+            label: `${a.name} v${a.latest_version}`,
+            tabClassName: composerTabIds.has(a.artifact_id) ? styles.workComposerTab : undefined,
+            panel: a.artifact_id === activeId ? body : null,
+          }))}
+        />
+      </div>
       {content.data && (
         <footer className={styles.workFoot}>
           v{version}

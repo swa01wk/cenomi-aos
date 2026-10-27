@@ -1,7 +1,7 @@
 import { Link, NavLink } from "react-router";
 import { useSession } from "../app/session";
 import { initials, teamLabel } from "../lib/ui";
-import { BriefcaseIcon, PlusIcon, SeatMark } from "./icons";
+import { BriefcaseIcon, PlusIcon, QueueIcon, SeatMark } from "./icons";
 import { useDigitalWorkers, useMyInstances } from "./useWorkspaceQueries";
 
 const SEAT_STATE_WORD: Record<string, string> = {
@@ -40,6 +40,10 @@ export function WorkspaceRail() {
         <NavLink to="/workspace" end className={({ isActive }) => (isActive ? "ws-nav-link active" : "ws-nav-link")}>
           <BriefcaseIcon />
           My jobs
+        </NavLink>
+        <NavLink to="/workspace/queue" className={({ isActive }) => (isActive ? "ws-nav-link active" : "ws-nav-link")}>
+          <QueueIcon />
+          Team queue
         </NavLink>
       </div>
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mcp.client.client import Client
 
-from aos.connectors import mock_erp, mock_mail
+from aos.connectors import mock_erp, mock_erp_seed, mock_mail
 from aos.connectors.base import ConnectorConfig
 from aos.connectors.inbound import canonical, verify
 from aos.gateway.broker import CredentialBroker, Grant, TokenRejected, verify_token
@@ -176,8 +176,94 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("validation", res["error"])
         self.assertEqual(pos["items"], [])
 
+    async def browse(self, c: Client, query: str) -> list[str]:
+        res = payload(await c.call_tool("browse_categories", {
+            "query": query, "token": self.tok("erp_supplier", "read", "browse_categories")}))
+        return [item["id"] for item in res["items"]]
+
+    async def suppliers(self, c: Client, category_id: str) -> list[dict]:
+        res = payload(await c.call_tool("search_suppliers", {
+            "category_id": category_id, "token": self.tok("erp_supplier", "read", "search_suppliers")}))
+        return res["items"]
+
+    async def test_browse_matches_items_and_plurals(self) -> None:
+        async with Client(self.server) as c:
+            self.assertEqual(await self.browse(c, "cleaning trolley"), ["CAT-JAN-EQ"])
+            self.assertIn("CAT-IT-EUD", await self.browse(c, "macbooks"))
+            self.assertEqual(await self.browse(c, "MacBook Pro"), ["CAT-IT-EUD"])
+            self.assertEqual(await self.browse(c, "sweepers"), ["CAT-FLR-MCH"])
+            self.assertIn("CAT-IT-MON", await self.browse(c, "27-inch monitors"))
+            self.assertEqual(await self.browse(c, "xyzzy"), [])
+            self.assertGreaterEqual(len(await self.browse(c, "")), 30)
+
+    async def test_demo_suppliers_and_history_stay_fixed(self) -> None:
+        async with Client(self.server) as c:
+            jan = await self.suppliers(c, "CAT-JAN-EQ")
+            self.assertEqual([s["id"] for s in jan], ["SUP-10217", "SUP-10355", "SUP-10482", "SUP-10611", "SUP-10790"])
+            self.assertEqual(jan[2], {"id": "SUP-10482", "name": "Najd Supplies", "email": "sales@najd.example",
+                                      "category_id": "CAT-JAN-EQ"})
+            tok = self.tok("erp_supplier", "read", "get_supplier_history")
+            desert = payload(await c.call_tool("get_supplier_history", {"supplier_id": "SUP-10355", "token": tok}))
+            gulf = payload(await c.call_tool("get_supplier_history", {"supplier_id": "SUP-10790", "token": tok}))
+        self.assertEqual([(o["po_number"], o["on_time"]) for o in desert["orders"]],
+                         [("PO-771950", 1), ("PO-773012", 0)])
+        self.assertEqual(desert["on_time_pct"], 50.0)
+        self.assertEqual({o["category_id"] for o in desert["orders"]}, {"CAT-JAN-EQ"})
+        self.assertEqual((gulf["past_pos"], gulf["on_time_pct"]), (0, None))
+
+    async def test_it_service_vendor_has_full_master_data(self) -> None:
+        async with Client(self.server) as c:
+            managed = await self.suppliers(c, "CAT-IT-MSV")
+            laptops = await self.suppliers(c, "CAT-IT-EUD")
+        rawabi = next(s for s in managed if s["name"] == "Rawabi Digital Services")
+        self.assertEqual(rawabi["email"], "rfq@rawabi-digital.example")
+        self.assertIn(rawabi["id"], {s["id"] for s in laptops})
+        self.assertNotIn("Old Town Computers", {s["name"] for s in laptops}, "a suspended supplier is never offered")
+        vendor = self.store.one("select VENDOR_ID from POZ_SUPPLIERS where SEGMENT1 = ?", (rawabi["id"],))["VENDOR_ID"]
+        sites = self.store.q("select VENDOR_SITE_CODE from POZ_SUPPLIER_SITES_ALL_M where VENDOR_ID = ?", (vendor,))
+        contacts = self.store.q("select JOB_TITLE from POZ_SUPPLIER_CONTACTS where VENDOR_ID = ?", (vendor,))
+        agreement = self.store.one("select SEGMENT1 from PO_HEADERS_ALL where VENDOR_ID = ? and"
+                                   " TYPE_LOOKUP_CODE = 'BLANKET'", (vendor,))
+        self.assertEqual({s["VENDOR_SITE_CODE"] for s in sites}, {"RUH-HQ", "JED-BR", "DMM-BR"})
+        self.assertIn("Key Account Manager", {c["JOB_TITLE"] for c in contacts})
+        self.assertEqual(agreement["SEGMENT1"], "BPA-2025-0014")
+
+    async def test_created_po_lands_in_fusion_tables(self) -> None:
+        async with Client(self.server) as c:
+            po = payload(await c.call_tool("create_po", self.po_args()))
+        self.assertEqual(po["id"], "PO-778201")
+        self.assertEqual(po["lines"], [{"item": "Cleaning trolley", "quantity": 40, "unit_price": 960}])
+        self.assertEqual((po["ship_to"], po["need_by"], po["supplier_id"]),
+                         ("Mall A loading bay", "2026-11-20", "SUP-10482"))
+        header = self.store.one("select * from PO_HEADERS_ALL where ATTRIBUTE1 = 'AOS-QQ-0001-PO1'")
+        location = self.store.one("select l.LOCATION_CODE from PO_LINE_LOCATIONS_ALL ll join HR_LOCATIONS_ALL l"
+                                  " on l.LOCATION_ID = ll.SHIP_TO_LOCATION_ID where ll.PO_HEADER_ID = ?",
+                                  (header["PO_HEADER_ID"],))
+        self.assertEqual((header["TYPE_LOOKUP_CODE"], header["DOCUMENT_STATUS"]), ("STANDARD", "OPEN"))
+        self.assertEqual(location["LOCATION_CODE"], "MALLA-LB")
+
+    def test_seed_is_large_and_runs_once(self) -> None:
+        counts = {t: self.store.one(f"select count(*) as n from {t}")["n"]
+                  for t in ("EGP_CATEGORIES_B", "EGP_SYSTEM_ITEMS_B", "POZ_SUPPLIERS", "PO_HEADERS_ALL")}
+        self.assertGreaterEqual(counts["EGP_CATEGORIES_B"], 30)
+        self.assertGreaterEqual(counts["EGP_SYSTEM_ITEMS_B"], 180)
+        self.assertGreaterEqual(counts["POZ_SUPPLIERS"], 80)
+        self.assertGreaterEqual(counts["PO_HEADERS_ALL"], 200)
+        mock_erp_seed.seed(self.store)
+        self.assertEqual(self.store.one("select count(*) as n from POZ_SUPPLIERS")["n"], counts["POZ_SUPPLIERS"])
+
 
 class MockMailTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        # Host .env often carries real SMTP credentials; connector tests must never send live mail.
+        from unittest.mock import patch
+
+        self._relay_patcher = patch("aos.connectors.mock_mail._relay_via_smtp")
+        self._relay_patcher.start()
+
+    def tearDown(self) -> None:
+        self._relay_patcher.stop()
+
     async def asyncSetUp(self) -> None:
         self.broker = CredentialBroker(SECRETS)
         self.cfg = ConnectorConfig(name="mock_mail", secret=SECRETS["mock_mail"])
@@ -196,6 +282,23 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
         async with Client(self.server) as c:
             names = {t.name for t in (await c.list_tools()).tools}
         self.assertLessEqual(declared_tools("mock_mail"), names)
+
+    async def test_send_relays_when_smtp_configured(self) -> None:
+        from unittest.mock import patch
+
+        async with Client(self.server) as c:
+            d = await self.draft(c, key="rfq-smtp-relay")
+            args = {
+                "draft_id": d["draft_id"],
+                "idempotency_key": "rfq-smtp-relay",
+                "token": self.tok("send", "send_message"),
+            }
+            with patch("aos.connectors.mock_mail._relay_via_smtp") as relay:
+                payload(await c.call_tool("send_message", args))
+                relay.assert_called_once()
+                kw = relay.call_args.kwargs
+                self.assertEqual(kw["to"], "sales@najd.example")
+                self.assertIn("quotation", kw["subject"].lower())
 
     async def test_send_is_idempotent_and_findable(self) -> None:
         async with Client(self.server) as c:

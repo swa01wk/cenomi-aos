@@ -399,6 +399,44 @@ paths:
         '200': {description: Snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
         '403': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /instances/{id}/send-rfqs:
+    post:
+      tags: [instances]
+      operationId: sendRfqs
+      x-milestone: M3
+      x-screens: [WS-RFQ-Approval, Main]
+      description: |
+        Buyer approves and sends every rfq_email draft on the job through the mail connector (idempotent per supplier).
+        Completes the rfq_send workflow step when the job is in rfq_sending. Until governed request_action is wired in
+        the worker, this is the human approval path for the POC demo.
+      parameters: [{$ref: '#/components/parameters/InstanceId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      responses:
+        '200':
+          description: Send receipts and an updated snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent_count, receipts, snapshot]
+                properties:
+                  sent_count: {type: integer}
+                  snapshot_digest: {type: string}
+                  receipts:
+                    type: array
+                    items:
+                      type: object
+                      required: [supplier_id, to, idempotency_key]
+                      properties:
+                        supplier_id: {type: string}
+                        to: {type: string}
+                        idempotency_key: {type: string}
+                        message_id: {type: [string, 'null']}
+                        duplicate: {type: boolean}
+                  snapshot: {$ref: '#/components/schemas/InstanceSnapshot'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '502': {$ref: '#/components/responses/Problem'}
   /instances/{id}/turns:
     get:
       tags: [instances]
@@ -443,13 +481,35 @@ paths:
       operationId: claimInstance
       x-milestone: M2
       x-screens: [WS-Queue]
-      description: Bind the caller as the participant role claimed from a queue (buyer). Exactly one claim wins; others get 409 already_claimed.
+      description: |
+        Review an unclaimed job from the caller's team queue. `decision` `approve` (the default) binds the caller as
+        the claimed role. `reject` does not bind anyone: it closes the job, voids open decisions, and records the
+        comment. A comment is required to reject. Exactly one approve wins; others get 409 already_claimed.
       parameters: [{$ref: '#/components/parameters/InstanceId'}]
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [role, expected_version], properties: {role: {type: string, examples: [buyer]}, expected_version: {type: integer}}}}}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, expected_version]
+              properties:
+                role: {type: string, examples: [buyer]}
+                expected_version: {type: integer}
+                decision: {type: string, enum: [approve, reject], default: approve, description: Omitted means approve.}
+                note: {type: string, maxLength: 2000, description: Comment recorded on the job. Required when decision is reject.}
       responses:
-        '200': {description: Claimed, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
+        '200':
+          description: Approved and claimed, or rejected and closed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - {$ref: '#/components/schemas/InstanceSnapshot'}
+                  - {$ref: '#/components/schemas/QueueRejection'}
         '403': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /queues/{queue}/instances:
     get:
       tags: [decisions]
@@ -1143,6 +1203,14 @@ components:
         started_at: {type: string, format: date-time}
         closed_at: {type: [string, 'null'], format: date-time}
         last_activity_at: {type: string, format: date-time}
+        claim_role: {type: string, description: On a queue item, the participant role a claim binds. Absent elsewhere.}
+    QueueRejection:
+      type: object
+      required: [instance_id, decision, note]
+      properties:
+        instance_id: {type: string}
+        decision: {const: rejected}
+        note: {type: string}
     InstanceSnapshot:
       type: object
       required: [instance_id, title, workflow, pack_version, state, version, stages, participants, my_roles, pending, artifacts, turns, cursor]
@@ -1183,6 +1251,7 @@ components:
       properties:
         type: {enum: [document, sheet, form, comparison, message_composer, rubric, tracker, approval_pack, record_preview, file_viewer, dashboard]}
         columns: {type: array, items: {type: string}, description: Field order for row views (sheet, tracker, comparison)}
+        row_key: {type: string, description: Field that identifies one row, when the caller may see it. A selection decision sends these values.}
         export: {enum: [excel, csv, null]}
         fields:
           type: array
