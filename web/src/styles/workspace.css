@@ -189,6 +189,7 @@
 }
 
 .ws-nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -209,6 +210,19 @@
   background: var(--accent-soft);
   color: var(--accent-ink);
   font-weight: 700;
+}
+
+.ws-nav-badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .ws-rail-group {
@@ -260,6 +274,47 @@
 .ws-job-link.active .state {
   color: var(--accent-strong);
   font-weight: 600;
+}
+
+.ws-rail-group-attention {
+  margin-bottom: 4px;
+}
+
+.ws-eyebrow-attention {
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+.ws-job-needs-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ws-job-link.needs-you {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ws-job-link.needs-you .state {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.ws-job-link.needs-you:hover {
+  background: color-mix(in srgb, var(--accent-soft) 85%, var(--accent) 15%);
+}
+
+.ws-job-card.needs-you {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: var(--accent-soft);
 }
 
 .ws-rail .foot {
@@ -328,6 +383,8 @@
 .shell > main.ws-main-flush {
   padding: 0;
   gap: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* My jobs */

@@ -21,6 +21,7 @@ from .admission import (
     refuse_live_attempt_conflict,
     task_has_live_attempt,
 )
+from .console import _waiting_on
 from .contracts import PackMaterialError, finalize_assist_contract, resolve_assist_skill
 from .conversation import (
     find_turn_by_client_id,
@@ -289,13 +290,9 @@ async def list_my_instances(
             continue
         if status == "active" and inst_status != "running":
             continue
+        waiting = await _waiting_on(conn, org, inst_id)
         if status == "waiting_on_me":
-            pend = await conn.execute(
-                "select 1 from work.pending_items where instance_id = %s and status = 'open'"
-                " and for_person_id = %s limit 1",
-                (inst_id, person_id),
-            )
-            if await pend.fetchone() is None:
+            if waiting.get("kind") != "person" or waiting.get("person_id") != person_id:
                 continue
         state_label = state
         items.append(
@@ -306,6 +303,7 @@ async def list_my_instances(
                 "state": state,
                 "state_label": state_label,
                 "version": version,
+                "waiting_on": waiting,
                 "started_at": created_at.isoformat(),
                 "closed_at": closed_at.isoformat() if closed_at else None,
                 "last_activity_at": state_entered_at.isoformat(),
@@ -363,6 +361,19 @@ async def _fetch_turns(
             pname = seat_names.get(row[3], row[3])
         out.append(project_turn(row, person_name=pname))
     return out
+
+
+async def refresh_decisions_for_viewer(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    *,
+    packs_dir: Path,
+) -> None:
+    """Reconcile join regions and open decisions when the client loads a snapshot."""
+    from . import decisions as decision_ops
+
+    await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
 
 
 async def build_snapshot(

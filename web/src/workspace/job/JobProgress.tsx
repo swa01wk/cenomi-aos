@@ -9,9 +9,13 @@ export function stageBadgeText(stages: Stage[]): string | null {
 }
 
 /** One segment per workflow stage: done, current or next. */
-export function JobProgress({ stages }: { stages: Stage[] }) {
+export function JobProgress({ stages, allComplete = false }: { stages: Stage[]; allComplete?: boolean }) {
   return (
-    <ol className={styles.progress} aria-label="Workflow stages" style={{ gridTemplateColumns: `repeat(${stages.length || 1}, minmax(0, 1fr))` }}>
+    <ol
+      className={[styles.progress, allComplete ? styles.progress_allComplete : ""].filter(Boolean).join(" ")}
+      aria-label={allComplete ? "All workflow stages complete" : "Workflow stages"}
+      style={{ gridTemplateColumns: `repeat(${stages.length || 1}, minmax(0, 1fr))` }}
+    >
       {stages.map((s) => (
         <li
           key={s.state}

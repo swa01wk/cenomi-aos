@@ -1,0 +1,95 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.headline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.steps li {
+  font-size: 13px;
+  line-height: 1.45;
+  padding-left: 14px;
+  position: relative;
+}
+
+.steps li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.stepCurrent {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.stepCurrent::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft-2);
+}
+
+.stepDone {
+  color: var(--ink-2);
+}
+
+.stepDone::before {
+  background: var(--accent);
+}
+
+.stepUpcoming {
+  color: var(--ink-3);
+}
+
+.expectation,
+.asyncHint,
+.slow {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.asyncHint {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.meta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.toolState {
+  text-transform: capitalize;
+}

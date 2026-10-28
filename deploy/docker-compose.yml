@@ -28,6 +28,10 @@ services:
       AOS_CORS_ORIGINS: http://localhost:5173,http://localhost:8080
       AOS_CONNECTOR_SECRETS: '{"mock_erp":"${MOCK_ERP_SECRET:-dev-erp-secret}","mock_mail":"${MOCK_MAIL_SECRET:-dev-mail-secret}"}'
       AOS_CONNECTOR_URLS: '{"mock_erp":"http://mock-erp:8101/mcp","mock_mail":"http://mock-mail:8102/mcp"}'
+      AOS_DEMO: ${AOS_DEMO:-0}
+      AOS_RFQ_TEST_TO: ${AOS_RFQ_TEST_TO:-}
+      AOS_RFQ_TEST_SUPPLIER_ID: ${AOS_RFQ_TEST_SUPPLIER_ID:-SUP-11632}
+      AOS_RFQ_DEMO_SHORT_DEADLINE: ${AOS_RFQ_DEMO_SHORT_DEADLINE:-1}
     ports: ["8000:8000"]
     depends_on:
       postgres: {condition: service_healthy}
@@ -52,6 +56,7 @@ services:
     environment:
       MOCK_MAIL_SECRET: ${MOCK_MAIL_SECRET:-dev-mail-secret}
       AOS_INBOUND_SECRET: ${AOS_INBOUND_SECRET:-dev-inbound-secret}
+      AOS_INBOUND_URL: http://api:8000/api/inbound/mock_mail
       SMTP_SERVER: ${SMTP_SERVER:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

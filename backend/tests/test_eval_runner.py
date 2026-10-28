@@ -67,6 +67,38 @@ class EvalRunnerTests(unittest.TestCase):
         check = result.detail["checks"][0]
         self.assertIn("published version", check["detail"])
 
+    def test_inbound_quotes_script_resolves(self) -> None:
+        from aos.registry.loader import load_pack
+
+        loaded = load_pack(PACK)
+        suite = loaded.get("EvalSuite")["inbound_quotes"]
+        defs = {kind: {name: obj.model_dump() for name, obj in objs.items()} for kind, objs in loaded.objects.items()}
+        result = run_suite(
+            suite_name="inbound_quotes",
+            suite_spec=suite.model_dump(),
+            defs=defs,
+            pack_root=PACK,
+            suite_file="evals/inbound_quotes.yaml",
+            pinned_digest=loaded.digest,
+        )
+        self.assertEqual(result.status, "passed")
+        self.assertGreaterEqual(result.detail["deferred_count"], 2)
+
+    def test_inbound_trigger_structural(self) -> None:
+        from aos.registry.loader import load_pack
+
+        loaded = load_pack(PACK)
+        suite = loaded.get("EvalSuite")["inbound_trigger"]
+        defs = {kind: {name: obj.model_dump() for name, obj in objs.items()} for kind, objs in loaded.objects.items()}
+        result = run_suite(
+            suite_name="inbound_trigger",
+            suite_spec=suite.model_dump(),
+            defs=defs,
+            pack_root=PACK,
+        )
+        self.assertEqual(result.status, "passed")
+        self.assertEqual(result.passed, result.total)
+
 
 if __name__ == "__main__":
     unittest.main()

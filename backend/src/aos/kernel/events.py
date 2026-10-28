@@ -380,6 +380,7 @@ async def raise_inbound_event(
     event: str,
     *,
     packs_dir: Path,
+    inbound_payload: dict[str, Any] | None = None,
 ) -> bool:
     """Create the current state's on_event Task for *event*, or record WorkflowEventIgnored."""
     actor_kind, actor_id = "kernel", "kernel"
@@ -444,6 +445,11 @@ async def raise_inbound_event(
     tpl = state_spec.on_event[event]
     participants = await workflow._participants(conn, instance_id)
     seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
+    trigger_context: dict[str, Any] | None = None
+    if inbound_payload:
+        from . import inbound_mail
+
+        trigger_context = inbound_mail.trigger_context_from_payload(event=event, payload=inbound_payload)
     await workflow._create_entry_tasks(
         conn,
         packs_dir=packs_dir,
@@ -460,6 +466,7 @@ async def raise_inbound_event(
         seat_limits=seat_limits,
         entry_tasks=[tpl],
         participants=participants,
+        trigger_context=trigger_context,
     )
     return True
 

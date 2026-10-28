@@ -11,9 +11,15 @@ import {
 import type { MessageDelta, ToolActivity as ToolActivityType, Turn } from "../../components/types";
 import { SeatMark } from "../icons";
 import { useWorkflowTitle } from "../useWorkspaceQueries";
-import { JobProgress, stageBadgeText } from "./JobProgress";
+import { JobClosedBanner } from "./JobClosedBanner";
+import { JobProgress } from "./JobProgress";
+import { isJobClosed, jobHeaderBadge, stagesForDisplay } from "./jobLifecycle";
 import { DecisionCard } from "./DecisionCard";
-import { ThinkingStatus } from "./ThinkingStatus";
+import { JobStepGuide } from "./JobStepGuide";
+import { orphanOpenDecisions, splitConversationPending } from "./conversationPending";
+import { StaleRetriesPanel } from "./StaleRetriesPanel";
+import { jobStepGuide, stageGuideIsLive } from "./stageGuideLogic";
+import { AgentWorkStatus } from "./AgentWorkStatus";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
@@ -61,19 +67,19 @@ export function Conversation({
 }) {
   const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
-  const pendingInTurns = new Set<string>();
-  for (const turn of snapshot.turns) {
-    for (const block of turn.blocks ?? []) {
-      if ("pending_id" in block && block.kind === "pending_ref") pendingInTurns.add(block.pending_id);
-    }
-  }
-  const orphanPending = snapshot.pending.filter(
-    (p) => p.status === "open" && p.kind === "decision" && !pendingInTurns.has(p.pending_id),
-  );
+  const orphanPending = orphanOpenDecisions(snapshot);
+  const { primary: primaryPending, staleRetries } = splitConversationPending(orphanPending, snapshot);
   const streamingOnly = streamingTurnId && !turnIds.has(streamingTurnId);
-  const badge = stageBadgeText(snapshot.stages);
+  const closed = isJobClosed(snapshot);
+  const displayStages = stagesForDisplay(snapshot.stages, snapshot.state);
+  const badge = jobHeaderBadge(snapshot.stages, snapshot.state);
   const awaitingHasText = Boolean(awaitingTurnId && deltas.some((d) => d.turn_id === awaitingTurnId));
   const showThinking = Boolean(awaitingTurnId) && !awaitingHasText;
+  const openPendingForYou = snapshot.pending.filter((p) => p.status === "open").length;
+  const agentBusy = Boolean(showThinking || streamingTurnId || toolActivity);
+  const personTurns = snapshot.turns.filter((t) => t.author.kind === "person").length;
+  const isFirstExchange = personTurns <= 1;
+  const stepGuide = jobStepGuide(snapshot, { agentBusy, openPendingForYou });
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
@@ -81,22 +87,27 @@ export function Conversation({
     const el = scroller.current;
     if (!el || !stick.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [snapshot.turns.length, deltas.length, showThinking, toolActivity?.state]);
+  }, [snapshot.turns.length, deltas.length, showThinking, toolActivity?.state, primaryPending.length, staleRetries.length]);
 
   return (
     <section aria-label="Conversation" className={styles.conversation}>
       {bannerMode === "reconnecting" && <ConnectionBanner mode="reconnecting" />}
       {bannerMode === "synced" && <ConnectionBanner mode="synced" updateCount={syncCount} />}
 
-      <header className={styles.convHeader}>
+      <header className={[styles.convHeader, closed ? styles.convHeader_closed : ""].filter(Boolean).join(" ")}>
         <span className={styles.convMeta}>
           {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
         </span>
         <div className={styles.convTitleRow}>
           <h1>{snapshot.title}</h1>
-          {badge && <span className={styles.stageBadge}>{badge}</span>}
+          {badge && (
+            <span className={[styles.stageBadge, closed ? styles.stageBadge_complete : ""].filter(Boolean).join(" ")}>
+              {badge}
+            </span>
+          )}
         </div>
-        <JobProgress stages={snapshot.stages} />
+        {closed ? <JobClosedBanner instanceId={snapshot.instance_id} /> : null}
+        <JobProgress stages={displayStages} allComplete={closed} />
       </header>
 
       <div
@@ -121,6 +132,8 @@ export function Conversation({
             awaitingTurnId={showThinking ? awaitingTurnId : null}
             deltas={deltas}
             toolActivity={toolActivity}
+            workflowState={snapshot.state}
+            isFirstExchange={isFirstExchange}
             onOpenArtifact={onOpenArtifact}
             renderPending={(pendingId) => {
               const pending = snapshot.pending.find((item) => item.pending_id === pendingId && item.status === "open");
@@ -133,7 +146,11 @@ export function Conversation({
         {streamingOnly && (
           <AgentStream>
             {showThinking ? (
-              <ThinkingStatus />
+              <AgentWorkStatus
+                workflowState={snapshot.state}
+                toolActivity={toolActivity}
+                isFirstExchange={isFirstExchange}
+              />
             ) : (
               <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
             )}
@@ -145,6 +162,24 @@ export function Conversation({
             <ToolActivity activity={toolActivity} />
           </AgentStream>
         )}
+
+        {(primaryPending.length > 0 || staleRetries.length > 0) && (
+          <div className={styles.pendingInThread}>
+            {primaryPending.map((pending) => {
+              const artifact = snapshot.artifacts.find((a) => a.artifact_id === pending.artifact_ref?.artifact_id);
+              return (
+                <DecisionCard
+                  key={pending.pending_id}
+                  pending={pending}
+                  view={artifact?.view}
+                  onApprove={onDecide}
+                  variant={pending.event === "task.retry" ? "retry" : "default"}
+                />
+              );
+            })}
+            <StaleRetriesPanel retries={staleRetries} artifacts={snapshot.artifacts} onDecide={onDecide} />
+          </div>
+        )}
       </div>
 
       {seatNotice && (
@@ -155,25 +190,27 @@ export function Conversation({
         />
       )}
 
-      {orphanPending.length > 0 && (
-        <div className={styles.openPendingStrip}>
-          {orphanPending.map((pending) => {
-            const artifact = snapshot.artifacts.find((a) => a.artifact_id === pending.artifact_ref?.artifact_id);
-            return (
-              <DecisionCard key={pending.pending_id} pending={pending} view={artifact?.view} onApprove={onDecide} />
-            );
-          })}
+      {stepGuide && !seatNotice && !closed && primaryPending.length === 0 ? (
+        <JobStepGuide
+          guide={stepGuide}
+          live={stageGuideIsLive(stepGuide, snapshot.state)}
+          workflowState={snapshot.state}
+        />
+      ) : null}
+
+      {closed ? (
+        <p className={styles.closedFooter}>This conversation is read-only. Start a new job to run another quick quote.</p>
+      ) : (
+        <div className={styles.composerWrap}>
+          <Composer
+            onSend={onSend}
+            disabledReason={composerDisabledReason}
+            initialText={initialComposerText}
+            onTextChange={onComposerTextChange}
+            agentBusy={agentBusy}
+          />
         </div>
       )}
-
-      <div className={styles.composerWrap}>
-        <Composer
-          onSend={onSend}
-          disabledReason={composerDisabledReason}
-          initialText={initialComposerText}
-          onTextChange={onComposerTextChange}
-        />
-      </div>
     </section>
   );
 }
@@ -193,6 +230,8 @@ function TurnView({
   awaitingTurnId,
   deltas,
   toolActivity,
+  workflowState,
+  isFirstExchange,
   onOpenArtifact,
   renderPending,
 }: {
@@ -201,6 +240,8 @@ function TurnView({
   awaitingTurnId: string | null;
   deltas: MessageDelta[];
   toolActivity?: ToolActivityType;
+  workflowState: string;
+  isFirstExchange: boolean;
   onOpenArtifact: (artifactId: string) => void;
   renderPending?: (pendingId: string) => ReactNode;
 }) {
@@ -214,7 +255,11 @@ function TurnView({
         {(isStreaming || turn.turn_id === awaitingTurnId) && (
           <AgentStream>
             {turn.turn_id === awaitingTurnId && !isStreaming ? (
-              <ThinkingStatus />
+              <AgentWorkStatus
+                workflowState={workflowState}
+                toolActivity={toolActivity}
+                isFirstExchange={isFirstExchange}
+              />
             ) : (
               <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
             )}

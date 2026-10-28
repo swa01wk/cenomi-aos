@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
+import re
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +45,39 @@ def _idempotency_key(instance_id: str, supplier_id: str) -> str:
 
 def _conversation_ref(instance_id: str, supplier_id: str) -> str:
     return f"{instance_id}:{supplier_id}"
+
+
+def _demo_short_deadline_enabled() -> bool:
+    return os.environ.get("AOS_RFQ_DEMO_SHORT_DEADLINE", "1").strip().lower() in ("1", "true", "yes")
+
+
+def _demo_test_inbox_to(supplier_id: str) -> str | None:
+    to_override = os.environ.get("AOS_RFQ_TEST_TO", "").strip()
+    supplier_override = os.environ.get("AOS_RFQ_TEST_SUPPLIER_ID", "SUP-11632").strip()
+    if not to_override or supplier_id != supplier_override:
+        return None
+    return to_override
+
+
+def _apply_demo_rfq_send_overrides(content: dict[str, Any]) -> None:
+    """POC: route one supplier to a real inbox and shorten the reply deadline in the email body."""
+    supplier_id = str(content.get("supplier_id") or "")
+    test_to = _demo_test_inbox_to(supplier_id)
+    if test_to:
+        content["to"] = test_to
+
+    if not _demo_short_deadline_enabled():
+        return
+    body = str(content.get("body") or "")
+    if not body:
+        return
+    by = (clock.now() + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M UTC")
+    replacement = f"Reply deadline: Please send your quotation within 1 minute (by {by})."
+    if re.search(r"(?im)^reply deadline:", body):
+        body = re.sub(r"(?im)^reply deadline:.*$", replacement, body, count=1)
+    else:
+        body = body.rstrip() + "\n\n" + replacement
+    content["body"] = body
 
 
 async def _participant_roles(conn: AsyncConnection, instance_id: str, person_id: str) -> list[str]:
@@ -162,7 +198,8 @@ async def execute_rfqs_mail(
     receipts: list[dict[str, Any]] = []
 
     for row in plan.emails:
-        content = row["content"]
+        content = dict(row["content"])
+        _apply_demo_rfq_send_overrides(content)
         supplier_id = str(content.get("supplier_id") or "")
         to = str(content.get("to") or "").strip()
         subject = str(content.get("subject") or "").strip()
@@ -235,7 +272,80 @@ async def execute_rfqs_mail(
                 "duplicate": bool(sent.get("duplicate")),
             }
         )
+        test_to = _demo_test_inbox_to(supplier_id)
+        if test_to:
+            await _deliver_demo_test_inbox(
+                gateway,
+                broker,
+                org_id=org_id,
+                instance_id=instance_id,
+                attempt_id=attempt_id,
+                supplier_id=supplier_id,
+                to=test_to,
+                subject=subject,
+                body=body,
+            )
     return sent_keys, receipts
+
+
+async def _deliver_demo_test_inbox(
+    gateway: ToolGateway,
+    broker: CredentialBroker,
+    *,
+    org_id: str,
+    instance_id: str,
+    attempt_id: str,
+    supplier_id: str,
+    to: str,
+    subject: str,
+    body: str,
+) -> None:
+    """Second send with a separate idempotency key so a real SMTP copy reaches the POC inbox."""
+    key = f"{instance_id}:rfq_send:{supplier_id}:poc_test"
+    found = await _invoke_mail(
+        gateway,
+        broker,
+        org_id=org_id,
+        instance_id=instance_id,
+        attempt_id=attempt_id,
+        tool="find_message",
+        action="read",
+        args={"idempotency_key": key},
+    )
+    if found.get("found") and found.get("message"):
+        sent = found["message"]
+        if str(sent.get("recipient") or "") == to:
+            return
+    draft = await _invoke_mail(
+        gateway,
+        broker,
+        org_id=org_id,
+        instance_id=instance_id,
+        attempt_id=attempt_id,
+        tool="draft_message",
+        action="draft",
+        args={
+            "to": to,
+            "subject": subject,
+            "body": body,
+            "conversation_ref": _conversation_ref(instance_id, supplier_id),
+            "idempotency_key": key,
+            "attachments": [],
+        },
+    )
+    draft_id = str(draft.get("draft_id") or "")
+    if not draft_id:
+        raise OutboundMailError("connector_failed", 502, "Could not send test RFQ", "Draft was not created.")
+    await _invoke_mail(
+        gateway,
+        broker,
+        org_id=org_id,
+        instance_id=instance_id,
+        attempt_id=attempt_id,
+        tool="send_message",
+        action="send",
+        args={"draft_id": draft_id, "idempotency_key": key},
+    )
 
 
 async def finalize_send_rfqs(

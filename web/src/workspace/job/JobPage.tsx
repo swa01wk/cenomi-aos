@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { ApiProblemError } from "../../api/problems";
 import {
@@ -9,9 +9,12 @@ import {
 } from "../../components";
 import type { Problem } from "../../api/problems";
 import { clearComposerDraft, getComposerDraft, setComposerDraft } from "./composerDrafts";
+import { composerBlockedForPoLoop } from "./composerGate";
+import { closedComposerMessage, isJobClosed } from "./jobLifecycle";
 import { Conversation } from "./Conversation";
 import { useJobPage } from "./useJobPage";
 import { WorkPanel } from "./WorkPanel";
+import { shouldAutoFocusWorkPanel } from "./workPanelAutoFocus";
 import styles from "./job.module.css";
 
 export default function JobPage() {
@@ -23,11 +26,22 @@ export default function JobPage() {
   const [composerProblem, setComposerProblem] = useState<Problem | null>(null);
   const [seatBlock, setSeatBlock] = useState<Problem | null>(null);
 
+  const userPanelOverride = useRef(false);
+  const prevWorkflowState = useRef<string | null>(null);
+
   const openArtifact = useCallback(
     (artifactId: string) => {
       setSearchParams({ panel: artifactId });
     },
     [setSearchParams],
+  );
+
+  const selectWorkPanelArtifact = useCallback(
+    (artifactId: string) => {
+      userPanelOverride.current = true;
+      openArtifact(artifactId);
+    },
+    [openArtifact],
   );
 
   const onSend = useCallback(
@@ -48,6 +62,22 @@ export default function JobPage() {
     },
     [instanceId, job],
   );
+
+  const snapshot = job.snapshot;
+  const artifactFocusKey =
+    snapshot?.artifacts
+      .map((a) => `${a.artifact_id}:${a.latest_version}:${a.artifact_type}`)
+      .join("|") ?? "";
+
+  useEffect(() => {
+    if (!snapshot) return;
+    if (snapshot.state !== prevWorkflowState.current) {
+      userPanelOverride.current = false;
+      prevWorkflowState.current = snapshot.state;
+    }
+    const next = shouldAutoFocusWorkPanel(snapshot, panelId, userPanelOverride.current);
+    if (next) openArtifact(next);
+  }, [snapshot, artifactFocusKey, panelId, openArtifact]);
 
   if (job.isLoading) {
     return <Skeleton />;
@@ -71,7 +101,7 @@ export default function JobPage() {
     }
   }
 
-  if (!job.snapshot) {
+  if (!snapshot) {
     return (
       <main style={{ padding: 40 }}>
         <RefusalNotice title="Can't open this job" detail="It may not exist or you may not take part in it." />
@@ -79,19 +109,21 @@ export default function JobPage() {
     );
   }
 
-  const rawNotice = job.snapshot.seat_notice;
+  const rawNotice = snapshot.seat_notice;
   const seatNotice =
     rawNotice?.kind && rawNotice.text
       ? { kind: rawNotice.kind, text: rawNotice.text }
       : null;
   let composerDisabled: string | undefined;
-  if (seatNotice) composerDisabled = seatNotice.text;
+  if (isJobClosed(snapshot)) composerDisabled = closedComposerMessage;
+  else if (seatNotice) composerDisabled = seatNotice.text;
   else if (seatBlock) composerDisabled = seatBlock.title;
+  else composerDisabled = composerBlockedForPoLoop(snapshot);
 
   return (
     <div className={styles.jobLayout}>
       <Conversation
-        snapshot={job.snapshot}
+        snapshot={snapshot}
         streamingTurnId={job.streamingTurnId}
         awaitingTurnId={job.awaitingTurnId}
         deltas={job.deltas}
@@ -106,14 +138,15 @@ export default function JobPage() {
         onDecide={job.decide}
         onOpenArtifact={openArtifact}
         onLoadOlder={() => void job.loadOlderTurns()}
-        showLoadOlder={job.snapshot.turns.length >= 50}
+        showLoadOlder={snapshot.turns.length >= 50}
       />
       <WorkPanel
         instanceId={instanceId}
-        snapshot={job.snapshot}
+        snapshot={snapshot}
         panelArtifactId={panelId}
-        onSelectArtifact={openArtifact}
+        onSelectArtifact={selectWorkPanelArtifact}
         onSendRfqs={job.sendRfqs}
+        agentBusy={Boolean(job.awaitingTurnId || job.streamingTurnId || job.toolActivity)}
       />
       {composerProblem && (
         <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 10 }}>

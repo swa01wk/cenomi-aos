@@ -2,20 +2,29 @@
   display: flex;
   flex-wrap: wrap;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
-/* Side by side, the page fits the window: the turns and the panel scroll, the composer stays put. */
+/* Side by side: two equal columns that clip wide tables instead of overlapping chat. */
 @media (min-width: 1080px) {
   .jobLayout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    flex-wrap: nowrap;
     height: 100vh;
+    overflow: hidden;
   }
 
   .conversation,
   .workPanel {
     height: 100vh;
+    max-height: 100vh;
   }
 
   .workPanel {
+    overflow-x: hidden;
     overflow-y: auto;
   }
 }
@@ -23,12 +32,16 @@
 .conversation {
   flex: 999 1 440px;
   min-width: 0;
+  min-height: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   background: var(--canvas);
+  overflow-x: hidden;
 }
 
 .convHeader {
+  flex-shrink: 0;
   padding: 16px 28px 14px;
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -68,6 +81,12 @@
   white-space: nowrap;
 }
 
+.stageBadge_complete {
+  background: color-mix(in srgb, var(--accent-line) 22%, var(--panel));
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--accent-line) 45%, var(--line));
+}
+
 .progress {
   display: grid;
   gap: 4px;
@@ -88,6 +107,26 @@
 
 .segment_current {
   background: var(--accent);
+}
+
+.progress_allComplete .segment {
+  background: var(--accent-line);
+}
+
+.convHeader_closed {
+  border-bottom-color: color-mix(in srgb, var(--accent-line) 25%, var(--line));
+}
+
+.closedFooter {
+  flex-shrink: 0;
+  margin: 0 28px 20px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: center;
 }
 
 .turns {
@@ -124,20 +163,27 @@
 }
 
 .composerWrap {
+  flex-shrink: 0;
   padding: 0 28px 20px;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
 }
 
+.workPanel_closed {
+  box-shadow: inset 4px 0 0 var(--accent-line);
+}
+
 .workPanel {
   flex: 1 1 560px;
   min-width: 0;
+  max-width: 100%;
   background: var(--panel-2);
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 320px;
+  overflow: hidden;
 }
 
 .workHead {
@@ -201,6 +247,24 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  animation: workPanelFade 0.32s ease-out;
+}
+
+@keyframes workPanelFade {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workBody {
+    animation: none;
+  }
 }
 
 .workByline {
@@ -317,11 +381,40 @@
   color: var(--danger);
 }
 
-.openPendingStrip {
-  margin: 0 16px 12px;
+.workLivePreview {
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+}
+
+.workPanelStageGuide {
+  margin: 10px 16px 0;
+}
+
+.workPanelStageGuide > div {
+  margin: 0;
+}
+
+.workPanelStageGuideLive {
+  position: relative;
+  z-index: 1;
+}
+
+.workTabsWrapLive {
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.pendingInThread {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-top: 8px;
 }
 
 .workComposerTab {

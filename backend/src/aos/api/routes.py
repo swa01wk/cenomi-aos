@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
@@ -10,6 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
+from aos.connectors.inbound import verify as verify_inbound_signature
+
 from ..kernel import (
     artifacts,
     audit_store,
@@ -17,6 +21,8 @@ from ..kernel import (
     console,
     decisions,
     demo,
+    demo_vendor,
+    events,
     instances,
     outbound_mail,
     participants,
@@ -589,6 +595,9 @@ async def start_instance(
 @router.get("/instances/{id}", tags=["instances"])
 async def get_instance(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
     try:
+        await instances.refresh_decisions_for_viewer(
+            conn, k.org, id, packs_dir=k.settings.packs_dir
+        )
         return await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
     except instances.InstanceError as exc:
         _raise_instance_error(exc)
@@ -1274,6 +1283,78 @@ class AdvanceClockMinutes(BaseModel):
 
 class AdvanceClockNextTimer(BaseModel):
     to_next_timer: Literal[True]
+
+
+class SimulateVendorReplyBody(BaseModel):
+    conversation_id: str
+    supplier_id: str
+    body: str
+    subject: str = ""
+
+
+@router.post("/inbound/{source}", tags=["inbound"], status_code=202)
+async def receive_inbound(
+    source: Literal["mock_mail"],
+    request: Request,
+    k: KernelDep,
+    x_aos_signature: Annotated[str | None, Header(alias="X-AOS-Signature")] = None,
+) -> dict[str, Any]:
+    raw = await request.body()
+    secret = demo_vendor.inbound_secret()
+    if not verify_inbound_signature(raw, x_aos_signature, secret):
+        raise HTTPException(status_code=401, detail="Invalid inbound signature")
+    payload = json.loads(raw.decode())
+    if payload.get("event") != "mail.message_received":
+        return {"accepted": False, "reason": "ignored_event"}
+    ref = str(payload.get("ref") or "")
+    if ":" not in ref:
+        raise HTTPException(status_code=422, detail="Inbound message missing instance ref")
+    instance_id = ref.split(":", 1)[0]
+    created = False
+    duplicate = False
+    async with k.pool.connection() as conn:
+        async with conn.transaction():
+            from aos.kernel import inbound_mail
+
+            is_new, _ = await inbound_mail.record_inbound_message(conn, source=source, payload=payload)
+            if not is_new:
+                duplicate = True
+            else:
+                created = await events.raise_inbound_event(
+                    conn,
+                    k.org,
+                    instance_id,
+                    "mail.message_received",
+                    packs_dir=k.settings.packs_dir,
+                    inbound_payload=payload,
+                )
+    return {
+        "accepted": True,
+        "instance_id": instance_id,
+        "task_created": created,
+        "duplicate": duplicate,
+    }
+
+
+@router.post("/demo/vendor-replies", tags=["demo"], status_code=202)
+async def simulate_vendor_reply(
+    body: SimulateVendorReplyBody,
+    k: KernelDep,
+    p: PrincipalDep,
+) -> dict[str, Any]:
+    _require_demo(k)
+    mail_url = k.settings.connector_urls.get("mock_mail")
+    if not mail_url:
+        raise HTTPException(status_code=503, detail="mock_mail connector URL is not configured")
+    sender = f"quotes+{body.supplier_id}@vendor.example"
+    note = await demo_vendor.simulate_vendor_reply_on_thread(
+        mail_mcp_url=mail_url,
+        conversation_id=body.conversation_id,
+        sender=sender,
+        body=body.body,
+        subject=body.subject,
+    )
+    return {"status": "accepted", "inbound": note.get("payload"), "actor": p.person_id}
 
 
 @router.get("/demo/state", tags=["demo"])

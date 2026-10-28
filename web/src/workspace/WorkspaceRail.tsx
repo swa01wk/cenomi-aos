@@ -1,7 +1,14 @@
+import { useMemo } from "react";
 import { Link, NavLink } from "react-router";
 import { useSession } from "../app/session";
 import { initials, teamLabel } from "../lib/ui";
 import { BriefcaseIcon, PlusIcon, QueueIcon, SeatMark } from "./icons";
+import {
+  countJobsNeedingViewer,
+  jobNeedsViewerAction,
+  pendingActionLabel,
+  sortJobsForViewer,
+} from "./instanceAttention";
 import { useDigitalWorkers, useMyInstances } from "./useWorkspaceQueries";
 
 const SEAT_STATE_WORD: Record<string, string> = {
@@ -9,10 +16,48 @@ const SEAT_STATE_WORD: Record<string, string> = {
   RETIRED: "Retired",
 };
 
+function RailJobLink({
+  instanceId,
+  title,
+  meta,
+  needsYou,
+}: {
+  instanceId: string;
+  title: string;
+  meta: string;
+  needsYou?: boolean;
+}) {
+  return (
+    <NavLink
+      to={`/workspace/jobs/${instanceId}`}
+      className={({ isActive }) =>
+        ["ws-job-link", isActive ? "active" : "", needsYou ? "needs-you" : ""].filter(Boolean).join(" ")
+      }
+    >
+      {needsYou && <span className="ws-job-needs-badge">Needs you</span>}
+      <span className="title">{title}</span>
+      <span className="state">{meta}</span>
+    </NavLink>
+  );
+}
+
 export function WorkspaceRail() {
   const { me, signOut } = useSession();
   const workers = useDigitalWorkers();
   const jobs = useMyInstances();
+  const needsYouCount = countJobsNeedingViewer(jobs.data, me?.id ?? "");
+  const railJobs = useMemo(() => {
+    if (!jobs.data?.length || !me) return [];
+    return sortJobsForViewer(jobs.data, me.id).slice(0, 8);
+  }, [jobs.data, me]);
+  const needsYouJobs = useMemo(
+    () => railJobs.filter((j) => jobNeedsViewerAction(j, me?.id ?? "")),
+    [railJobs, me?.id],
+  );
+  const recentJobs = useMemo(
+    () => railJobs.filter((j) => !jobNeedsViewerAction(j, me?.id ?? "")),
+    [railJobs, me?.id],
+  );
   if (!me) return null;
 
   return (
@@ -40,6 +85,11 @@ export function WorkspaceRail() {
         <NavLink to="/workspace" end className={({ isActive }) => (isActive ? "ws-nav-link active" : "ws-nav-link")}>
           <BriefcaseIcon />
           My jobs
+          {needsYouCount > 0 && (
+            <span className="ws-nav-badge" aria-label={`${needsYouCount} need your action`}>
+              {needsYouCount}
+            </span>
+          )}
         </NavLink>
         <NavLink to="/workspace/queue" className={({ isActive }) => (isActive ? "ws-nav-link active" : "ws-nav-link")}>
           <QueueIcon />
@@ -47,20 +97,31 @@ export function WorkspaceRail() {
         </NavLink>
       </div>
 
+      {needsYouJobs.length > 0 && (
+        <div className="ws-rail-group ws-rail-group-attention">
+          <span className="eyebrow ws-eyebrow-attention">Needs your action</span>
+          {needsYouJobs.map((j) => (
+            <RailJobLink
+              key={j.instance_id}
+              instanceId={j.instance_id}
+              title={j.title}
+              meta={`${pendingActionLabel(j)} · ${j.instance_id}`}
+              needsYou
+            />
+          ))}
+        </div>
+      )}
+
       <div className="ws-rail-group">
-        <span className="eyebrow">Recent jobs</span>
+        <span className="eyebrow">{needsYouJobs.length > 0 ? "Other recent jobs" : "Recent jobs"}</span>
         {!jobs.data?.length && <span className="empty">No jobs yet</span>}
-        {jobs.data?.slice(0, 8).map((j) => (
-          <NavLink
+        {recentJobs.map((j) => (
+          <RailJobLink
             key={j.instance_id}
-            to={`/workspace/jobs/${j.instance_id}`}
-            className={({ isActive }) => (isActive ? "ws-job-link active" : "ws-job-link")}
-          >
-            <span className="title">{j.title}</span>
-            <span className="state">
-              {j.instance_id} · {j.state_label}
-            </span>
-          </NavLink>
+            instanceId={j.instance_id}
+            title={j.title}
+            meta={`${j.instance_id} · ${j.state_label}`}
+          />
         ))}
       </div>
 

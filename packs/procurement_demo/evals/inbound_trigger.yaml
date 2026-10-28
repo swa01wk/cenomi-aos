@@ -1,0 +1,19 @@
+apiVersion: aos/v1
+kind: EvalSuite
+metadata: {name: inbound_trigger, version: 1, owner: head_of_procurement}
+spec:
+  description: >-
+    Pack contract for inbound quote capture: quote_triage reads trigger_context;
+    quote artifacts may carry reply_excerpt for workspace preview.
+  targets: [seat_sourcing_poc]
+  workflow: quick_quote
+  at_state: awaiting_quotes
+  as_participant: buyer
+  cases:
+    - "Use trigger_context.conversation_id with read_thread"
+    - "Save quote keyed by trigger_context.supplier_id"
+    - "Capture reply_excerpt on the quote artifact"
+  expect:
+    workflow_on_event: quote_triage
+    quote_fields: [reply_excerpt, notes]
+  pass_condition: {min_pass_rate: 1.0}

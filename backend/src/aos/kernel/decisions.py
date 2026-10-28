@@ -180,6 +180,72 @@ async def _latest_view_artifact(
     return aid, ver, str(vrow[0])
 
 
+async def heal_discovery_region_after_supplier_list(
+    conn: AsyncConnection,
+    instance_id: str,
+    definition: WorkflowDefinition,
+) -> bool:
+    """If supplier lookup ended but the discovery region stayed running, close the region so shortlisting can proceed."""
+    if not any(p.region == "discovery" and p.join_at == "shortlisting" for p in definition.spec.parallel):
+        return False
+    rcur = await conn.execute(
+        "select state from work.regions where instance_id = %s and name = 'discovery'",
+        (instance_id,),
+    )
+    rrow = await rcur.fetchone()
+    if rrow is None or rrow[0] != "running":
+        return False
+    if await _latest_view_artifact(conn, instance_id, "supplier_list") is None:
+        return False
+    tcur = await conn.execute(
+        "select state from work.tasks where instance_id = %s and region = 'discovery'"
+        " order by created_at desc limit 1",
+        (instance_id,),
+    )
+    trow = await tcur.fetchone()
+    if trow is None or trow[0] in ("RUNNING", "READY", "CREATED"):
+        return False
+    await conn.execute(
+        "update work.regions set state = 'done' where instance_id = %s and name = 'discovery' and state = 'running'",
+        (instance_id,),
+    )
+    return True
+
+
+async def heal_stale_rfq_send_retry(conn: AsyncConnection, instance_id: str) -> bool:
+    """Buyer send from the work panel replaces a failed rfq_send task; drop a stale retry card."""
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    if row is None or row[0] != "rfq_sending":
+        return False
+    has_drafts = await conn.execute(
+        "select 1 from work.artifacts where instance_id = %s and artifact_type = 'rfq_email' limit 1",
+        (instance_id,),
+    )
+    if await has_drafts.fetchone() is None:
+        return False
+    retry_cur = await conn.execute(
+        "select p.id, p.for_person_id from work.pending_items p"
+        " join work.tasks t on t.id = p.task_id"
+        " where p.instance_id = %s and p.status = 'open' and p.event = 'task.retry'"
+        " and t.template = 'rfq_send' limit 1",
+        (instance_id,),
+    )
+    retry = await retry_cur.fetchone()
+    if retry is None:
+        return False
+    from .task_retry import void_open_task_retry
+
+    await void_open_task_retry(
+        conn,
+        instance_id=instance_id,
+        pending_id=str(retry[0]),
+        for_person_id=str(retry[1]),
+        voided_by="kernel",
+    )
+    return True
+
+
 def _selection_minimum(definition: WorkflowDefinition, event: str) -> int:
     for tr in definition.spec.transitions:
         if event in tr.events and tr.guard:
@@ -313,6 +379,8 @@ async def open_ready_decisions(
     attributes_raw = row[2]
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     _org_id, _wf_name, definition, _defs = await _load_workflow(conn, instance_id)
+    await heal_discovery_region_after_supplier_list(conn, instance_id, definition)
+    await heal_stale_rfq_send_retry(conn, instance_id)
     from . import regions as region_ops
     opened: list[str] = []
     ts = clock.now()

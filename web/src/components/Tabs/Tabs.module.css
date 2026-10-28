@@ -2,6 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .tablist {
@@ -39,4 +42,7 @@
 
 .panel {
   min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  flex: 1;
 }

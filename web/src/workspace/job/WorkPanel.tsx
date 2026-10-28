@@ -9,6 +9,9 @@ import { artifactViewComponent } from "./views";
 import { messageComposerArtifacts } from "./workComposerHint";
 import { WorkPanelComposerHint } from "./WorkPanelComposerHint";
 import { WorkPanelSendRfqs } from "./WorkPanelSendRfqs";
+import { isJobClosed } from "./jobLifecycle";
+import { stageGuideIsLive, workPanelStageGuide } from "./stageGuideLogic";
+import { WorkPanelStageGuide } from "./WorkPanelStageGuide";
 import styles from "./job.module.css";
 
 export function WorkPanel({
@@ -17,12 +20,14 @@ export function WorkPanel({
   panelArtifactId,
   onSelectArtifact,
   onSendRfqs,
+  agentBusy = false,
 }: {
   instanceId: string;
   snapshot: InstanceSnapshot;
   panelArtifactId: string | null;
   onSelectArtifact: (artifactId: string) => void;
   onSendRfqs?: () => Promise<void>;
+  agentBusy?: boolean;
 }) {
   const artifacts = snapshot.artifacts;
   const activeId = panelArtifactId ?? artifacts[0]?.artifact_id ?? "";
@@ -81,7 +86,7 @@ export function WorkPanel({
   const isLatest = summary ? version === summary.latest_version : true;
 
   const body = summary ? (
-    <div className={styles.workBody}>
+    <div key={activeId} className={styles.workBody}>
       {content.isLoading && <Skeleton />}
       {View && content.data && <View view={summary.view} version={content.data} />}
     </div>
@@ -90,15 +95,24 @@ export function WorkPanel({
   const composerDrafts = messageComposerArtifacts(artifacts);
   const highlightComposerTabs = composerDrafts.length > 0;
   const composerTabIds = new Set(composerDrafts.map((a) => a.artifact_id));
+  const panelGuide = workPanelStageGuide(snapshot, agentBusy);
+  const panelGuideLive = panelGuide ? stageGuideIsLive(panelGuide, snapshot.state) : false;
+  const closed = isJobClosed(snapshot);
 
   return (
     <aside
-      aria-label="Work in progress"
-      className={[styles.workPanel, highlightComposerTabs ? styles.workPanelComposerGlow : ""].filter(Boolean).join(" ")}
+      aria-label={closed ? "Completed job documents" : "Work in progress"}
+      className={[
+        styles.workPanel,
+        closed ? styles.workPanel_closed : "",
+        highlightComposerTabs ? styles.workPanelComposerGlow : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <header className={styles.workHead}>
         <div style={{ minWidth: 0 }}>
-          <div className="eyebrow">Work in progress</div>
+          <div className="eyebrow">{closed ? "Completed job" : "Work in progress"}</div>
           <div className={styles.workTitle}>{summary?.name ?? "Documents"}</div>
         </div>
         {summary && (
@@ -126,7 +140,11 @@ export function WorkPanel({
         )}
       </header>
       <div
-        className={[styles.workTabsWrap, highlightComposerTabs ? styles.workTabsWrapHighlight : ""]
+        className={[
+          styles.workTabsWrap,
+          highlightComposerTabs ? styles.workTabsWrapHighlight : "",
+          panelGuideLive ? styles.workTabsWrapLive : "",
+        ]
           .filter(Boolean)
           .join(" ")}
       >
@@ -137,6 +155,14 @@ export function WorkPanel({
           onOpenDraft={onSelectArtifact}
         />
         {onSendRfqs ? <WorkPanelSendRfqs snapshot={snapshot} onSend={onSendRfqs} /> : null}
+        {agentBusy ? (
+          <p className={styles.workLivePreview} role="status">
+            Live preview — drafts and lists update here as the worker saves them.
+          </p>
+        ) : null}
+        {panelGuide ? (
+          <WorkPanelStageGuide guide={panelGuide} live={panelGuideLive} workflowState={snapshot.state} />
+        ) : null}
         <Tabs
           label="Documents"
           activeId={activeId}

@@ -549,6 +549,7 @@ async def assemble_context(
     obs_row = await obs_cur.fetchone()
     tool_observations = _observations_for_envelope(obs_row[0] if obs_row else [])
 
+    trigger_context = contract.get("trigger_context")
     envelope: dict[str, Any] = {
         "schema_version": "aos.context_envelope/1",
         "envelope_id": ids.new_envelope_id(),
@@ -582,6 +583,8 @@ async def assemble_context(
         "redactions": redactions,
         "skill_instructions": skill_instructions,
     }
+    if isinstance(trigger_context, dict) and trigger_context:
+        envelope["trigger_context"] = trigger_context
     rework = await _previous_rework(conn, task_id=gate.task_id, attempt_id=gate.attempt_id)
     if rework is not None:
         envelope["rework"] = rework

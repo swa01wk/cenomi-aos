@@ -50,11 +50,18 @@ def _defer_expectations(expect: dict[str, Any], suite_kind: str) -> list[dict[st
             out.append({"key": "policy_result", "status": "deferred", "reason": DEFER_POLICY})
         if "context_excludes_fields" in expect:
             out.append({"key": "context_excludes_fields", "status": "deferred", "reason": DEFER_CONTEXT})
-    elif suite_kind == "dry_run":
+    elif suite_kind in ("dry_run", "inbound_quotes"):
         if "final_state" in expect:
             out.append({"key": "final_state", "status": "deferred", "reason": DEFER_WORKFLOW})
         if "unapproved_effects" in expect:
             out.append({"key": "unapproved_effects", "status": "deferred", "reason": DEFER_EFFECTS})
+        if "quote_count" in expect:
+            out.append({"key": "quote_count", "status": "deferred", "reason": DEFER_WORKFLOW})
+        if "inbound_dedupe" in expect:
+            out.append({"key": "inbound_dedupe", "status": "deferred", "reason": DEFER_WORKFLOW})
+    elif suite_kind == "inbound_trigger":
+        if "workflow_on_event" in expect:
+            out.append({"key": "workflow_on_event", "status": "deferred", "reason": DEFER_WORKFLOW})
     return out
 
 
@@ -86,6 +93,72 @@ def run_refusals_suite(*, suite_spec: dict[str, Any], defs: dict[str, dict[str, 
         )
 
     expectations = _defer_expectations(expect, "refusals")
+    passed = sum(1 for c in checks if c["passed"])
+    total = len(checks)
+    status = "passed" if passed == total else "failed"
+    return SuiteRunResult(
+        passed=passed,
+        total=total,
+        status=status,
+        detail={
+            "checks": checks,
+            "expectations": expectations,
+            "deferred_count": len(expectations),
+        },
+    )
+
+
+def run_inbound_trigger_suite(*, suite_spec: dict[str, Any], defs: dict[str, dict[str, dict]]) -> SuiteRunResult:
+    spec = suite_spec.get("spec") or {}
+    expect = spec.get("expect") or {}
+    checks: list[dict[str, Any]] = []
+    cases = spec.get("cases") or []
+    for i, case in enumerate(cases):
+        ok = isinstance(case, str) and bool(case.strip())
+        _check_record(
+            checks,
+            name=f"case_{i}_well_formed",
+            passed=ok,
+            detail="" if ok else "each case must be a non-empty string",
+        )
+
+    quote_fields = expect.get("quote_fields") or []
+    quote_doc = (defs.get("ArtifactType") or {}).get("quote") or {}
+    field_names = set((quote_doc.get("spec") or {}).get("fields") or {})
+    missing = [f for f in quote_fields if f not in field_names]
+    _check_record(
+        checks,
+        name="quote_fields_exist",
+        passed=not missing,
+        detail="" if not missing else f"missing on quote artifact type: {', '.join(missing)}",
+    )
+
+    skill_doc = (defs.get("Skill") or {}).get("quote_triage") or {}
+    # Instructions are validated at pack sync; structural check uses skill reads only here.
+    reads = (skill_doc.get("spec") or {}).get("reads") or []
+    _check_record(
+        checks,
+        name="quote_triage_reads_rfq_context",
+        passed="rfq_email" in reads and "job_snapshot" in reads,
+        detail=f"quote_triage reads: {reads}",
+    )
+
+    wf_name = spec.get("workflow")
+    wf_doc = (defs.get("WorkflowDefinition") or {}).get(wf_name) if wf_name else None
+    on_event = None
+    if wf_doc:
+        states = (wf_doc.get("spec") or {}).get("states") or {}
+        awaiting = states.get("awaiting_quotes") or {}
+        on_event = (awaiting.get("on_event") or {}).get("mail.message_received")
+    tpl = (on_event or {}).get("template") if isinstance(on_event, dict) else None
+    _check_record(
+        checks,
+        name="awaiting_quotes_on_mail_message_received",
+        passed=tpl == expect.get("workflow_on_event"),
+        detail=f"on_event template: {tpl!r}",
+    )
+
+    expectations = _defer_expectations(expect, "inbound_trigger")
     passed = sum(1 for c in checks if c["passed"])
     total = len(checks)
     status = "passed" if passed == total else "failed"
@@ -137,7 +210,8 @@ def run_dry_run_suite(
                     script_detail = f"script is not valid YAML: {exc}"
 
     _check_record(checks, name="script_resolves", passed=script_ok, detail=script_detail)
-    expectations = _defer_expectations(expect, "dry_run")
+    suite_kind = "inbound_quotes" if (spec.get("script") or "").startswith("inbound_") else "dry_run"
+    expectations = _defer_expectations(expect, suite_kind)
     passed = sum(1 for c in checks if c["passed"])
     total = len(checks)
     status = "passed" if passed == total else "failed"
@@ -172,6 +246,8 @@ def run_suite(
             pinned_digest=pinned_digest,
         )
     if spec.get("cases"):
+        if suite_name == "inbound_trigger":
+            return run_inbound_trigger_suite(suite_spec=suite_spec, defs=defs)
         return run_refusals_suite(suite_spec=suite_spec, defs=defs)
     return SuiteRunResult(
         0,

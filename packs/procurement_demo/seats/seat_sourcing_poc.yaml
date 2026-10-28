@@ -19,4 +19,4 @@ spec:
     attempt_tokens: 40000
     attempt_steps: 8
     attempt_actions: 6
-  evals: [refusals, dry_run]
+  evals: [refusals, dry_run, inbound_quotes, inbound_trigger]

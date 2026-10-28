@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { client } from "../../api/client";
 import { ApiProblemError, type Problem } from "../../api/problems";
 import type { components } from "../../api/schema";
@@ -7,6 +7,7 @@ import { Button } from "../../components";
 import { newClientTurnId } from "../../components/clientTurnId";
 import { workspaceKeys } from "../useWorkspaceQueries";
 import { formatFieldValue } from "./views/formatFieldValue";
+import { defaultDecisionNote } from "./decisionCardDefaults";
 import styles from "./DecisionCard.module.css";
 
 type PendingItem = components["schemas"]["PendingItem"];
@@ -16,9 +17,11 @@ export function DecisionCard({
   pending,
   view,
   onApprove,
+  variant = "default",
 }: {
   pending: PendingItem;
   view?: ArtifactView;
+  variant?: "default" | "retry";
   onApprove: (input: {
     pendingId: string;
     value: string;
@@ -28,7 +31,11 @@ export function DecisionCard({
     idempotencyKey: string;
   }) => Promise<void>;
 }) {
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(() => defaultDecisionNote(pending));
+
+  useEffect(() => {
+    setNote(defaultDecisionNote(pending));
+  }, [pending.pending_id, pending.event, pending.title]);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -74,11 +81,20 @@ export function DecisionCard({
   };
 
   const reason = busy ? "Saving" : short ? pending.detail || `Choose at least ${minimum}` : undefined;
+  const compactRetry = variant === "retry" || pending.event === "task.retry";
+  const [showNote, setShowNote] = useState(!compactRetry);
 
   return (
-    <div className={styles.card} role="group" aria-label={pending.title}>
-      <p className={styles.title}>{pending.title}</p>
-      {pending.detail ? <p className={styles.detail}>{pending.detail}</p> : null}
+    <div
+      className={[styles.card, compactRetry ? styles.card_retry : ""].filter(Boolean).join(" ")}
+      role="group"
+      aria-label={pending.title}
+    >
+      <p className={styles.title}>
+        {compactRetry ? pending.title.replace(/^Retry:\s*/i, "") : pending.title}
+      </p>
+      {pending.detail && !compactRetry ? <p className={styles.detail}>{pending.detail}</p> : null}
+      {compactRetry && pending.detail ? <p className={styles.detailMuted}>{pending.detail}</p> : null}
       {needsChoice && pending.artifact_ref?.artifact_id && view?.row_key ? (
         <RowChoices
           artifactId={pending.artifact_ref.artifact_id}
@@ -89,19 +105,25 @@ export function DecisionCard({
           onChange={setSelected}
         />
       ) : null}
-      <label>
-        <span className="ws-sr-only">Comment</span>
-        <textarea
-          className={styles.comment}
-          value={note}
-          placeholder="Comment (optional)"
-          maxLength={2000}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
+      {showNote ? (
+        <label>
+          <span className="ws-sr-only">Comment</span>
+          <textarea
+            className={styles.comment}
+            value={note}
+            placeholder="Comment (optional)"
+            maxLength={2000}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+      ) : (
+        <button type="button" className={styles.noteToggle} onClick={() => setShowNote(true)}>
+          Add a note (optional)
+        </button>
+      )}
       <div>
-        <Button type="button" variant="primary" disabledReason={reason} onClick={() => void approve()}>
-          {busy ? "Saving…" : actionLabel}
+        <Button type="button" variant={compactRetry ? "secondary" : "primary"} disabledReason={reason} onClick={() => void approve()}>
+          {busy ? "Saving…" : compactRetry ? "Retry this step" : actionLabel}
         </Button>
       </div>
       {problem && <p className={styles.error}>{problem.detail || problem.title}</p>}

@@ -262,7 +262,7 @@ class TimerTickTests(unittest.IsolatedAsyncioTestCase):
                         (inst,),
                     )
                 ).fetchone()
-                duration = "15m" if demo_on else "5d"
+                duration = "1m" if demo_on else "5d"
                 expected = wall + clock.parse_duration(duration)
                 self.assertEqual(row[0].replace(microsecond=0), expected.replace(microsecond=0))
 

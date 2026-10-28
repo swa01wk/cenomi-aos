@@ -306,6 +306,7 @@ def build_task_contract(
     participant_role: str,
     person_id: str | None,
     seat_limits: dict[str, Any],
+    trigger_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     skill_name = str(template["skill"])
     skill_doc = defs.get("Skill", {}).get(skill_name)
@@ -369,6 +370,8 @@ def build_task_contract(
     }
     if template.get("verifier"):
         contract["verifier"] = template["verifier"]
+    if trigger_context:
+        contract["trigger_context"] = trigger_context
     contract["contract_hash"] = contract_hash(contract)
     return contract
 

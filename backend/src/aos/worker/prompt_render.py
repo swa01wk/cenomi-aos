@@ -41,6 +41,9 @@ def render_system_message(*, contract: dict[str, Any], skill_instructions: str, 
     org_id = str(scope.get("org_id") or "the organization")
     seat = str(scope.get("seat") or "digital worker")
     tmpl = _env().get_template(f"{prompt_version_for(contract)}.jinja")
+    trigger_context = contract.get("trigger_context")
+    if not isinstance(trigger_context, dict):
+        trigger_context = envelope.get("trigger_context") if isinstance(envelope.get("trigger_context"), dict) else None
     return tmpl.render(
         org_id=org_id,
         seat_label=seat,
@@ -48,6 +51,7 @@ def render_system_message(*, contract: dict[str, Any], skill_instructions: str, 
         objective=str(contract.get("objective") or envelope.get("objective") or ""),
         expected_outputs=_expected_outputs_text(contract),
         constraints=list(envelope.get("constraints") or []),
+        trigger_context=trigger_context,
     ).strip()
 
 
@@ -72,6 +76,8 @@ def render_context_message(
     }
     if isinstance(envelope.get("rework"), dict):
         payload["rework"] = envelope["rework"]
+    if isinstance(envelope.get("trigger_context"), dict):
+        payload["trigger_context"] = envelope["trigger_context"]
     return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 

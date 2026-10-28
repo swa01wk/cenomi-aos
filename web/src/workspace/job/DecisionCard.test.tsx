@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { client } from "../../api/client";
 import type { components } from "../../api/schema";
 import { DecisionCard } from "./DecisionCard";
@@ -23,11 +23,18 @@ const pending: PendingItem = {
   artifact_ref: { artifact_id: "art_1", version: 2 },
 };
 
+afterEach(() => cleanup());
+
 describe("DecisionCard", () => {
+  it("prefills an editable approval comment for the brief", () => {
+    render(<DecisionCard pending={pending} onApprove={vi.fn()} />);
+    expect(screen.getByDisplayValue("Approved, please go ahead.")).toBeInTheDocument();
+  });
+
   it("approves with the comment and the brief version", async () => {
     const onApprove = vi.fn().mockResolvedValue(undefined);
     render(<DecisionCard pending={pending} onApprove={onApprove} />);
-    fireEvent.change(screen.getByPlaceholderText("Comment (optional)"), { target: { value: "Looks right" } });
+    fireEvent.change(screen.getByDisplayValue("Approved, please go ahead."), { target: { value: "Looks right" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm the brief" }));
     expect(onApprove).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -36,6 +43,15 @@ describe("DecisionCard", () => {
         artifactVersion: 2,
         note: "Looks right",
       }),
+    );
+  });
+
+  it("sends the default note when the user confirms without editing", async () => {
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+    render(<DecisionCard pending={pending} onApprove={onApprove} />);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm the brief" }));
+    expect(onApprove).toHaveBeenCalledWith(
+      expect.objectContaining({ note: "Approved, please go ahead." }),
     );
   });
 
@@ -67,8 +83,10 @@ describe("DecisionCard", () => {
           pending={{
             ...pending,
             title: "Confirm the shortlist",
+            event: "decision.shortlist_confirmed",
             detail: "Choose at least 3.",
             select_min: 3,
+            options: [{ value: "confirm", label: "Confirm the shortlist" }],
             artifact_ref: { artifact_id: "art_1", version: 8 },
           }}
           view={{
@@ -82,12 +100,12 @@ describe("DecisionCard", () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole("checkbox", { name: "One" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm the brief" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm the shortlist/ }));
     expect(onApprove).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("checkbox", { name: "One" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Two" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Three" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm the brief" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm the shortlist/ }));
     expect(onApprove).toHaveBeenCalledWith(
       expect.objectContaining({ selection: ["s1", "s2", "s3"], artifactVersion: 8 }),
     );

@@ -9,6 +9,32 @@
   background: var(--accent-soft);
 }
 
+.card_retry {
+  padding: 10px 12px;
+  gap: 8px;
+  border-color: var(--line-2);
+  background: var(--panel);
+}
+
+.detailMuted {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.noteToggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent-ink);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .title {
   margin: 0;
   font-weight: 600;

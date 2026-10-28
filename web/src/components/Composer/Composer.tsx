@@ -8,11 +8,13 @@ export function Composer({
   disabledReason,
   initialText = "",
   onTextChange,
+  agentBusy = false,
 }: {
   onSend: (text: string, clientTurnId: string) => Promise<void>;
   disabledReason?: string;
   initialText?: string;
   onTextChange?: (text: string) => void;
+  agentBusy?: boolean;
 }) {
   const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
@@ -76,11 +78,20 @@ export function Composer({
         aria-label="Message"
         placeholder="Message"
       />
+      {agentBusy ? (
+        <Button
+          variant="secondary"
+          disabledReason="Stop is not available in this preview. Leave the page if you do not want to wait; the worker continues until this step finishes."
+          aria-label="Stop"
+        >
+          Stop
+        </Button>
+      ) : null}
       <Button
         variant="dark"
         iconOnly
         aria-label="Send"
-        disabledReason={disabledReason}
+        disabledReason={disabledReason ?? (agentBusy ? "Wait for the current reply to finish" : undefined)}
         aria-busy={sending || undefined}
         onClick={() => void send()}
       >

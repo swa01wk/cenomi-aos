@@ -181,6 +181,7 @@ async def _create_entry_tasks(
     seat_limits: dict[str, Any],
     entry_tasks: list[TaskTemplate],
     participants: list[tuple[str, str]],
+    trigger_context: dict[str, Any] | None = None,
 ) -> list[CreatedTask]:
     created: list[CreatedTask] = []
     for tpl in entry_tasks:
@@ -208,6 +209,7 @@ async def _create_entry_tasks(
             participant_role=role,
             person_id=person_id,
             seat_limits=seat_limits,
+            trigger_context=trigger_context,
         )
         await task_ops.insert_workflow_task(
             conn,

@@ -41,9 +41,9 @@ export function WorkPanelSendRfqs({
 
   return (
     <div className={styles.workSendRfqs} role="region" aria-label="Send RFQs">
-      <p className={styles.workSendRfqsText}>{sendRfqsCopy(drafts.length, snapshot.state)}</p>
+      <p className={styles.workSendRfqsText}>{sendRfqsCopy(drafts.length)}</p>
       <Button type="button" variant="primary" size="workspace" disabledReason={busy ? "Sending" : undefined} onClick={() => void send()}>
-        {busy ? "Sending…" : snapshot.state === "awaiting_quotes" ? "Deliver emails again" : "Approve and send to suppliers"}
+        {busy ? "Sending…" : "Approve and send to suppliers"}
       </Button>
       {error ? <p className={styles.workSendRfqsError}>{error}</p> : null}
     </div>
