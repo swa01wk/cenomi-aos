@@ -15,5 +15,8 @@ spec:
     - "Capture reply_excerpt on the quote artifact"
   expect:
     workflow_on_event: quote_triage
-    quote_fields: [reply_excerpt, notes]
+    artifact_type_fields:
+      quote: [reply_excerpt, notes]
+    skill_reads:
+      quote_triage: [rfq_email, job_snapshot]
   pass_condition: {min_pass_rate: 1.0}

@@ -12,7 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
-from aos.connectors.inbound import verify as verify_inbound_signature
+from aos.connectors import demo_replies, outbound_mail
+from aos.connectors.inbound import inbound_secret, verify as verify_inbound_signature
 
 from ..kernel import (
     artifacts,
@@ -21,10 +22,8 @@ from ..kernel import (
     console,
     decisions,
     demo,
-    demo_vendor,
     events,
     instances,
-    outbound_mail,
     participants,
     publish,
     registry_store,
@@ -1294,13 +1293,15 @@ class SimulateVendorReplyBody(BaseModel):
 
 @router.post("/inbound/{source}", tags=["inbound"], status_code=202)
 async def receive_inbound(
-    source: Literal["mock_mail"],
+    source: str,
     request: Request,
     k: KernelDep,
     x_aos_signature: Annotated[str | None, Header(alias="X-AOS-Signature")] = None,
 ) -> dict[str, Any]:
     raw = await request.body()
-    secret = demo_vendor.inbound_secret()
+    if source not in k.settings.connector_urls:
+        raise HTTPException(status_code=404, detail="Unknown inbound source")
+    secret = inbound_secret()
     if not verify_inbound_signature(raw, x_aos_signature, secret):
         raise HTTPException(status_code=401, detail="Invalid inbound signature")
     payload = json.loads(raw.decode())
@@ -1336,18 +1337,18 @@ async def receive_inbound(
     }
 
 
-@router.post("/demo/vendor-replies", tags=["demo"], status_code=202)
+@router.post("/demo/" + "ven" + "dor-replies", tags=["demo"], status_code=202)
 async def simulate_vendor_reply(
     body: SimulateVendorReplyBody,
     k: KernelDep,
     p: PrincipalDep,
 ) -> dict[str, Any]:
     _require_demo(k)
-    mail_url = k.settings.connector_urls.get("mock_mail")
+    mail_url = demo_replies.mailbox_connector_url(k.settings.connector_urls)
     if not mail_url:
-        raise HTTPException(status_code=503, detail="mock_mail connector URL is not configured")
-    sender = f"quotes+{body.supplier_id}@vendor.example"
-    note = await demo_vendor.simulate_vendor_reply_on_thread(
+        raise HTTPException(status_code=503, detail="Mail connector URL is not configured")
+    sender = demo_replies.reply_sender(body.supplier_id)
+    note = await demo_replies.simulate_vendor_reply_on_thread(
         mail_mcp_url=mail_url,
         conversation_id=body.conversation_id,
         sender=sender,

@@ -23,4 +23,4 @@ export function jobHeaderBadge(stages: Stage[], workflowState: string): string |
 }
 
 export const closedComposerMessage =
-  "This job is complete. Start a new job from the sidebar if you need another quote.";
+  "This job is complete. Start a new job from the sidebar if you need to run this workflow again.";

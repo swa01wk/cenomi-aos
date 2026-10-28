@@ -210,7 +210,7 @@ export function useJobPage(instanceId: string) {
     });
     if (error) {
       if (isProblem(error)) throw new ApiProblemError(error);
-      throw new Error(problemMessage(error as Problem) || "Could not send RFQs");
+      throw new Error(problemMessage(error as Problem) || "Could not send outbound messages");
     }
     if (data?.snapshot) {
       queryClient.setQueryData(workspaceKeys.instance(instanceId), data.snapshot);

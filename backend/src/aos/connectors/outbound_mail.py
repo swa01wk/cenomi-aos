@@ -18,8 +18,8 @@ from psycopg.types.json import Jsonb
 from aos.gateway.broker import CredentialBroker, Grant
 from aos.gateway.gateway import InvokeFailure, ToolGateway
 
-from . import clock, ids
-from .org import OrgModel
+from aos.kernel import clock, ids
+from aos.kernel.org import OrgModel
 
 
 class OutboundMailError(Exception):
@@ -455,7 +455,7 @@ async def _finalize_send_rfqs_once(
             "update work.tasks set state = 'COMPLETED', updated_at = %s where id = %s",
             (clock.now(), task_id),
         )
-        from . import events as workflow_events
+        from aos.kernel import events as workflow_events
 
         await workflow_events.on_workflow_task_completed(
             conn,
@@ -465,7 +465,7 @@ async def _finalize_send_rfqs_once(
             packs_dir=packs_dir,
         )
 
-    from .task_retry import void_open_task_retry
+    from aos.kernel.task_retry import void_open_task_retry
 
     pcur = await conn.execute(
         "select id, for_person_id from work.pending_items"

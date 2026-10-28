@@ -10,7 +10,3 @@ spec:
   produces: [quote]
   may_request: [read_thread]
   verifiers: []
-  runs:
-    analysis:
-      classification_ceiling: restricted
-      budget: {tokens: 25000, cost_usd: 0.60, time_s: 180, steps: 6, actions: 4, retries: 2}

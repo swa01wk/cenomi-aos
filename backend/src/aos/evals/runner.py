@@ -122,26 +122,27 @@ def run_inbound_trigger_suite(*, suite_spec: dict[str, Any], defs: dict[str, dic
             detail="" if ok else "each case must be a non-empty string",
         )
 
-    quote_fields = expect.get("quote_fields") or []
-    quote_doc = (defs.get("ArtifactType") or {}).get("quote") or {}
-    field_names = set((quote_doc.get("spec") or {}).get("fields") or {})
-    missing = [f for f in quote_fields if f not in field_names]
-    _check_record(
-        checks,
-        name="quote_fields_exist",
-        passed=not missing,
-        detail="" if not missing else f"missing on quote artifact type: {', '.join(missing)}",
-    )
+    for atype, field_names_expected in (expect.get("artifact_type_fields") or {}).items():
+        doc = (defs.get("ArtifactType") or {}).get(str(atype)) or {}
+        field_names = set((doc.get("spec") or {}).get("fields") or {})
+        missing = [f for f in field_names_expected if f not in field_names]
+        _check_record(
+            checks,
+            name=f"artifact_type_{atype}_fields",
+            passed=not missing,
+            detail="" if not missing else f"missing fields: {', '.join(missing)}",
+        )
 
-    skill_doc = (defs.get("Skill") or {}).get("quote_triage") or {}
-    # Instructions are validated at pack sync; structural check uses skill reads only here.
-    reads = (skill_doc.get("spec") or {}).get("reads") or []
-    _check_record(
-        checks,
-        name="quote_triage_reads_rfq_context",
-        passed="rfq_email" in reads and "job_snapshot" in reads,
-        detail=f"quote_triage reads: {reads}",
-    )
+    for skill_name, reads_expected in (expect.get("skill_reads") or {}).items():
+        skill_doc = (defs.get("Skill") or {}).get(str(skill_name)) or {}
+        reads = (skill_doc.get("spec") or {}).get("reads") or []
+        missing = [r for r in reads_expected if r not in reads]
+        _check_record(
+            checks,
+            name=f"skill_{skill_name}_reads",
+            passed=not missing,
+            detail="" if not missing else f"missing reads: {', '.join(missing)}",
+        )
 
     wf_name = spec.get("workflow")
     wf_doc = (defs.get("WorkflowDefinition") or {}).get(wf_name) if wf_name else None

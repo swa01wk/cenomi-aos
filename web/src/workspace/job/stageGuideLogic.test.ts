@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import { jobStepGuide, stageGuideIsLive, stepGuideShowsWaitingDots } from "./stageGuideLogic";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
@@ -6,11 +7,11 @@ function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "state
   return {
     instance_id: "QQ-1",
     title: "Test",
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     pack_version: "p@1",
     version: 1,
     stages: [
-      { state: "awaiting_quotes", label: "Awaiting quotes", status: "current" },
+      { state: "awaiting_quotes", label: "Awaiting replies", status: "current" },
       { state: "closed", label: "Closed", status: "next" },
     ],
     participants: [],
@@ -24,7 +25,7 @@ function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "state
 }
 
 describe("jobStepGuide", () => {
-  it("guides supplier selection when that decision is open", () => {
+  it("uses the pending card title when a decision is open", () => {
     const g = jobStepGuide(
       snap({
         state: "comparison",
@@ -37,8 +38,8 @@ describe("jobStepGuide", () => {
             pending_id: "p1",
             instance_id: "QQ-1",
             kind: "decision",
-            event: "decision.supplier_selected",
-            title: "Select the supplier",
+            event: "decision.party_selected",
+            title: "Select the winning row",
             for_role: "buyer",
             status: "open",
             created_at: "2026-10-28T08:00:00Z",
@@ -48,7 +49,7 @@ describe("jobStepGuide", () => {
       { agentBusy: false, openPendingForYou: 1 },
     );
     expect(g?.kind).toBe("action");
-    expect(g?.title).toMatch(/Choose a supplier/i);
+    expect(g?.title).toBe("Select the winning row");
   });
 
   it("does not duplicate a generic banner when a decision card is shown in the thread", () => {
@@ -56,10 +57,10 @@ describe("jobStepGuide", () => {
     expect(g).toBeNull();
   });
 
-  it("explains waiting after RFQs are sent", () => {
+  it("explains waiting after outbound messages are sent", () => {
     const g = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: false, openPendingForYou: 0 });
     expect(g?.kind).toBe("wait");
-    expect(g?.title).toMatch(/Waiting for supplier quotes/);
+    expect(g?.title).toMatch(/Waiting for replies/);
     expect(g?.detail).toMatch(/digital worker/i);
   });
 
@@ -72,22 +73,22 @@ describe("jobStepGuide", () => {
   it("marks shortlisting stage guide as live while work runs", () => {
     const snapshot = snap({ state: "shortlisting" });
     const g = jobStepGuide(snapshot, { agentBusy: false, openPendingForYou: 0 });
-    expect(g?.title).toMatch(/Suppliers being ranked/);
+    expect(g?.title).toMatch(/Building the ranked list/);
     expect(g && stageGuideIsLive(g, snapshot.state)).toBe(true);
   });
 
-  it("tells the requester the buyer picks suppliers once the list exists", () => {
+  it("tells the requester a buyer must act once the sheet exists", () => {
     const snapshot = snap({
       state: "shortlisting",
       my_roles: ["requester"],
       artifacts: [
         {
           artifact_id: "art_sl",
-          artifact_type: "supplier_list",
-          name: "Supplier List",
+          artifact_type: "type_ranked",
+          name: "Ranked list",
           latest_version: 8,
           status: "draft",
-          view: { type: "sheet", row_key: "supplier_id", columns: [], fields: [] },
+          view: { type: "sheet", row_key: "party_id", columns: [], fields: [] },
           versions: [],
         },
       ],
@@ -101,8 +102,8 @@ describe("jobStepGuide", () => {
   it("shows waiting dots on progress and open wait guides, not when closed", () => {
     const intake = jobStepGuide(snap({ state: "intake" }), { agentBusy: false, openPendingForYou: 0 });
     expect(intake && stepGuideShowsWaitingDots(intake, "intake")).toBe(true);
-    const quotes = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: false, openPendingForYou: 0 });
-    expect(quotes && stepGuideShowsWaitingDots(quotes, "awaiting_quotes")).toBe(true);
+    const waiting = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: false, openPendingForYou: 0 });
+    expect(waiting && stepGuideShowsWaitingDots(waiting, "awaiting_quotes")).toBe(true);
     const closed = jobStepGuide(snap({ state: "closed" }), { agentBusy: false, openPendingForYou: 0 });
     expect(closed?.kind).toBe("complete");
     expect(closed && stepGuideShowsWaitingDots(closed, "closed")).toBe(false);

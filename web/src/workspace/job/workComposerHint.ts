@@ -36,7 +36,7 @@ export function composerHintCopy(count: number, stageLabel: string | undefined, 
   const stage = stageLabel ? ` (${stageLabel})` : "";
   const send =
     instanceState === "rfq_sending"
-      ? " When you are satisfied, use Approve and send to suppliers below."
+      ? " When you are satisfied, use Approve and send below."
       : " Review before sending.";
   return `${noun} ready${stage}. ${action}.${send}`;
 }

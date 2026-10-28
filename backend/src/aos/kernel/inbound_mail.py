@@ -10,23 +10,23 @@ from psycopg.types.json import Jsonb
 
 
 def parse_instance_ref(ref: str) -> tuple[str | None, str | None]:
-    """``QQ-0019:SUP-11632`` → instance id and supplier id."""
+    """``QQ-0019:SUP-11632`` → instance id and counterparty key from the thread ref."""
     if ":" not in ref:
         return None, None
-    instance_id, supplier_id = ref.split(":", 1)
+    instance_id, party_id = ref.split(":", 1)
     instance_id = instance_id.strip() or None
-    supplier_id = supplier_id.strip() or None
-    return instance_id, supplier_id
+    party_id = party_id.strip() or None
+    return instance_id, party_id
 
 
 def trigger_context_from_payload(*, event: str, payload: dict[str, Any]) -> dict[str, Any]:
     ref = str(payload.get("ref") or "")
-    _inst, supplier_id = parse_instance_ref(ref)
+    _inst, party_id = parse_instance_ref(ref)
     return {
         "event": event,
         "conversation_id": str(payload.get("conversation_id") or ""),
         "message_id": str(payload.get("message_id") or ""),
-        "supplier_id": supplier_id or "",
+        "party_id": party_id or "",
         "sender": str(payload.get("sender") or payload.get("from") or ""),
         "ref": ref,
     }

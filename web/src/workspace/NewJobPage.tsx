@@ -141,8 +141,8 @@ export default function NewJobPage() {
         </header>
         <div className={styles.asideBody}>
           <p className={styles.asideLead}>
-            After you start, this panel fills with documents the digital worker saves: brief, supplier list, RFQ
-            emails, quotes, and more.
+            After you start, this panel fills with documents the digital worker saves: briefs, ranked lists, outbound
+            messages, comparisons, and more.
           </p>
           <div className={styles.asideBox}>
             <span style={{ fontWeight: 700 }}>What you&apos;ll see</span>

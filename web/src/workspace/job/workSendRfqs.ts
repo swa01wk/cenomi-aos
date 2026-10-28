@@ -14,6 +14,6 @@ export function showSendRfqsBar(snapshot: InstanceSnapshot): boolean {
 }
 
 export function sendRfqsCopy(count: number): string {
-  const noun = count === 1 ? "This RFQ email" : `These ${count} RFQ emails`;
-  return `${noun} will go to the supplier addresses in the tabs. Review the drafts, then approve and send.`;
+  const noun = count === 1 ? "This outbound message" : `These ${count} outbound messages`;
+  return `${noun} will go to the addresses in the tabs. Review the drafts, then approve and send.`;
 }

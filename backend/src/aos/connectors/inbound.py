@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import hmac
 import json
 
@@ -21,3 +22,7 @@ def verify(body: bytes, signature: str | None, secret: str) -> bool:
     if not signature:
         return False
     return hmac.compare_digest(sign(body, secret), signature)
+
+
+def inbound_secret() -> str:
+    return os.environ.get("AOS_INBOUND_SECRET", "dev-inbound-secret")

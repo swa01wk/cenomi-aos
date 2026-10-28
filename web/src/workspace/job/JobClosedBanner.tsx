@@ -7,7 +7,7 @@ export function JobClosedBanner({ instanceId }: { instanceId: string }) {
         <span className={styles.icon}>✓</span>
       </div>
       <div className={styles.copy}>
-        <p className={styles.title}>Quick quote complete</p>
+        <p className={styles.title}>Job complete</p>
         <p className={styles.detail}>
           <span className={styles.jobId}>{instanceId}</span> is closed. The purchase path finished — open documents on
           the right or scroll above for the full history.

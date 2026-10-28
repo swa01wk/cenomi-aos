@@ -297,6 +297,6 @@ async def run_attempt(
         attempt_id=attempt_id,
         connector_names=sorted((defs.get("ToolProvider") or {}).keys()),
     )
-    runtime = FakeRuntime(checkpointer=CheckpointerHandle.in_memory(), scenario="happy")
+    runtime = FakeRuntime(checkpointer=CheckpointerHandle.in_memory())
     worker = Worker(WORKER_ID, kernel, runtime, ("task",), heartbeat_enabled=False)  # type: ignore[arg-type]
     return await worker.run_once()

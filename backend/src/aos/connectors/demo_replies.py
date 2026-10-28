@@ -45,5 +45,12 @@ async def simulate_vendor_reply_on_thread(
             return _tool_payload(result)
 
 
-def inbound_secret() -> str:
-    return os.environ.get("AOS_INBOUND_SECRET", "dev-inbound-secret")
+def reply_sender(counterparty_key: str) -> str:
+    return f"quotes+{counterparty_key}@vendor.example"
+
+
+def mailbox_connector_url(connector_urls: dict[str, str]) -> str | None:
+    for name, url in connector_urls.items():
+        if name.endswith("mail"):
+            return url
+    return None

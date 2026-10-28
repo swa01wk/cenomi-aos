@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceSnapshot } from "./jobStreamReducer";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import { retryMatchesCurrentStage, splitConversationPending } from "./conversationPending";
 
 function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "pending">): InstanceSnapshot {
   const { pending, ...rest } = partial;
   return {
     instance_id: "QQ-1",
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     title: "Test",
     state: "comparison",
     stages: [{ state: "comparison", label: "Comparison", status: "current" }],
@@ -25,8 +26,8 @@ describe("splitConversationPending", () => {
         pending_id: "p1",
         instance_id: "QQ-1",
         kind: "decision" as const,
-        event: "decision.supplier_selected",
-        title: "Select the supplier",
+        event: "decision.party_selected",
+        title: "Select the winning row",
         for_role: "buyer",
         status: "open" as const,
         created_at: "2026-10-28T08:00:00Z",
@@ -36,7 +37,7 @@ describe("splitConversationPending", () => {
         instance_id: "QQ-1",
         kind: "decision" as const,
         event: "task.retry",
-        title: "Retry: Awaiting quotes",
+        title: "Retry: Awaiting replies",
         for_role: "buyer",
         status: "open" as const,
         created_at: "2026-10-28T07:00:00Z",
@@ -64,7 +65,7 @@ describe("splitConversationPending", () => {
         instance_id: "QQ-1",
         kind: "decision" as const,
         event: "task.retry",
-        title: "Retry: Awaiting quotes",
+        title: "Retry: Awaiting replies",
         for_role: "buyer",
         status: "open" as const,
         created_at: "2026-10-28T07:00:00Z",

@@ -1,30 +1,30 @@
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
-/** Preferred work-panel document types by workflow state (first match wins). */
-const STAGE_ARTIFACT_PRIORITY: Record<string, string[]> = {
-  intake: ["brief"],
-  shortlisting: ["supplier_list", "brief"],
-  rfq_drafting: ["rfq_email", "supplier_list", "brief"],
-  rfq_sending: ["rfq_email", "supplier_list", "brief"],
-  awaiting_quotes: ["quote", "rfq_email", "supplier_list"],
-  comparison: ["comparison", "quote", "supplier_list"],
-  ordering: ["po_payload", "comparison", "quote"],
-  closed: ["po_payload", "comparison", "quote", "brief"],
+/** Preferred artifact view types by workflow state (first match wins). */
+const STAGE_VIEW_PRIORITY: Record<string, string[]> = {
+  intake: ["document"],
+  shortlisting: ["sheet", "document"],
+  rfq_drafting: ["message_composer", "sheet", "document"],
+  rfq_sending: ["message_composer", "sheet", "document"],
+  awaiting_quotes: ["tracker", "message_composer", "sheet"],
+  comparison: ["comparison", "tracker", "sheet"],
+  ordering: ["record_preview", "comparison", "tracker"],
+  closed: ["record_preview", "comparison", "tracker", "document"],
 };
 
-function artifactIdForType(snapshot: InstanceSnapshot, artifactType: string): string | null {
+function artifactIdForView(snapshot: InstanceSnapshot, viewType: string): string | null {
   const row = snapshot.artifacts.find(
-    (a) => a.artifact_type === artifactType && a.latest_version >= 1,
+    (a) => a.view?.type === viewType && a.latest_version >= 1,
   );
   return row?.artifact_id ?? null;
 }
 
 /** Which artifact tab the work panel should show for this stage (null = keep current default). */
 export function recommendedWorkPanelArtifactId(snapshot: InstanceSnapshot): string | null {
-  const order = STAGE_ARTIFACT_PRIORITY[snapshot.state];
+  const order = STAGE_VIEW_PRIORITY[snapshot.state];
   if (!order?.length) return null;
-  for (const type of order) {
-    const id = artifactIdForType(snapshot, type);
+  for (const viewType of order) {
+    const id = artifactIdForView(snapshot, viewType);
     if (id) return id;
   }
   return null;
@@ -43,17 +43,17 @@ export function shouldAutoFocusWorkPanel(
   const current = currentPanelId
     ? snapshot.artifacts.find((a) => a.artifact_id === currentPanelId)
     : undefined;
-  const order = STAGE_ARTIFACT_PRIORITY[snapshot.state] ?? [];
-  const targetType = snapshot.artifacts.find((a) => a.artifact_id === target)?.artifact_type;
-  const currentType = current?.artifact_type;
+  const order = STAGE_VIEW_PRIORITY[snapshot.state] ?? [];
+  const targetType = snapshot.artifacts.find((a) => a.artifact_id === target)?.view?.type;
+  const currentType = current?.view?.type;
 
   if (!currentPanelId || !currentType) return target;
 
   const targetRank = targetType ? order.indexOf(targetType) : -1;
-  const currentRank = order.indexOf(currentType);
+  const currentRank = currentType ? order.indexOf(currentType) : -1;
   if (targetRank >= 0 && (currentRank < 0 || targetRank < currentRank)) return target;
 
-  if (snapshot.state === "shortlisting" && targetType === "supplier_list" && currentType === "brief") {
+  if (snapshot.state === "shortlisting" && targetType === "sheet" && currentType === "document") {
     return target;
   }
 

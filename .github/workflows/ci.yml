@@ -60,7 +60,8 @@ jobs:
         run: npm run build
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.51 does not ship browser builds for ubuntu 26 yet (ubuntu-latest).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

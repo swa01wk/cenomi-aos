@@ -11,7 +11,7 @@ class InboundMailTests(unittest.TestCase):
     def test_parse_instance_ref(self) -> None:
         inst, sup = inbound_mail.parse_instance_ref("QQ-0019:SUP-11632")
         self.assertEqual(inst, "QQ-0019")
-        self.assertEqual(sup, "SUP-11632")
+        self.assertEqual(sup, "SUP-11632")  # party key from ref suffix
 
     def test_trigger_context_from_payload(self) -> None:
         payload = {
@@ -22,7 +22,7 @@ class InboundMailTests(unittest.TestCase):
         }
         ctx = inbound_mail.trigger_context_from_payload(event="mail.message_received", payload=payload)
         self.assertEqual(ctx["conversation_id"], "conv-abc")
-        self.assertEqual(ctx["supplier_id"], "SUP-11632")
+        self.assertEqual(ctx["party_id"], "SUP-11632")
         self.assertEqual(ctx["message_id"], "msg-1")
 
 
@@ -41,7 +41,7 @@ class InboundMailTests(unittest.TestCase):
             "event": "mail.message_received",
             "conversation_id": "conv-test",
             "message_id": "msg-test",
-            "supplier_id": "SUP-1",
+            "party_id": "SUP-1",
             "ref": "QQ-0001:SUP-1",
         }
         contract = build_task_contract(

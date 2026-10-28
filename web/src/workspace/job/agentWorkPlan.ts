@@ -32,13 +32,9 @@ function stepsForState(state: string): string[] {
     case "intake":
       return ["Reading your request", "Checking categories and specs", "Drafting the brief"];
     case "shortlisting":
-      return [
-        "Pulling suppliers for your brief",
-        "Checking supplier records",
-        "Ranking the supplier list",
-      ];
+      return ["Loading directory records", "Checking history", "Ranking the shortlist"];
     case "rfq_drafting":
-      return ["Shortlisting suppliers", "Drafting RFQ emails", "Checking each draft"];
+      return ["Confirming the shortlist", "Drafting outbound messages", "Checking each draft"];
     case "rfq_sending":
       return ["Preparing outbound emails", "Checking recipients", "Ready to send"];
     default:
@@ -50,8 +46,8 @@ function inferStepIndex(state: string, elapsedSec: number, toolLabel: string | u
   const lower = (toolLabel ?? "").toLowerCase();
   if (lower.includes("brief") || lower.includes("draft")) return 2;
   if (lower.includes("erp") || lower.includes("categor") || lower.includes("search")) return 1;
-  if (lower.includes("supplier") || lower.includes("rank")) return 2;
-  if (lower.includes("rfq") || lower.includes("email")) return 1;
+  if (lower.includes("rank") || lower.includes("list")) return 2;
+  if (lower.includes("email") || lower.includes("mail")) return 1;
   const labels = stepsForState(state);
   if (elapsedSec >= 25) return Math.min(2, labels.length - 1);
   if (elapsedSec >= 10) return Math.min(1, labels.length - 1);
@@ -63,10 +59,10 @@ function expectationFor(state: string, isFirstExchange: boolean): string | null 
     return "This usually takes about a minute while the worker gathers details for your brief.";
   }
   if (state === "shortlisting") {
-    return "Ranking suppliers often takes up to a minute. New rows appear in the work panel on the right.";
+    return "Ranking often takes up to a minute. New rows appear in the work panel on the right.";
   }
   if (state === "rfq_drafting") {
-    return "Draft emails will appear in the work panel as they are saved.";
+    return "Draft messages will appear in the work panel as they are saved.";
   }
   return null;
 }

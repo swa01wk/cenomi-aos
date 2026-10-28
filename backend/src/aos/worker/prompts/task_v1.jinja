@@ -12,7 +12,7 @@ You work for {{ org_id }} as the {{ seat_label }}. You propose; people and the k
 # Inbound trigger (use these ids exactly in connector tools)
 
 - conversation_id for `read_thread`: {{ trigger_context.conversation_id }}
-- supplier_id for the quote draft key: {{ trigger_context.supplier_id }}
+- party_id for the draft item key: {{ trigger_context.party_id }}
 - message_id: {{ trigger_context.message_id }}
 {% endif %}
 

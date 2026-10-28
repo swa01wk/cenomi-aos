@@ -10,8 +10,12 @@ spec:
     lead_time_days: {type: integer, required: true}
     warranty_months: {type: integer}
     received_at: {type: datetime, required: true}
-    reply_excerpt: {type: text, description: Verbatim excerpt from the supplier email for preview in the workspace.}
-    notes: {type: text, description: Buyer-facing notes (missing fields, extensions, ignored instructions).}
+    reply_excerpt:
+      type: text
+      description: Verbatim excerpt from the counterparty email for preview in the workspace.
+    notes:
+      type: text
+      description: Buyer-facing notes when the reply is incomplete or needs clarification.
   view: {type: tracker, columns: [supplier, received_at, unit_price, lead_time_days]}
   visibility:
     buyer: all

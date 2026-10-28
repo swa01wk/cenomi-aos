@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceSnapshot } from "./jobStreamReducer";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import { composerBlockedForPoLoop } from "./composerGate";
 
 function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
   return {
     instance_id: "QQ-1",
     title: "Test",
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     pack_version: "p@1",
     version: 1,
     state: "ordering",

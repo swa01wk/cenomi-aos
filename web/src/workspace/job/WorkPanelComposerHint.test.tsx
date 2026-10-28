@@ -1,24 +1,25 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import { WorkPanelComposerHint } from "./WorkPanelComposerHint";
 
 const base: InstanceSnapshot = {
   instance_id: "QQ-1",
   title: "Job",
-  workflow: "quick_quote",
+  workflow: TEST_WORKFLOW,
   pack_version: "p@1",
   state: "rfq_drafting",
   version: 3,
-  stages: [{ state: "rfq_drafting", label: "RFQ drafting", status: "current" }],
+  stages: [{ state: "rfq_drafting", label: "Outbound drafting", status: "current" }],
   participants: [],
   my_roles: ["buyer"],
   pending: [],
   artifacts: [
     {
       artifact_id: "art-mail",
-      artifact_type: "rfq_email",
-      name: "Rfq Email SUP-1",
+      artifact_type: "type_outbound",
+      name: "Outbound draft A",
       latest_version: 2,
       status: "draft",
       view: { type: "message_composer", fields: [] },

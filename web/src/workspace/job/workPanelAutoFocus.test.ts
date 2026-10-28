@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import { recommendedWorkPanelArtifactId, shouldAutoFocusWorkPanel } from "./workPanelAutoFocus";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
@@ -6,7 +7,7 @@ function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
   return {
     instance_id: "QQ-1",
     title: "Test",
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     pack_version: "p@1",
     version: 1,
     state: "shortlisting",
@@ -22,23 +23,51 @@ function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
 }
 
 describe("workPanelAutoFocus", () => {
-  it("prefers supplier list during shortlisting", () => {
+  it("prefers a sheet artifact during shortlisting", () => {
     const id = recommendedWorkPanelArtifactId(
       snap({
         artifacts: [
-          { artifact_id: "brief1", artifact_type: "brief", name: "Brief", latest_version: 2, status: "final", view: { type: "form", fields: [], columns: [] } },
-          { artifact_id: "list1", artifact_type: "supplier_list", name: "Supplier List", latest_version: 9, status: "final", view: { type: "sheet", fields: [], columns: [] } },
+          {
+            artifact_id: "brief1",
+            artifact_type: "type_brief",
+            name: "Brief",
+            latest_version: 2,
+            status: "final",
+            view: { type: "document", fields: [], columns: [] },
+          },
+          {
+            artifact_id: "list1",
+            artifact_type: "type_ranked",
+            name: "Ranked list",
+            latest_version: 9,
+            status: "final",
+            view: { type: "sheet", fields: [], columns: [] },
+          },
         ],
       }),
     );
     expect(id).toBe("list1");
   });
 
-  it("auto-switches from brief to supplier list when shortlisting", () => {
+  it("auto-switches from document to sheet when shortlisting", () => {
     const snapshot = snap({
       artifacts: [
-        { artifact_id: "brief1", artifact_type: "brief", name: "Brief", latest_version: 2, status: "final", view: { type: "form", fields: [], columns: [] } },
-        { artifact_id: "list1", artifact_type: "supplier_list", name: "Supplier List", latest_version: 9, status: "final", view: { type: "sheet", fields: [], columns: [] } },
+        {
+          artifact_id: "brief1",
+          artifact_type: "type_brief",
+          name: "Brief",
+          latest_version: 2,
+          status: "final",
+          view: { type: "document", fields: [], columns: [] },
+        },
+        {
+          artifact_id: "list1",
+          artifact_type: "type_ranked",
+          name: "Ranked list",
+          latest_version: 9,
+          status: "final",
+          view: { type: "sheet", fields: [], columns: [] },
+        },
       ],
     });
     expect(shouldAutoFocusWorkPanel(snapshot, "brief1", false)).toBe("list1");
@@ -48,8 +77,22 @@ describe("workPanelAutoFocus", () => {
   it("respects manual tab choice", () => {
     const snapshot = snap({
       artifacts: [
-        { artifact_id: "brief1", artifact_type: "brief", name: "Brief", latest_version: 2, status: "final", view: { type: "form", fields: [], columns: [] } },
-        { artifact_id: "list1", artifact_type: "supplier_list", name: "Supplier List", latest_version: 9, status: "final", view: { type: "sheet", fields: [], columns: [] } },
+        {
+          artifact_id: "brief1",
+          artifact_type: "type_brief",
+          name: "Brief",
+          latest_version: 2,
+          status: "final",
+          view: { type: "document", fields: [], columns: [] },
+        },
+        {
+          artifact_id: "list1",
+          artifact_type: "type_ranked",
+          name: "Ranked list",
+          latest_version: 9,
+          status: "final",
+          view: { type: "sheet", fields: [], columns: [] },
+        },
       ],
     });
     expect(shouldAutoFocusWorkPanel(snapshot, "brief1", true)).toBeNull();

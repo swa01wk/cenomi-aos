@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceSnapshot } from "./jobStreamReducer";
+import { TEST_WORKFLOW } from "../testJobFixtures";
 import { hasOpenTaskRetry, showSendRfqsBar } from "./workSendRfqs";
 
 function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
   return {
     instance_id: "QQ-1",
     title: "t",
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     pack_version: "pv1",
     state: "rfq_sending",
     version: 1,
@@ -17,8 +18,8 @@ function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
     artifacts: [
       {
         artifact_id: "a1",
-        artifact_type: "rfq_email",
-        name: "RFQ",
+        artifact_type: "type_outbound",
+        name: "Outbound draft",
         latest_version: 1,
         status: "draft",
         view: { type: "message_composer", fields: [] },

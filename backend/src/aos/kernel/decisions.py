@@ -180,22 +180,32 @@ async def _latest_view_artifact(
     return aid, ver, str(vrow[0])
 
 
-async def heal_discovery_region_after_supplier_list(
+async def heal_discovery_region_after_lookup(
     conn: AsyncConnection,
     instance_id: str,
     definition: WorkflowDefinition,
 ) -> bool:
-    """If supplier lookup ended but the discovery region stayed running, close the region so shortlisting can proceed."""
+    """If parallel lookup ended but the discovery region stayed running, close it so the join can proceed."""
     if not any(p.region == "discovery" and p.join_at == "shortlisting" for p in definition.spec.parallel):
         return False
     rcur = await conn.execute(
-        "select state from work.regions where instance_id = %s and name = 'discovery'",
+        "select state, started_with from work.regions where instance_id = %s and name = 'discovery'",
         (instance_id,),
     )
     rrow = await rcur.fetchone()
     if rrow is None or rrow[0] != "running":
         return False
-    if await _latest_view_artifact(conn, instance_id, "supplier_list") is None:
+    sw_raw = rrow[1]
+    started_with = sw_raw if isinstance(sw_raw, dict) else json.loads(sw_raw or "{}")
+    if not started_with:
+        return False
+    acur = await conn.execute(
+        "select 1 from work.artifacts a"
+        " inner join work.tasks t on t.instance_id = a.instance_id and t.region = 'discovery'"
+        " where a.instance_id = %s and a.latest_version >= 1 limit 1",
+        (instance_id,),
+    )
+    if await acur.fetchone() is None:
         return False
     tcur = await conn.execute(
         "select state from work.tasks where instance_id = %s and region = 'discovery'"
@@ -212,14 +222,18 @@ async def heal_discovery_region_after_supplier_list(
     return True
 
 
-async def heal_stale_rfq_send_retry(conn: AsyncConnection, instance_id: str) -> bool:
-    """Buyer send from the work panel replaces a failed rfq_send task; drop a stale retry card."""
+async def heal_stale_outbound_send_retry(conn: AsyncConnection, instance_id: str) -> bool:
+    """Work-panel send replaces a failed outbound-send task; drop a stale retry card."""
     cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
     row = await cur.fetchone()
-    if row is None or row[0] != "rfq_sending":
+    if row is None or not str(row[0]).endswith("_sending"):
         return False
     has_drafts = await conn.execute(
-        "select 1 from work.artifacts where instance_id = %s and artifact_type = 'rfq_email' limit 1",
+        "select 1 from work.artifacts a"
+        " join registry.definitions d on d.name = a.artifact_type and d.kind = 'ArtifactType'"
+        " where a.instance_id = %s"
+        " and (d.spec::jsonb -> 'view' ->> 'type') = 'message_composer'"
+        " limit 1",
         (instance_id,),
     )
     if await has_drafts.fetchone() is None:
@@ -228,7 +242,7 @@ async def heal_stale_rfq_send_retry(conn: AsyncConnection, instance_id: str) -> 
         "select p.id, p.for_person_id from work.pending_items p"
         " join work.tasks t on t.id = p.task_id"
         " where p.instance_id = %s and p.status = 'open' and p.event = 'task.retry'"
-        " and t.template = 'rfq_send' limit 1",
+        " and t.region is null limit 1",
         (instance_id,),
     )
     retry = await retry_cur.fetchone()
@@ -379,8 +393,8 @@ async def open_ready_decisions(
     attributes_raw = row[2]
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     _org_id, _wf_name, definition, _defs = await _load_workflow(conn, instance_id)
-    await heal_discovery_region_after_supplier_list(conn, instance_id, definition)
-    await heal_stale_rfq_send_retry(conn, instance_id)
+    await heal_discovery_region_after_lookup(conn, instance_id, definition)
+    await heal_stale_outbound_send_retry(conn, instance_id)
     from . import regions as region_ops
     opened: list[str] = []
     ts = clock.now()

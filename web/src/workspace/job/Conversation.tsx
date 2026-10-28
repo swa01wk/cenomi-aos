@@ -199,7 +199,7 @@ export function Conversation({
       ) : null}
 
       {closed ? (
-        <p className={styles.closedFooter}>This conversation is read-only. Start a new job to run another quick quote.</p>
+        <p className={styles.closedFooter}>This conversation is read-only. Start a new job from the sidebar to begin again.</p>
       ) : (
         <div className={styles.composerWrap}>
           <Composer

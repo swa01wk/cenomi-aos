@@ -59,13 +59,13 @@ describe("DecisionCard", () => {
     vi.mocked(client.GET).mockResolvedValue({
       data: {
         artifact_id: "art_1",
-        artifact_type: "supplier_list",
+        artifact_type: "type_ranked",
         version: 8,
         content: {
           rows: [
-            { supplier_id: "s1", supplier: "One" },
-            { supplier_id: "s2", supplier: "Two" },
-            { supplier_id: "s3", supplier: "Three" },
+            { party_id: "s1", party: "One" },
+            { party_id: "s2", party: "Two" },
+            { party_id: "s3", party: "Three" },
           ],
         },
         hidden_fields: [],
@@ -91,9 +91,9 @@ describe("DecisionCard", () => {
           }}
           view={{
             type: "sheet",
-            row_key: "supplier_id",
-            columns: ["supplier"],
-            fields: [{ name: "supplier", label: "Supplier", type: "string" }, { name: "supplier_id", label: "Id", type: "string" }],
+            row_key: "party_id",
+            columns: ["party"],
+            fields: [{ name: "party", label: "Party", type: "string" }, { name: "party_id", label: "Id", type: "string" }],
           }}
           onApprove={onApprove}
         />

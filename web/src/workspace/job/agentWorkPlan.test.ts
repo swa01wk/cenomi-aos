@@ -27,11 +27,11 @@ describe("agentWorkPlan", () => {
         instance_id: "QQ-1",
         attempt_id: "a1",
         tool: "erp_search",
-        label: "Searching suppliers in the ERP",
+        label: "Searching the ERP directory",
         state: "allowed",
       },
     });
-    expect(model.headline).toBe("Searching suppliers in the ERP");
+    expect(model.headline).toBe("Searching the ERP directory");
   });
 
   it("shows async hint after twenty seconds", () => {

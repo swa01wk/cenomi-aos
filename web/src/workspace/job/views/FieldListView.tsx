@@ -23,8 +23,8 @@ export function FieldListView({
   return (
     <div className={styles.viewBody}>
       {excerptText && (
-        <section aria-label="Supplier reply preview" className={styles.replyPreview}>
-          <div className={styles.replyPreviewLabel}>Supplier reply</div>
+        <section aria-label="Inbound reply preview" className={styles.replyPreview}>
+          <div className={styles.replyPreviewLabel}>Inbound reply</div>
           <pre className={styles.replyPreviewBody}>{excerptText}</pre>
         </section>
       )}

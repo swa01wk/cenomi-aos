@@ -31,12 +31,25 @@ export function stepGuideShowsWaitingDots(guide: StepGuide, workflowState?: stri
   return false;
 }
 
-function viewerIsBuyer(snapshot: InstanceSnapshot): boolean {
-  return snapshot.my_roles.includes("buyer");
+function hasRankedSheet(snapshot: InstanceSnapshot): boolean {
+  return snapshot.artifacts.some((a) => a.view.type === "sheet" && a.latest_version >= 1);
 }
 
-function hasSupplierList(snapshot: InstanceSnapshot): boolean {
-  return snapshot.artifacts.some((a) => a.artifact_type === "supplier_list" && a.latest_version >= 1);
+function inboundReplyCount(snapshot: InstanceSnapshot): number {
+  return snapshot.artifacts.filter((a) => a.view.type === "tracker" && a.latest_version >= 1).length;
+}
+
+function pendingGuide(snapshot: InstanceSnapshot): StepGuide | null {
+  const open = snapshot.pending.filter((p) => p.status === "open");
+  const forward = open.filter((p) => p.event !== "task.retry");
+  const pending = forward[0] ?? open[0];
+  if (!pending) return null;
+  if (forward.length === 0) return null;
+  const title = pending.title?.trim() || "Your action is needed";
+  const detail =
+    pending.detail?.trim() ||
+    "Use the card in the thread to review and confirm, then continue in the work panel on the right.";
+  return { kind: "action", title, detail };
 }
 
 export function jobStepGuide(
@@ -47,33 +60,11 @@ export function jobStepGuide(
   },
 ): StepGuide | null {
   const stage = snapshot.stages.find((s) => s.status === "current");
-  const stageLabel = stage?.label ?? snapshot.state;
+  const stageLabel = stage?.label ?? snapshot.state.replace(/_/g, " ");
   const { agentBusy, openPendingForYou } = opts;
 
   if (openPendingForYou > 0) {
-    const open = snapshot.pending.filter((p) => p.status === "open");
-    const forward = open.filter((p) => p.event !== "task.retry");
-    const pending = forward[0] ?? open[0];
-    if (pending?.event === "decision.shortlist_confirmed") {
-      return {
-        kind: "action",
-        title: "Pick suppliers to invite",
-        detail:
-          "Select at least three suppliers in the card in the thread. You can edit the note, then confirm the shortlist.",
-      };
-    }
-    if (pending?.event === "decision.supplier_selected") {
-      return {
-        kind: "action",
-        title: "Choose a supplier",
-        detail:
-          "Review the comparison on the right, select a supplier in the card in the thread, then confirm your choice.",
-      };
-    }
-    if (forward.length > 0) {
-      return null;
-    }
-    return null;
+    return pendingGuide(snapshot);
   }
 
   if (agentBusy) {
@@ -90,85 +81,83 @@ export function jobStepGuide(
         kind: "progress",
         title: "Confirm the request",
         detail:
-          "The worker is shaping your brief. When the brief is ready, you will confirm it here so sourcing can start.",
+          "The worker is shaping your brief. When the brief is ready, you will confirm it here so the next stage can start.",
       };
     case "shortlisting": {
-      const listReady = hasSupplierList(snapshot);
-      if (listReady && viewerIsBuyer(snapshot)) {
+      const listReady = hasRankedSheet(snapshot);
+      if (listReady && snapshot.my_roles.includes("buyer")) {
         return {
           kind: "action",
-          title: "Pick suppliers to invite",
+          title: "Confirm the shortlist",
           detail:
-            "Choose at least three suppliers in the card above the message box, then confirm the shortlist. The ranked list is also in the work panel on the right.",
+            "Choose at least three rows in the card above the message box, then confirm. The ranked list is also in the work panel on the right.",
         };
       }
       if (listReady) {
         return {
           kind: "wait",
-          title: "Supplier list is ready",
+          title: "Ranked list is ready",
           detail:
-            "You can review the ranked list on the right. A sourcing buyer must claim this job from Team queue and pick at least three suppliers before RFQ emails can be drafted.",
-          footnote: "Sign in as Noura (sourcing), open Team queue, claim this job, then confirm the shortlist.",
+            "You can review the list on the right. A buyer on your team must claim this job from Team queue and confirm the shortlist before outbound drafts begin.",
         };
       }
       return {
         kind: "progress",
-        title: "Suppliers being ranked",
-        detail:
-          "The digital worker is building a supplier list. It will appear in the work panel when ranking finishes.",
+        title: "Building the ranked list",
+        detail: "The digital worker is ranking options for your brief. It will appear in the work panel when finished.",
       };
     }
     case "rfq_drafting":
       return {
         kind: "progress",
-        title: "RFQ emails being drafted",
+        title: "Outbound drafts in progress",
         detail:
-          "The worker is writing one email per shortlisted supplier. Review the drafts in the panel on the right when they appear.",
+          "The worker is writing one message per shortlisted row. Review the drafts in the panel on the right when they appear.",
       };
     case "rfq_sending": {
       const drafts = messageComposerArtifacts(snapshot.artifacts).length;
       if (drafts > 0) {
         return {
           kind: "action",
-          title: "Review and send RFQs",
+          title: "Review and send",
           detail:
-            "Draft emails are ready in the work panel. Open each tab, check the text, then use Approve and send to suppliers.",
+            "Draft messages are ready in the work panel. Open each tab, check the text, then use Approve and send below.",
         };
       }
       return {
         kind: "progress",
         title: "Preparing to send",
-        detail: "The worker is finishing RFQ drafts. Sending will open here when the emails are ready.",
+        detail: "The worker is finishing drafts. Sending will open here when the messages are ready.",
       };
     }
     case "awaiting_quotes": {
-      const quotes = snapshot.artifacts.filter((a) => a.artifact_type === "quote").length;
-      const invited = quotes > 0 ? quotes : messageComposerArtifacts(snapshot.artifacts).length || 3;
+      const replies = inboundReplyCount(snapshot);
+      const invited = replies > 0 ? replies : messageComposerArtifacts(snapshot.artifacts).length || 3;
       return {
         kind: "wait",
-        title: "Waiting for supplier quotes",
+        title: "Waiting for replies",
         detail:
-          quotes > 0
-            ? `${quotes} quote${quotes === 1 ? "" : "s"} recorded so far. The digital worker adds each reply as it arrives and will move to comparison when enough quotes are in.`
-            : `RFQs are with your suppliers (${invited} invited). The digital worker watches for replies; you do not need to refresh or send again.`,
+          replies > 0
+            ? `${replies} inbound record${replies === 1 ? "" : "s"} so far. The digital worker adds each reply as it arrives and will move on when enough responses are in.`
+            : `Messages were sent (${invited} parties). The digital worker watches for replies; you do not need to refresh or send again.`,
         footnote:
-          quotes > 0
-            ? "Each quote tab shows what we captured from the supplier reply. Ask in the message box below (for example, who has replied?)."
-            : "Replies must reach the mock mail listener (Gmail alone is not read). Ask in the message box below. Comparison opens when the workflow rules are satisfied.",
+          replies > 0
+            ? "Each tracker tab shows what we captured from the reply. Ask in the message box below (for example, who has replied?)."
+            : "Replies must reach the configured mail listener. Ask in the message box below. Comparison opens when the workflow rules are satisfied.",
       };
     }
     case "comparison":
       return {
         kind: "action",
-        title: "Compare quotes",
+        title: "Review the comparison",
         detail:
-          "Quotes are in the work panel. Review the comparison and confirm your supplier choice when you are ready.",
+          "Results are in the work panel. Review the comparison and confirm your choice in the thread when you are ready.",
       };
     case "ordering":
       return {
         kind: "progress",
         title: "Purchase order in progress",
-        detail: "The worker is preparing the PO. An approver may need to sign off before it is sent.",
+        detail: "The worker is preparing the order record. An approver may need to sign off before it is sent.",
       };
     case "closed":
       return {
@@ -178,9 +167,9 @@ export function jobStepGuide(
       };
     default:
       return {
-        kind: "progress",
+        kind: "wait",
         title: stageLabel,
-        detail: "The job is moving through the workflow. Updates appear in the conversation and work panel.",
+        detail: "Follow the thread and work panel for this stage.",
       };
   }
 }

@@ -6,6 +6,7 @@ import {
   pendingActionLabel,
   sortJobsForViewer,
 } from "./instanceAttention";
+import { TEST_WORKFLOW } from "./testJobFixtures";
 
 type Job = components["schemas"]["InstanceSummary"];
 
@@ -13,7 +14,7 @@ function job(id: string, waiting_on?: Job["waiting_on"], last = "2026-01-02T00:0
   return {
     instance_id: id,
     title: id,
-    workflow: "quick_quote",
+    workflow: TEST_WORKFLOW,
     state: "shortlisting",
     state_label: "shortlisting",
     version: 1,
@@ -41,8 +42,8 @@ describe("instanceAttention", () => {
   });
 
   it("uses pending title when present", () => {
-    expect(pendingActionLabel(job("a", { kind: "person", person_id: "n", label: "Pick suppliers" }))).toBe(
-      "Pick suppliers",
+    expect(pendingActionLabel(job("a", { kind: "person", person_id: "n", label: "Confirm shortlist" }))).toBe(
+      "Confirm shortlist",
     );
   });
 
