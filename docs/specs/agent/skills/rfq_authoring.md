@@ -44,8 +44,10 @@ line of defence; the demo's `seed_budget_leak` switch makes the fake model leak 
 
 `leak_check` (rule) — PASS when no value of any `internal` or `restricted` field of any artifact in the instance
 appears in any shareable output field. Matching normalises numbers (strip currency words and symbols, thousands
-separators and spaces; `40,000`, `SAR 40000` and `40k` all match 40000) and is case-insensitive for text. REWORK with
-the field and the leaked value's field name (never the value itself) as the finding.
+separators and spaces; `40,000`, `SAR 40000` and `40k` all match 40000) and is case-insensitive for text. Match
+numbers as whole values (140000 does not match 40000) and text as whole phrases. Ignore text values under 4
+characters and numbers under 3 digits (too common to count as a leak). REWORK with the output field and the source
+field name (never the value itself) as the finding.
 
 `recipient_check` (rule) — for each send receipt, `find_message` returns the message with `to` equal to the supplier's
 ERP email, the instance's `conversation_id`, and the body hash of the approved version.

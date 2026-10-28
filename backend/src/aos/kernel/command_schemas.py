@@ -123,6 +123,15 @@ def save_draft_command_schema(contract: dict[str, Any], defs: dict[str, dict[str
     }
 
 
+def submit_command_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "required": ["summary"],
+        "properties": {"summary": {"type": "string", "description": "One or two plain sentences for people."}},
+        "additionalProperties": False,
+    }
+
+
 def ask_question_command_schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -162,5 +171,9 @@ def enrich_command_schema(
             "Ask the requester up to three questions and end this reply; their answer starts your next one. "
             "preamble is one short sentence shown before the questions."
         )
+        return entry
+    if name == "submit":
+        entry["input_schema"] = submit_command_schema()
+        entry["description"] = "Finish the attempt with a short summary once outputs are saved."
         return entry
     return entry

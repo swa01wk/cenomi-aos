@@ -93,6 +93,58 @@ async def load_current_dependency_versions(
     return out
 
 
+async def _store_output_verification(
+    conn: AsyncConnection,
+    *,
+    refs: list[dict[str, Any]],
+    verification: dict[str, Any],
+) -> None:
+    for ref in refs:
+        aid = ref.get("artifact_id")
+        version = ref.get("version")
+        if not aid or version is None:
+            continue
+        await conn.execute(
+            "update work.artifact_versions set verification = %s"
+            " where artifact_id = %s and version = %s",
+            (Jsonb(verification), str(aid), int(version)),
+        )
+
+
+async def _emit_verification_completed(
+    conn: AsyncConnection,
+    *,
+    gate: ClaimedAttempt,
+    verifier_name: str,
+    verdict: str,
+    findings: list[str],
+) -> None:
+    on_behalf = gate.contract.get("on_behalf_of") or {}
+    role = on_behalf.get("role")
+    if not role:
+        return
+    payload: dict[str, Any] = {
+        "instance_id": gate.instance_id,
+        "task_id": gate.task_id,
+        "verifier": verifier_name,
+        "verdict": verdict,
+    }
+    if findings:
+        payload["findings"] = findings
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(gate.instance_id),
+                event_type="verification.completed",
+                instance_id=gate.instance_id,
+                audience={"roles": [str(role)]},
+                data=payload,
+            )
+        ],
+    )
+
+
 async def _validate_outputs(
     conn: AsyncConnection,
     *,
@@ -406,11 +458,29 @@ async def submit_result(
         )
         verifier_doc = {"name": str(verifier_name), "verdict": verdict, "findings": findings}
         accepted_response["verifier"] = verifier_doc
+        stored_verification = {
+            "verifier": str(verifier_name),
+            "verdict": verdict,
+            "findings": findings,
+        }
+        await _store_output_verification(conn, refs=refs, verification=stored_verification)
+        await _emit_verification_completed(
+            conn,
+            gate=gate,
+            verifier_name=str(verifier_name),
+            verdict=verdict,
+            findings=findings,
+        )
         if verdict == "REWORK":
             accepted_response["verdict"] = "REWORK"
-            accepted_response["task_state"] = "READY"
-            accepted_response["next_attempt"] = True
-            task_to = "READY"
+            if gate.attempts_used >= gate.max_attempts:
+                accepted_response["task_state"] = "EXCEPTION"
+                accepted_response["next_attempt"] = False
+                task_to = "EXCEPTION"
+            else:
+                accepted_response["task_state"] = "READY"
+                accepted_response["next_attempt"] = True
+                task_to = "READY"
             await write_execution_event(
                 conn,
                 ExecutionEventWrite(

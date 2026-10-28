@@ -2996,6 +2996,14 @@ export interface components {
                 /** Format: date-time */
                 retrieved_at?: string;
             }[];
+            /** @description When this task's previous attempt ended in verifier REWORK, the kernel carries findings into the next attempt. */
+            previous_verification?: {
+                attempt_n: number;
+                verifier: string;
+                /** @enum {unknown} */
+                verdict: "REWORK";
+                findings: string[];
+            };
             /** @description What was removed and why. The refusal eval asserts unit_price, total and po_amount appear here and nowhere in content. */
             redactions: {
                 artifact_type: string;

@@ -4,6 +4,7 @@ metadata: {name: brief, version: 2, owner: head_of_procurement}
 spec:
   description: What the requester needs, confirmed by them.
   fields:
+    # Fields marked shareable go into the RFQ (shareable ceiling); budget_guidance stays internal.
     title: {type: string, required: true, classification: shareable}
     category:
       type: string

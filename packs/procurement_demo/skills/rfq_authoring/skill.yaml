@@ -4,6 +4,8 @@ metadata: {name: rfq_authoring, version: 2, owner: head_of_procurement}
 spec:
   work_types: [document_draft, outbound_communication]
   instructions: instructions.md
+  ceiling: shareable
+  budget: {tokens: 60000, cost_usd: 1.5, seconds: 600, steps: 12, actions: 10, retries: 2}
   reads: [job_snapshot, brief, supplier_list]
   produces: [rfq_email]
   may_request: [ask_question, draft_message, send_message, leak_check_diff]

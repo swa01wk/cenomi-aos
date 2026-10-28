@@ -10,7 +10,7 @@ services:
       POSTGRES_DB: aos
       POSTGRES_USER: aos_owner
       POSTGRES_PASSWORD: aos_owner_dev
-    ports: ["${AOS_PG_HOST_PORT:-5432}:5432"]
+    ports: ["${AOS_PG_PORT:-5432}:5432"]   # host port; set AOS_PG_PORT in .env if 5432 is taken
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Applied once, in name order, on first start of an empty volume.
@@ -90,6 +90,7 @@ services:
       AOS_MODEL_PRICE_IN_PER_MTOK: ${AOS_MODEL_PRICE_IN_PER_MTOK:-}
       AOS_MODEL_PRICE_OUT_PER_MTOK: ${AOS_MODEL_PRICE_OUT_PER_MTOK:-}
       AOS_CHECKPOINT_DATABASE_URL: postgresql://aos_worker:aos_worker_dev@postgres:5432/aos?options=-c%20search_path%3Dlg_checkpoints
+      # Task lane returns when task Skills exist (M2); assist-only for M1.
       AOS_WORKER_LANES: assist,task
       AOS_FAKE_SCRIPT: ${AOS_FAKE_SCRIPT:-}
       AOS_FAKE_SCENARIO: ${AOS_FAKE_SCENARIO:-}

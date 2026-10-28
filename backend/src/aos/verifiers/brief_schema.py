@@ -1,73 +1,85 @@
-"""brief_schema: the brief is complete, its delivery date is far enough out and its category came from the ERP."""
+"""Verifier brief_schema: required brief fields and ERP category (request_intake spec)."""
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-from typing import Any
+from datetime import date, datetime, timedelta
+from typing import Any, Literal
 
-from psycopg import AsyncConnection
+from ._fields import is_typed_integer, is_typed_string, money_number, parse_date_value
 
-from ..kernel import clock
-from . import _records
-
-ARTIFACT_TYPE = "brief"
-CATEGORY_TOOL = "browse_categories"
-MIN_LEAD_DAYS = 3
-_TEXT_FIELDS = ("title", "category", "specification", "delivery_site")
+Verdict = Literal["PASS", "REWORK", "FAIL"]
 
 
-def _blank(value: Any) -> bool:
-    return value is None or (isinstance(value, str) and not value.strip())
+def _category_ids_from_receipts(tool_receipts: list[dict[str, Any]]) -> set[str]:
+    ids: set[str] = set()
+    for rec in tool_receipts:
+        if rec.get("tool") != "browse_categories":
+            continue
+        content = rec.get("content")
+        if not isinstance(content, dict):
+            continue
+        items = content.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get("id"):
+                ids.add(str(item["id"]))
+    return ids
 
 
-def check_brief(content: dict[str, Any], *, today: date, category_ids: set[str]) -> list[str]:
-    """One finding per field that breaks a rule; empty when the brief passes."""
+def _parse_now(inp: dict[str, Any]) -> datetime:
+    raw = inp.get("now")
+    if isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, str):
+        text = raw.strip().replace("Z", "+00:00")
+        return datetime.fromisoformat(text)
+    raise ValueError("verifier input has no `now`")
+
+
+def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
+    outputs = inp.get("outputs") or []
+    brief = None
+    for out in outputs:
+        if out.get("artifact_type") == "brief":
+            brief = out.get("content")
+            break
+    if not isinstance(brief, dict):
+        return "REWORK", ["brief: missing output"]
+
     findings: list[str] = []
-    for name in _TEXT_FIELDS:
-        if _blank(content.get(name)):
-            findings.append(f"{name} is missing.")
+    today = _parse_now(inp).date()
+    min_delivery = today + timedelta(days=3)
+    erp_categories = _category_ids_from_receipts(inp.get("tool_receipts") or [])
 
-    quantity = content.get("quantity")
-    if quantity is None:
-        findings.append("quantity is missing.")
-    elif isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
-        findings.append("quantity must be a whole number above 0.")
+    if not is_typed_string(brief.get("title")):
+        findings.append("title: required string missing or empty")
+    if not is_typed_string(brief.get("category")):
+        findings.append("category: required string missing or empty")
+    elif str(brief.get("category")) not in erp_categories:
+        findings.append("category: not returned by browse_categories for this task")
 
-    earliest = today + timedelta(days=MIN_LEAD_DAYS)
-    raw_date = content.get("delivery_date")
-    if _blank(raw_date):
-        findings.append("delivery_date is missing.")
-    else:
-        try:
-            delivery = date.fromisoformat(str(raw_date))
-        except ValueError:
-            findings.append("delivery_date must be a date like 2026-11-20.")
-        else:
-            if delivery < earliest:
-                findings.append(
-                    f"delivery_date must be {earliest.isoformat()} or later ({MIN_LEAD_DAYS} days from today)."
-                )
+    qty = brief.get("quantity")
+    if not is_typed_integer(qty) or int(qty) <= 0:
+        findings.append("quantity: must be an integer greater than zero")
 
-    category = content.get("category")
-    if not _blank(category) and str(category) not in category_ids:
-        findings.append(f"category must be an id that {CATEGORY_TOOL} returned in this Task.")
-    return findings
+    if not is_typed_string(brief.get("specification")):
+        findings.append("specification: required string missing or empty")
 
+    delivery = parse_date_value(brief.get("delivery_date"))
+    if delivery is None:
+        findings.append("delivery_date: required date missing or invalid")
+    elif delivery < min_delivery:
+        findings.append("delivery_date: must be at least three days from today")
 
-def category_ids(observations: list[dict[str, Any]]) -> set[str]:
-    return {
-        str(item["id"])
-        for obs in observations
-        if obs.get("tool") == CATEGORY_TOOL
-        for item in _records.items(obs)
-        if item.get("id")
-    }
+    if not is_typed_string(brief.get("delivery_site")):
+        findings.append("delivery_site: required string missing or empty")
 
+    # Typed check for money field when present (not required on brief).
+    if "budget_guidance" in brief and brief["budget_guidance"] is not None:
+        if money_number(brief["budget_guidance"]) is None:
+            findings.append("budget_guidance: must be a number when set")
 
-async def verify(conn: AsyncConnection, gate: Any, result: dict[str, Any], defs: dict) -> tuple[str, list[str]]:
-    briefs = [o for o in await _records.outputs(conn, result) if o.artifact_type == ARTIFACT_TYPE]
-    if not briefs:
-        return "REWORK", ["The brief was not saved with this result."]
-    ids = category_ids(await _records.observations(conn, gate.task_id))
-    findings = check_brief(briefs[-1].content, today=clock.now().date(), category_ids=ids)
-    return ("REWORK", findings) if findings else ("PASS", [])
+    if findings:
+        return "REWORK", findings
+    return "PASS", []

@@ -136,8 +136,8 @@ async def setup_checkpointer_tables(saver: AsyncPostgresSaver, conninfo: str) ->
 
 @dataclass
 class CheckpointerHandle:
-    pool: AsyncConnectionPool | None
-    saver: Any
+    pool: AsyncConnectionPool
+    saver: AsyncPostgresSaver
     _assist_graph: Any = field(default=None, init=False, repr=False, compare=False)
     _task_graph: Any = field(default=None, init=False, repr=False, compare=False)
 
@@ -159,9 +159,6 @@ class CheckpointerHandle:
             self._task_graph = build_task_graph(self.saver)
         return self._task_graph
 
-    def graph_for(self, contract: dict[str, Any]):
-        return self.task_graph() if contract.get("kind") == "task" else self.assist_graph()
-
     @classmethod
     async def open(cls, checkpoint_database_url: str) -> CheckpointerHandle:
         conninfo = validate_checkpoint_database_url(checkpoint_database_url)
@@ -175,16 +172,8 @@ class CheckpointerHandle:
         await setup_checkpointer_tables(saver, conninfo)
         return cls(pool=pool, saver=saver)
 
-    @classmethod
-    def in_memory(cls) -> CheckpointerHandle:
-        """Checkpoints kept in this process only, for simulations that must leave nothing behind."""
-        from langgraph.checkpoint.memory import InMemorySaver
-
-        return cls(pool=None, saver=InMemorySaver())
-
     async def close(self) -> None:
-        if self.pool is not None:
-            await self.pool.close()
+        await self.pool.close()
 
     async def resolve(self, attempt: WorkerAttempt) -> ResolvedThread:
         return await resolve_execution_thread(attempt, self.saver)

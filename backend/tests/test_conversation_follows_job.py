@@ -688,7 +688,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
     def test_verifier_rework_posts_task_progress(self) -> None:
         from aos.kernel import verify
 
-        def _rework(_conn, _gate, _result, _defs):
+        def _rework(_inp):
             return "REWORK", ["fix the draft"]
 
         verify.register_implementation("aos.verifiers.brief_schema", _rework)

@@ -4,6 +4,8 @@ metadata: {name: quote_triage, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md
+  ceiling: restricted
+  budget: {tokens: 25000, cost_usd: 0.6, seconds: 180, steps: 6, actions: 4, retries: 2}
   reads: [job_snapshot, rfq_email, recent_messages]
   produces: [quote]
   may_request: [read_thread]

@@ -181,9 +181,12 @@ async def _create_entry_tasks(
     seat_limits: dict[str, Any],
     entry_tasks: list[TaskTemplate],
     participants: list[tuple[str, str]],
+    org: "OrgModel | None" = None,
     trigger_context: dict[str, Any] | None = None,
 ) -> list[CreatedTask]:
     created: list[CreatedTask] = []
+    if not entry_tasks:
+        return created
     for tpl in entry_tasks:
         if tpl.on_behalf_of is None:
             raise WorkflowEffectError(
@@ -209,6 +212,7 @@ async def _create_entry_tasks(
             participant_role=role,
             person_id=person_id,
             seat_limits=seat_limits,
+            org=org,
             trigger_context=trigger_context,
         )
         await task_ops.insert_workflow_task(
@@ -516,6 +520,7 @@ async def apply_event(
         seat_limits=seat_limits,
         entry_tasks=match.entry_tasks,
         participants=participants,
+        org=org,
     )
     await _run_effects(
         conn,
@@ -559,6 +564,7 @@ async def apply_event(
             seat_doc=seat_doc,
             seat_limits=seat_limits,
             participants=participants,
+            org=org,
         )
     guard_attr = tr.guard if tr.guard is not None else ""
     await write_execution_event(

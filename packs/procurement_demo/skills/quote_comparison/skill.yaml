@@ -4,6 +4,8 @@ metadata: {name: quote_comparison, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis, record_update]
   instructions: instructions.md
+  ceiling: restricted
+  budget: {tokens: 40000, cost_usd: 1.0, seconds: 300, steps: 8, actions: 8, retries: 2}
   reads: [job_snapshot, brief, quote, comparison]
   produces: [comparison, po_payload]
   may_request: [price_calculator, create_po, find_po]

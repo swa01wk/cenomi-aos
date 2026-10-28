@@ -132,6 +132,7 @@ async def _start_parallel_region(
     participants: list[tuple[str, str]],
     region_on: str,
     definition: WorkflowDefinition,
+    org: OrgModel,
 ) -> None:
     for region in definition.spec.parallel:
         if region.on != region_on:
@@ -168,6 +169,7 @@ async def _start_parallel_region(
             tpl=tpl,
             region_name=region.region,
             participants=participants,
+            org=org,
         )
 
 
@@ -254,6 +256,7 @@ async def raise_event(
         participants=participants,
         region_on=event_full,
         definition=definition,
+        org=org,
     )
 
     await workflow.apply_event(
@@ -466,6 +469,7 @@ async def raise_inbound_event(
         seat_limits=seat_limits,
         entry_tasks=[tpl],
         participants=participants,
+        org=org,
         trigger_context=trigger_context,
     )
     return True
@@ -577,6 +581,7 @@ async def on_workflow_task_completed(
             seat_doc=seat_doc,
             seat_limits=seat_limits,
             participants=participants,
+            org=org,
         )
 
     from . import decisions as decision_ops

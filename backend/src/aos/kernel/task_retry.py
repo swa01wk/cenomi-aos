@@ -405,6 +405,7 @@ async def spawn_replacement_task(
     conn: AsyncConnection,
     *,
     packs_dir: Path,
+    org: OrgModel,
     org_id: str,
     instance_id: str,
     failed_task_id: str,
@@ -456,6 +457,7 @@ async def spawn_replacement_task(
                 tpl=tpl,
                 region_name=region_name,
                 participants=participants,
+                org=org,
             )
         raise DecisionError("internal", 500, "Region missing", f"No parallel spec for region {region_name!r}.")
 
@@ -488,6 +490,7 @@ async def spawn_replacement_task(
         seat_limits=seat_limits,
         entry_tasks=[entry],
         participants=participants,
+        org=org,
     )
     after = await conn.execute(
         "select id from work.tasks where instance_id = %s and template = %s and region is null"
@@ -663,6 +666,7 @@ async def decide_task_retry(
     new_task_id = await spawn_replacement_task(
         conn,
         packs_dir=packs_dir,
+        org=org,
         org_id=org_id,
         instance_id=str(instance_id),
         failed_task_id=str(task_id),

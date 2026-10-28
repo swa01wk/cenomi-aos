@@ -47,7 +47,12 @@ spec:
       label: RFQ sending
       view: rfq_email
       tasks:
-        - {template: rfq_send, skill: rfq_authoring, work_type: outbound_communication, verifier: recipient_check, on_behalf_of: buyer}
+        - template: rfq_send
+          skill: rfq_authoring
+          work_type: outbound_communication
+          verifier: recipient_check
+          on_behalf_of: buyer
+          budget: {tokens: 20000, cost_usd: 0.5, seconds: 300, steps: 6, actions: 10, retries: 2}
     awaiting_quotes:
       label: Awaiting quotes
       view: quote
@@ -62,7 +67,12 @@ spec:
       label: Ordering
       view: po_payload
       tasks:
-        - {template: po_create, skill: quote_comparison, work_type: record_update, verifier: payload_match, on_behalf_of: buyer}
+        - template: po_create
+          skill: quote_comparison
+          work_type: record_update
+          verifier: payload_match
+          on_behalf_of: buyer
+          budget: {tokens: 30000, cost_usd: 0.8, seconds: 300, steps: 6, actions: 6, retries: 2}
     closed:
       label: Closed
       final: true

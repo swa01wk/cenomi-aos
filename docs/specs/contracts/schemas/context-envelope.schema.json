@@ -140,6 +140,18 @@
       "type": "array",
       "items": {"type": "object", "required": ["source_ref", "sha256"], "properties": {"source_ref": {"type": "string"}, "sha256": {"type": "string"}, "retrieved_at": {"type": "string", "format": "date-time"}}, "additionalProperties": false}
     },
+    "previous_verification": {
+      "type": "object",
+      "description": "When this task's previous attempt ended in verifier REWORK, the kernel carries findings into the next attempt.",
+      "required": ["attempt_n", "verifier", "verdict", "findings"],
+      "properties": {
+        "attempt_n": {"type": "integer"},
+        "verifier": {"type": "string"},
+        "verdict": {"enum": ["REWORK"]},
+        "findings": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
     "redactions": {
       "type": "array",
       "description": "What was removed and why. The refusal eval asserts unit_price, total and po_amount appear here and nowhere in content.",

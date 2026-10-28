@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from typing import Any, Literal
@@ -13,16 +12,15 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from ..budget import require_model_budget
-from ..draft_body import build_save_draft_body, draft_slot
-from ..errors import AttemptWaitingForInput, Fenced, ToolInvocationError
+from ..errors import AttemptWaitingForInput, Fenced
 from ..models import ModelRegistryConfig, ResolvedModel, compute_cost_usd
-from ..prompt_render import prompt_version_for
+from ..prompt_render import prompt_version as assist_prompt_version
 from ..protocol import AttemptContext, AttemptFailed
 from ..prompt_render import render_context_message, render_system_message
 from ..streaming import LiveStreamBatcher
-from ..untrusted import already_observed
 from ..types import AgentResult, WorkerAttempt
 from .state import AssistGraphState
+from .tool_handlers import KERNEL_DRAFT_TOOLS, execute_tool_calls
 
 log = logging.getLogger("aos.worker.graph.assist")
 
@@ -132,13 +130,12 @@ async def load_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx.contract_bundle = bundle
     if not ctx.agent_started:
         adapter = _configurable(config).get("adapter", "fake")
-        graph_name = "task" if contract.get("kind") == "task" else "assist"
         await ctx.post_events(
             events=[
                 {
                     "event_type": "AgentStarted",
-                    "redacted_summary": f"{graph_name.capitalize()} graph started.",
-                    "attributes": {"adapter": adapter, "graph": graph_name},
+                    "redacted_summary": "Assist graph started.",
+                    "attributes": {"adapter": adapter, "graph": "assist"},
                 }
             ]
         )
@@ -180,10 +177,7 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     model = _chat_model(config)
     tools = envelope.get("commands") or []
     bound = model.bind_tools(tools) if tools else model
-    # A Task's final text is its result summary, not a chat reply, so only assist runs stream to the turn.
-    turn_id = ""
-    if contract.get("kind") != "task":
-        turn_id = str((state.get("ids") or {}).get("turn_id") or ctx.attempt.get("turn_id") or "")
+    turn_id = str((state.get("ids") or {}).get("turn_id") or ctx.attempt.get("turn_id") or "")
     stream_seq = int(state.get("stream_seq") or 0)
     try:
         ai, stream_seq = await _invoke_model_step(
@@ -212,7 +206,7 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
                 "attributes": {
                     "provider": provider,
                     "model": model_id,
-                    "prompt_version": prompt_version_for(contract),
+                    "prompt_version": assist_prompt_version(),
                     "tokens_in": tokens_in,
                     "tokens_out": tokens_out,
                     "cost_usd": cost_val,
@@ -238,162 +232,39 @@ async def model_step_node(state: AssistGraphState, config) -> dict[str, Any]:
     }
 
 
-_KERNEL_TOOLS = frozenset({"save_draft", "ask_question"})
-
-
 def _route_after_model(state: AssistGraphState) -> Literal["tools", "reply"]:
     if state.get("pending_tool_calls"):
         return "tools"
     return "reply"
 
 
-def _order_tool_calls(pending: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """All non-ask tools in model order, then the first ask_question; drop further ask_question calls."""
-    first_ask = next(
-        (i for i, tc in enumerate(pending) if str(tc.get("name") or "") == "ask_question"),
-        None,
-    )
-    if first_ask is None:
-        return list(pending)
-    non_ask = [tc for tc in pending if str(tc.get("name") or "") != "ask_question"]
-    return non_ask + [pending[first_ask]]
-
-
 async def tools_node(state: AssistGraphState, config) -> dict[str, Any]:
     ctx = _ctx(config)
     ctx.check()
-    notes: list[str] = []
     counts = dict(state.get("draft_422_counts") or {})
     saved = dict(state.get("saved_in_attempt") or {})
-    pending = _order_tool_calls(list(state.get("pending_tool_calls") or []))
-    if any(str(tc.get("name") or "") not in _KERNEL_TOOLS for tc in pending) and any(
-        str(tc.get("name") or "") == "ask_question" for tc in pending
-    ):
-        # Questions written alongside a lookup were written before its result: hold them, run the lookup, and let
-        # the next step save what it learned and ask again.
-        pending = [tc for tc in pending if str(tc.get("name") or "") != "ask_question"]
-        notes.append(
-            "ask_question was held because other tools ran in the same step. Read their results, save the draft, "
-            "then ask only what is still missing."
-        )
     contract = (ctx.contract_bundle or {}).get("contract") or ctx.attempt["contract"]
     envelope = ctx.envelope or {}
-    observed: list[dict[str, Any]] = list(envelope.get("tool_observations") or [])
-    actions: list[str] = list(state.get("actions_this_reply") or [])
-    ended_needs_input = False
-    for tc in pending:
-        ctx.check()
-        if ctx.attempt_closed:
-            break
-        name = str(tc.get("name") or "")
-        args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
-        if name not in _KERNEL_TOOLS:
-            # The model sees earlier calls only through observations; a repeat would spend an action for a
-            # result it already has. Answer from the note instead of calling the tool again.
-            if already_observed(observed, name, args):
-                notes.append(
-                    f"{name} was already called with {json.dumps(args, sort_keys=True)}; "
-                    "its result is in tool_observations_rendered. Use it instead of calling again."
-                )
-                continue
-            observed.append({"tool": name, "args": args})
-        args_sha = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
-        if name == "save_draft":
-            same = next((v for v in saved.values() if v.get("args_sha") == args_sha), None)
-            if same is not None:
-                notes.append(f"save_draft skipped: same content as the v{same.get('version')} you saved in this reply.")
-                continue
-        await ctx.post_events(
-            events=[
-                {
-                    "event_type": "ToolRequested",
-                    "redacted_summary": f"Tool {name} requested.",
-                    "attributes": {
-                        "tool": name,
-                        "args_sha256": hashlib.sha256(
-                            json.dumps(args, sort_keys=True, separators=(",", ":")).encode()
-                        ).hexdigest(),
-                    },
-                }
-            ]
-        )
-        try:
-            if name == "save_draft":
-                body = build_save_draft_body(
-                    contract=contract,
-                    envelope=envelope,
-                    model_args=args,
-                    saved_in_attempt=saved,
-                )
-                saved_row = await ctx.save_draft(body)
-                at = str(body["artifact_type"])
-                key = str(body.get("key") or "")
-                saved[draft_slot(at, key)] = {
-                    "artifact_id": saved_row.get("artifact_id"),
-                    "version": saved_row.get("version"),
-                    "content_hash": saved_row.get("content_hash"),
-                    "args_sha": args_sha,
-                    "content": body["content"],
-                }
-                if contract.get("kind") == "task":
-                    label = f"{at} for {key}" if key else at
-                    actions.append(
-                        f"save_draft: saved {label} v{saved_row.get('version')}. Don't save it again unless something "
-                        "changed. Next, save what is still missing, ask, or finish with a short summary."
-                    )
-                else:
-                    actions.append(
-                        f"save_draft: saved {at} v{saved_row.get('version')}. The requester can see it; don't save "
-                        "it again unless something changed. Next, ask for what is still missing or reply."
-                    )
-            elif name == "ask_question":
-                questions_raw = args.get("questions")
-                questions = (
-                    [str(q) for q in questions_raw]
-                    if isinstance(questions_raw, list)
-                    else []
-                )
-                preamble = str(args.get("preamble") or "").strip()
-                blocks = [{"kind": "text", "text": preamble}] if preamble else []
-                await ctx.ask_questions(blocks, questions=questions or None)
-                ended_needs_input = True
-                ctx.record_tool_action()
-                break
-            else:
-                await ctx.call_tool(name, args)
-                actions.append(f"{name}({json.dumps(args, sort_keys=True)}): result in tool_observations_rendered.")
-            ctx.record_tool_action()
-        except ToolInvocationError as exc:
-            if exc.timed_out:
-                raise AttemptFailed("tool_timeout", exc.message) from exc
-            if exc.code == "policy_denied" or exc.rule:
-                notes.append(f"not allowed: {exc.rule or exc.message}")
-                continue
-            if exc.code == "validation_failed":
-                key = f"{name}:{json.dumps(args, sort_keys=True)}"
-                n = int(counts.get(key) or 0) + 1
-                counts[key] = n
-                if n >= 2:
-                    raise AttemptFailed("invalid_output", exc.message) from exc
-                err_text = json.dumps(exc.errors or [], sort_keys=True)
-                notes.append(f"validation failed for {name}: {err_text}")
-                continue
-            notes.append(str(exc.message))
-            continue
-        except ValueError as exc:
-            notes.append(str(exc))
-            continue
-        except Fenced:
-            raise
+    batch = await execute_tool_calls(
+        ctx=ctx,
+        contract=contract,
+        envelope=envelope,
+        pending=list(state.get("pending_tool_calls") or []),
+        kernel_tools=KERNEL_DRAFT_TOOLS,
+        saved=saved,
+        counts=counts,
+        actions=list(state.get("actions_this_reply") or []),
+        worker_notes=list(state.get("worker_notes") or []),
+    )
     out: dict[str, Any] = {
         "pending_tool_calls": [],
-        "worker_notes": notes,
-        "actions_this_reply": actions,
-        "draft_422_counts": counts,
-        "saved_in_attempt": saved,
+        "worker_notes": batch["worker_notes"],
+        "actions_this_reply": batch["actions_this_reply"],
+        "draft_422_counts": batch["draft_422_counts"],
+        "saved_in_attempt": batch["saved_in_attempt"],
         "assemble_reason": "tool_result",
     }
-    if ended_needs_input:
+    if batch.get("ended_needs_input"):
         out["ended_needs_input"] = True
     return out
 

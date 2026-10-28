@@ -670,7 +670,7 @@ async def _submit_lookup_pass(
 
 
 def _pass_sources_cited() -> None:
-    def _handler(_conn, _gate, _result, _defs):  # type: ignore[no-untyped-def]
+    def _handler(_inp):  # type: ignore[no-untyped-def]
         return "PASS", []
 
     verify.register_implementation("aos.verifiers.sources_cited", _handler)

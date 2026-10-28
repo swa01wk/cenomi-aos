@@ -113,6 +113,13 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
 - **Moved to M2-AG-02:** the simulation item above needs verifiers (M2-AG-03), the Skills' `happy` scripts and an
   in-process kernel client, so the graphs can run inside the simulation's rolled-back transaction. Until then the
   stub runs the intake Task like the other Tasks.
+- **Carried from M2-AG-01 part 1 (review), for part 2:** a person's clearance is computed in
+  `participant_classification_ceiling` by a hard-coded org role (`end_user` → shareable). Clearance is org data:
+  give the org model a clearance per org role (seed: end_user shareable, the procurement roles restricted) and read
+  it from there, so no org role name lives in kernel code. Part 2 binds intake to the requester, so this matters
+  there. **Test:** an org whose requester role is named differently still gets the requester's clearance from data.
+- **Carried from M2-AG-03:** when the context envelope includes `previous_verification`, the task prompt should
+  surface those findings to the model (rendering belongs in this story's graph/prompt assembly).
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).

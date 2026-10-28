@@ -1,81 +1,107 @@
-"""sources_cited: every ranked row cites receipts from this Task's own tool calls, and the ranking is consistent."""
+"""Verifier sources_cited: supplier_list rows cite this task's ERP receipts (supplier_lookup spec)."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from psycopg import AsyncConnection
-
-from . import _records
-from . import supplier_scoring
-
-ARTIFACT_TYPE = "supplier_list"
-SEARCH_TOOL = "search_suppliers"
+Verdict = Literal["PASS", "REWORK", "FAIL"]
 
 
-def _source_refs(row: dict[str, Any]) -> list[str]:
-    refs: list[str] = []
-    for source in row.get("sources") or []:
-        if isinstance(source, str):
-            refs.append(source)
-        elif isinstance(source, dict) and source.get("receipt_ref"):
-            refs.append(str(source["receipt_ref"]))
-    return refs
+def _source_ref(entry: Any) -> str | None:
+    if isinstance(entry, str) and entry.strip():
+        return entry.strip()
+    if isinstance(entry, dict):
+        for key in ("receipt_ref", "receipt_id", "ref"):
+            val = entry.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return None
 
 
-def _row_name(row: dict[str, Any], index: int) -> str:
-    label = row.get("supplier") or row.get("supplier_id")
-    return f"Row {index + 1} ({label})" if label else f"Row {index + 1}"
+def _task_receipt_refs(tool_receipts: list[dict[str, Any]]) -> set[str]:
+    return {str(r["receipt_ref"]) for r in tool_receipts if r.get("receipt_ref")}
 
 
-def check_rows(rows: list[dict[str, Any]], *, receipt_refs: set[str], searched_ids: set[str]) -> list[str]:
-    """One finding per broken row, then one for the ranking as a whole; empty when the list passes."""
-    if not rows:
-        return ["The list has no rows."]
+def _search_supplier_ids(tool_receipts: list[dict[str, Any]]) -> set[str]:
+    ids: set[str] = set()
+    for rec in tool_receipts:
+        if rec.get("tool") != "search_suppliers":
+            continue
+        content = rec.get("content")
+        if not isinstance(content, dict):
+            continue
+        items = content.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get("id"):
+                ids.add(str(item["id"]))
+    return ids
+
+
+def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
+    outputs = inp.get("outputs") or []
+    content = None
+    for out in outputs:
+        if out.get("artifact_type") == "supplier_list":
+            content = out.get("content")
+            break
+    if not isinstance(content, dict):
+        return "REWORK", ["supplier_list: missing output"]
+
+    rows = content.get("rows")
+    if not isinstance(rows, list):
+        return "REWORK", ["supplier_list: rows must be an array"]
+
+    artifact_types = inp.get("artifact_types") or {}
+    sl_spec = artifact_types.get("supplier_list") or {}
+    row_key = str(sl_spec.get("row_key") or "supplier_id")
+
+    tool_receipts = inp.get("tool_receipts") or []
+    allowed_refs = _task_receipt_refs(tool_receipts)
+    search_ids = _search_supplier_ids(tool_receipts)
+
     findings: list[str] = []
-    for i, row in enumerate(rows):
-        name = _row_name(row, i)
-        refs = _source_refs(row)
+    scored: list[tuple[int, float, str]] = []
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        key_val = row.get(row_key)
+        row_label = str(key_val) if key_val is not None else "?"
+        sources = row.get("sources")
+        if not isinstance(sources, list) or not sources:
+            findings.append(f"{row_key} {row_label}: no sources cited")
+            continue
+        refs = [_source_ref(s) for s in sources]
+        refs = [r for r in refs if r]
         if not refs:
-            findings.append(f"{name} cites no source.")
-        elif unknown := [r for r in refs if r not in receipt_refs]:
-            findings.append(f"{name} cites {len(unknown)} source(s) that are not receipts from this Task's tool calls.")
-        if str(row.get("supplier_id") or "") not in searched_ids:
-            findings.append(f"{name} has a supplier_id that no {SEARCH_TOOL} call in this Task returned.")
-        findings.extend(supplier_scoring.check_row_scoring(row, row_label=name))
+            findings.append(f"{row_key} {row_label}: no sources cited")
+            continue
+        for ref in refs:
+            if ref not in allowed_refs:
+                findings.append(f"{row_key} {row_label}: source not from this task")
+        sid = row.get("supplier_id")
+        if sid is not None and str(sid) not in search_ids:
+            findings.append(f"{row_key} {row_label}: supplier not in search_suppliers results")
 
-    ranks = [row.get("rank") for row in rows]
-    if not all(isinstance(r, int) and not isinstance(r, bool) for r in ranks) or sorted(ranks) != list(
-        range(1, len(rows) + 1)
-    ):
-        findings.append(f"Ranks must run 1 to {len(rows)} with no gaps or repeats.")
-    else:
-        by_rank = sorted(rows, key=lambda r: r["rank"])
-        scores = [r.get("score") for r in by_rank]
-        numeric = all(isinstance(s, (int, float)) and not isinstance(s, bool) for s in scores)
-        if not numeric or any(a < b for a, b in zip(scores, scores[1:])):
-            findings.append("Rank order must follow score, highest first.")
-    return findings
+        rank = row.get("rank")
+        score = row.get("score")
+        if isinstance(rank, int) and isinstance(score, (int, float)):
+            scored.append((rank, float(score), row_label))
 
+    n = len(rows)
+    if n and not findings:
+        ranks = sorted(r for r, _, _ in scored)
+        expected = list(range(1, n + 1))
+        if ranks != expected:
+            findings.append("rank: must be 1 through n with no gaps")
+        by_rank = sorted(scored, key=lambda t: t[0])
+        for i in range(len(by_rank) - 1):
+            if by_rank[i][1] < by_rank[i + 1][1]:
+                findings.append("rank: must follow score descending")
+                break
 
-def receipts(observations: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
-    """(every receipt ref of this Task, supplier ids its searches returned)."""
-    refs = {str(o["receipt_ref"]) for o in observations if o.get("receipt_ref")}
-    searched = {
-        str(item["id"])
-        for o in observations
-        if o.get("tool") == SEARCH_TOOL
-        for item in _records.items(o)
-        if item.get("id")
-    }
-    return refs, searched
-
-
-async def verify(conn: AsyncConnection, gate: Any, result: dict[str, Any], defs: dict) -> tuple[str, list[str]]:
-    lists = [o for o in await _records.outputs(conn, result) if o.artifact_type == ARTIFACT_TYPE]
-    if not lists:
-        return "REWORK", ["The supplier list was not saved with this result."]
-    refs, searched = receipts(await _records.observations(conn, gate.task_id))
-    rows = [r for r in lists[-1].content.get("rows") or [] if isinstance(r, dict)]
-    findings = check_rows(rows, receipt_refs=refs, searched_ids=searched)
-    return ("REWORK", findings) if findings else ("PASS", [])
+    if findings:
+        return "REWORK", findings
+    return "PASS", []

@@ -608,6 +608,7 @@ async def start_instance(
                 seat_limits=limits,
                 entry_tasks=_state_tasks(wdoc, str(initial_state)),
                 participants=[(participant_role, actor)],
+                org=org,
             )
             # The first state's Task working for the starter answers the first message; the assist Task waits for
             # later turns.

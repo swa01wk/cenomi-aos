@@ -34,6 +34,7 @@ spec:
       required: true
       description: The receipt refs of the search_suppliers and get_supplier_history calls this row comes from.
   row_based: true
+  classification: shareable   # supplier_lookup runs at a shareable ceiling; no prices here
   row_key: supplier_id
   view:
     type: sheet

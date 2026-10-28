@@ -1,156 +1,143 @@
-"""leak_check: no protected value of any artifact in the job appears in a shareable output field.
-
-Protected means a field the pack itself marks `internal` or `restricted` (such as a budget or a quoted price). A type's
-default classification bounds what a Task's context may carry; it doesn't make every value secret (a supplier's name
-in its own request for quotation is the point of the message).
-
-Numbers match after dropping currency words and symbols, thousands separators and spaces, so 40,000, SAR 40000 and
-40k all match 40000. Text matches case-insensitively. Findings name fields, never the value; a per-item output is
-named with its item key, e.g. `rfq_email[SUP-1].body`.
-"""
+"""Verifier leak_check: internal/restricted values must not appear in shareable outputs."""
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
-from psycopg import AsyncConnection
+from ._fields import field_classification, iter_field_values, money_number
 
-from ..kernel.artifacts import parse_artifact_type
-from ..registry.kinds import ArtifactTypeSpec
-from . import _records
+Verdict = Literal["PASS", "REWORK", "FAIL"]
 
-PROTECTED = ("internal", "restricted")
-MIN_TEXT_LEN = 3
-
-_CURRENCY = re.compile(r"(?i)(?:\b(?:sar|sr|usd|aed|eur|gbp|riyals?|dollars?)\b|(?:sar|usd|aed|eur|gbp)(?=\d)|[$€£﷼])")
-_GROUPED = re.compile(r"(?<![\w.])(\d{1,3}(?:[,  ]\d{3})+)(?:\.(\d+))?\s?([kKmM])?(?!\w)")
-_PLAIN = re.compile(r"(?<![\w.])(\d+)(?:\.(\d+))?\s?([kKmM])?(?!\w)")
-_NUMERIC_TEXT = re.compile(r"^\s*\d[\d,  ]*(?:\.\d+)?\s?[kKmM]?\s*$")
-_SCALE = {"k": 1_000, "m": 1_000_000}
+_CURRENCY_WORDS = re.compile(r"\b(sar|usd|eur|gbp|riyals?)\b", re.I)
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
-@dataclass(frozen=True)
-class Protected:
-    artifact_type: str
-    field: str
-    numbers: frozenset[float]
-    texts: frozenset[str]
+def _normalize_number_token(text: str) -> int | None:
+    t = text.strip().lower()
+    t = _CURRENCY_WORDS.sub(" ", t)
+    t = t.replace(",", "").replace(" ", "")
+    mult = 1
+    if t.endswith("k"):
+        mult = 1000
+        t = t[:-1]
+    t = re.sub(r"[^0-9.]", "", t)
+    if not t:
+        return None
+    try:
+        val = float(t)
+    except ValueError:
+        return None
+    return int(val * mult) if mult != 1 else int(val) if val == int(val) else None
 
 
-def _fold(text: str) -> str:
-    return " ".join(text.lower().split())
-
-
-def numbers_in(text: str) -> set[float]:
-    """Every number a reader could take from the text, normalised."""
-    clean = _CURRENCY.sub(" ", text)
-    found: set[float] = set()
-    for pattern in (_GROUPED, _PLAIN):
-        for whole, frac, scale in pattern.findall(clean):
-            value = float(re.sub(r"[,  ]", "", whole) + (f".{frac}" if frac else ""))
-            found.add(value * _SCALE.get(scale.lower(), 1) if scale else value)
-    return found
-
-
-def _values(value: Any) -> tuple[set[float], set[str]]:
-    numbers: set[float] = set()
-    texts: set[str] = set()
-    if isinstance(value, bool) or value is None:
-        return numbers, texts
-    if isinstance(value, (int, float)):
-        numbers.add(float(value))
-    elif isinstance(value, str):
-        stripped = _CURRENCY.sub(" ", value)
-        if _NUMERIC_TEXT.match(stripped):
-            numbers |= numbers_in(stripped)
-        elif len(value.strip()) >= MIN_TEXT_LEN:
-            texts.add(_fold(value))
-    elif isinstance(value, dict):
-        if "amount" in value:
-            return _values(value["amount"])
-        for v in value.values():
-            n, t = _values(v)
-            numbers |= n
-            texts |= t
-    elif isinstance(value, list):
-        for v in value:
-            n, t = _values(v)
-            numbers |= n
-            texts |= t
-    return numbers, texts
-
-
-def _records_of(content: dict[str, Any], spec: ArtifactTypeSpec) -> list[dict[str, Any]]:
-    if spec.row_based:
-        return [r for r in content.get("rows") or [] if isinstance(r, dict)]
-    return [content]
-
-
-def protected_values(artifact_type: str, content: dict[str, Any], spec: ArtifactTypeSpec) -> list[Protected]:
-    marked = [name for name, f in spec.fields.items() if f.classification in PROTECTED]
-    out: list[Protected] = []
-    for record in _records_of(content, spec):
-        for name in marked:
-            numbers, texts = _values(record.get(name))
-            if numbers or texts:
-                out.append(Protected(artifact_type, name, frozenset(numbers), frozenset(texts)))
+def _extract_numbers(text: str) -> set[int]:
+    """Whole numeric tokens in text (after normalisation), not digit substrings of larger numbers."""
+    lowered = text.lower()
+    lowered = _CURRENCY_WORDS.sub(" ", lowered)
+    tokens = re.split(r"(\d[\d,.\s]*k?)", lowered, flags=re.I)
+    out: set[int] = set()
+    for tok in tokens:
+        if not tok or not re.search(r"\d", tok):
+            continue
+        n = _normalize_number_token(tok)
+        if n is not None:
+            out.add(n)
     return out
 
 
-def shareable_text(content: dict[str, Any], spec: ArtifactTypeSpec) -> dict[str, list[str]]:
-    """Output field name -> the text a reader of that field sees."""
-    fields: dict[str, list[str]] = {}
-    for record in _records_of(content, spec):
-        for name, f in spec.fields.items():
-            if (f.classification or spec.classification) != "shareable" or record.get(name) is None:
+def _collect_sensitive(
+    instance_artifacts: list[dict[str, Any]],
+    artifact_types: dict[str, dict[str, Any]],
+) -> list[tuple[str, str, Any]]:
+    """(artifact_type, field_name, value) for internal and restricted fields."""
+    out: list[tuple[str, str, Any]] = []
+    for art in instance_artifacts:
+        atype = str(art.get("artifact_type") or "")
+        content = art.get("content")
+        if not isinstance(content, dict):
+            continue
+        spec = artifact_types.get(atype) or {}
+        row_based = bool(spec.get("row_based"))
+        for fname, val in iter_field_values(content, row_based=row_based):
+            if val is None or val == "" or val == []:
                 continue
-            value = record[name]
-            fields.setdefault(name, []).append(value if isinstance(value, str) else json.dumps(value))
-    return fields
-
-
-def check_output(output_type: str, fields: dict[str, list[str]], protected: list[Protected]) -> list[str]:
-    findings: list[str] = []
-    for field, texts in fields.items():
-        folded = [_fold(t) for t in texts]
-        numbers = set().union(*(numbers_in(t) for t in texts)) if texts else set()
-        leaked = sorted(
-            {
-                f"{p.artifact_type}.{p.field}"
-                for p in protected
-                if p.numbers & numbers or any(v in t for v in p.texts for t in folded)
-            }
-        )
-        findings.extend(f"{output_type}.{field} contains the value of {name}." for name in leaked)
-    return findings
-
-
-async def _instance_protected(conn: AsyncConnection, instance_id: str, defs: dict) -> list[Protected]:
-    cur = await conn.execute(
-        "select a.artifact_type, v.content from work.artifact_versions v"
-        " join work.artifacts a on a.id = v.artifact_id where a.instance_id = %s",
-        (instance_id,),
-    )
-    specs: dict[str, ArtifactTypeSpec] = {}
-    out: list[Protected] = []
-    for artifact_type, raw in await cur.fetchall():
-        if artifact_type not in specs:
-            specs[artifact_type] = parse_artifact_type(defs, artifact_type).spec
-        content = json.loads(raw) if isinstance(raw, str) else raw
-        out.extend(protected_values(artifact_type, content or {}, specs[artifact_type]))
+            cls = field_classification(atype, fname, artifact_types)
+            if cls in ("internal", "restricted"):
+                out.append((atype, fname, val))
     return out
 
 
-async def verify(conn: AsyncConnection, gate: Any, result: dict[str, Any], defs: dict) -> tuple[str, list[str]]:
-    protected = await _instance_protected(conn, gate.instance_id, defs)
+def _shareable_outputs(outputs: list[dict[str, Any]], artifact_types: dict[str, dict[str, Any]]) -> list[tuple[str, str, str]]:
+    """(artifact_type, field_name, text) for shareable output fields."""
+    rows: list[tuple[str, str, str]] = []
+    for out in outputs:
+        atype = str(out.get("artifact_type") or "")
+        spec = artifact_types.get(atype) or {}
+        content = out.get("content")
+        if not isinstance(content, dict):
+            continue
+        row_based = bool(spec.get("row_based"))
+        for fname, val in iter_field_values(content, row_based=row_based):
+            if val is None:
+                continue
+            if field_classification(atype, fname, artifact_types) != "shareable":
+                continue
+            if isinstance(val, str):
+                text = val
+            elif isinstance(val, (int, float)):
+                text = str(val)
+            else:
+                text = str(val)
+            rows.append((atype, fname, text))
+    return rows
+
+
+def _sensitive_numbers(val: Any) -> list[int]:
+    nums: list[int] = []
+    if isinstance(val, str):
+        for n in _extract_numbers(val):
+            nums.append(n)
+        n = money_number(val)
+        if n is not None:
+            nums.append(int(n) if float(n) == int(n) else int(n))
+    elif isinstance(val, (int, float)) and not isinstance(val, bool):
+        nums.append(int(val))
+    return list(dict.fromkeys(nums))
+
+
+def _sensitive_phrases(val: Any) -> list[str]:
+    if not isinstance(val, str):
+        return []
+    phrase = val.strip()
+    if len(phrase) < 4:
+        return []
+    return [phrase.lower()]
+
+
+def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
+    artifact_types = inp.get("artifact_types") or {}
+    sensitive = _collect_sensitive(inp.get("instance_artifacts") or [], artifact_types)
+    outputs = _shareable_outputs(inp.get("outputs") or [], artifact_types)
+
     findings: list[str] = []
-    for output in await _records.outputs(conn, result):
-        spec = parse_artifact_type(defs, output.artifact_type).spec
-        label = output.artifact_type
-        if spec.item_key:
-            label = f"{label}[{output.content.get(spec.item_key)}]"
-        findings.extend(check_output(label, shareable_text(output.content, spec), protected))
-    return ("REWORK", findings) if findings else ("PASS", [])
+    for out_type, out_field, out_text in outputs:
+        out_lower = out_text.lower()
+        out_numbers = _extract_numbers(out_text)
+        for src_type, src_field, src_val in sensitive:
+            for num in _sensitive_numbers(src_val):
+                if abs(num) < 100:
+                    continue
+                if num in out_numbers:
+                    findings.append(f"{out_field}: leaks {src_type}.{src_field}")
+                    break
+            else:
+                for phrase in _sensitive_phrases(src_val):
+                    pattern = r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])"
+                    if re.search(pattern, out_lower):
+                        findings.append(f"{out_field}: leaks {src_type}.{src_field}")
+                        break
+
+    if findings:
+        return "REWORK", findings
+    return "PASS", []

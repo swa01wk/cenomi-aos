@@ -1,0 +1,9 @@
+attempts:
+  - turns:
+      - tool_calls:
+          - name: submit
+            args: {summary: "First attempt."}
+  - turns:
+      - tool_calls:
+          - name: submit
+            args: {summary: "Fixed the brief."}

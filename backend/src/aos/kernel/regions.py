@@ -166,6 +166,7 @@ async def create_region_task(
     tpl: TaskTemplate,
     region_name: str,
     participants: list[tuple[str, str]],
+    org: "OrgModel | None" = None,
 ) -> str:
     if tpl.on_behalf_of is None:
         raise ValueError(f"template {tpl.template!r} is missing on_behalf_of")
@@ -189,6 +190,7 @@ async def create_region_task(
         participant_role=role,
         person_id=person_id,
         seat_limits=seat_limits,
+        org=org,
     )
     await task_ops.insert_workflow_task(
         conn,
@@ -228,6 +230,7 @@ async def rerun_stale_regions(
     seat_doc: dict[str, Any],
     seat_limits: dict[str, Any],
     participants: list[tuple[str, str]],
+    org: "OrgModel | None" = None,
 ) -> list[str]:
     """Re-start regions that finished on stale inputs. Returns new task ids."""
     new_tasks: list[str] = []
@@ -273,6 +276,7 @@ async def rerun_stale_regions(
             tpl=tpl,
             region_name=spec.region,
             participants=participants,
+            org=org,
         )
         new_tasks.append(task_id)
     return new_tasks
