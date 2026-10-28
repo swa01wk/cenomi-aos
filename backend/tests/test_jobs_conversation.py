@@ -336,7 +336,7 @@ class JobsConversationTests(unittest.TestCase):
             self.assertEqual(r.status_code, 201, r.text)
             inst_id = r.json()["instance_id"]
             skill = _pg.admin_sql(
-                self.db, f"select skill from work.tasks where instance_id = '{inst_id}'"
+                self.db, f"select skill from work.tasks where instance_id = '{inst_id}' and kind = 'assist'"
             ).stdout.strip()
             self.assertEqual(skill, "alt_intake")
 

@@ -52,6 +52,17 @@ def _state_templates(definition: WorkflowDefinition, state: str) -> list[str]:
     return [t.template for t in spec.tasks]
 
 
+def _state_event_templates(definition: WorkflowDefinition, state: str) -> list[str]:
+    spec = definition.spec.states.get(state)
+    if spec is None or not spec.on_event:
+        return []
+    return [t.template for t in spec.on_event.values()]
+
+
+def _state_allowed_templates(definition: WorkflowDefinition, state: str) -> list[str]:
+    return _state_templates(definition, state) + _state_event_templates(definition, state)
+
+
 async def workflow_task_is_stale(
     conn: AsyncConnection,
     *,
@@ -73,7 +84,7 @@ async def workflow_task_is_stale(
         if row is None:
             return True
         return row[0] in ("joined", "done")
-    return template not in _state_templates(definition, instance_state)
+    return template not in _state_allowed_templates(definition, instance_state)
 
 
 async def workflow_task_is_admittable(
@@ -100,7 +111,7 @@ async def workflow_task_is_admittable(
         return await region_ops.is_latest_region_task(
             conn, instance_id=instance_id, region=region, task_id=task_id
         )
-    return template in _state_templates(definition, instance_state)
+    return template in _state_allowed_templates(definition, instance_state)
 
 
 async def retry_context_valid(

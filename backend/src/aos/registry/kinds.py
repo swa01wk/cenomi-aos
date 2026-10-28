@@ -137,6 +137,8 @@ class ArtifactTypeSpec(Strict):
     fields: dict[Name, FieldSpec] = Field(min_length=1)
     row_based: bool = False
     row_key: Name | None = None
+    # One artifact per distinct value of this field (e.g. one message per recipient); drafts carry it as their key.
+    item_key: Name | None = None
     classification: Literal["shareable", "internal", "restricted"] = "internal"
     view: ViewSpec
     # participant role -> "all" | "none" | list of visible fields
@@ -203,6 +205,22 @@ class Seat(Envelope):
     spec: SeatSpec
 
 
+class RunBudget(Strict):
+    tokens: int = Field(gt=0)
+    cost_usd: float = Field(gt=0)
+    time_s: int = Field(gt=0)
+    steps: int = Field(gt=0)
+    actions: int = Field(gt=0)
+    retries: int = Field(ge=0, le=5)
+
+
+class SkillRun(Strict):
+    """Per-attempt budget and data ceiling for one Work Type of a Skill (TaskContract budget, classification_ceiling)."""
+
+    budget: RunBudget | None = None
+    classification_ceiling: Literal["shareable", "internal", "restricted"] | None = None
+
+
 class SkillSpec(Strict):
     work_types: list[WorkType] = Field(min_length=1)
     instructions: str
@@ -212,6 +230,8 @@ class SkillSpec(Strict):
     produces: list[Name] = []
     may_request: list[Name] = []
     verifiers: list[Name] = []
+    # Work Type -> run settings; a Work Type without an entry runs on the Seat's attempt limits.
+    runs: dict[WorkType, SkillRun] = {}
 
 
 class Skill(Envelope):

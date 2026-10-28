@@ -1,0 +1,80 @@
+attempts:
+  - turns:
+      - tool_calls:
+          - name: search_suppliers
+            args: {category_id: CAT-JAN-EQ}
+      - tool_calls:
+          - name: get_supplier_history
+            args: {supplier_id: SUP-10482}
+          - name: get_supplier_history
+            args: {supplier_id: SUP-10217}
+          - name: get_supplier_history
+            args: {supplier_id: SUP-10355}
+          - name: get_supplier_history
+            args: {supplier_id: SUP-10790}
+          - name: get_supplier_history
+            args: {supplier_id: SUP-10611}
+      - tool_calls:
+          - name: save_draft
+            args:
+              content:
+                rows:
+                  - rank: 1
+                    supplier: Najd Supplies
+                    supplier_id: SUP-10482
+                    email: sales@najd.example
+                    past_pos: 3
+                    on_time_pct: 100
+                    points_asl: 20
+                    points_history: 15
+                    points_delivery: 30
+                    score: 65
+                    sources: ["{{receipt:search_suppliers}}", "{{receipt:get_supplier_history:SUP-10482}}"]
+                  - rank: 2
+                    supplier: Al Noor Trading
+                    supplier_id: SUP-10217
+                    email: rfq@alnoor.example
+                    past_pos: 1
+                    on_time_pct: 100
+                    points_asl: 20
+                    points_history: 5
+                    points_delivery: 30
+                    score: 55
+                    sources: ["{{receipt:search_suppliers}}", "{{receipt:get_supplier_history:SUP-10217}}"]
+                  - rank: 3
+                    supplier: Desert Clean
+                    supplier_id: SUP-10355
+                    email: tenders@desertclean.example
+                    past_pos: 2
+                    on_time_pct: 50
+                    points_asl: 20
+                    points_history: 10
+                    points_delivery: 15
+                    score: 45
+                    sources: ["{{receipt:search_suppliers}}", "{{receipt:get_supplier_history:SUP-10355}}"]
+                  - rank: 4
+                    supplier: Riyadh Facility Mart
+                    supplier_id: SUP-10611
+                    email: orders@rfm.example
+                    past_pos: 1
+                    on_time_pct: 0
+                    points_asl: 20
+                    points_history: 5
+                    points_delivery: 0
+                    score: 25
+                    sources: ["{{receipt:search_suppliers}}", "{{receipt:get_supplier_history:SUP-10611}}"]
+                  - rank: 5
+                    supplier: Gulf Janitorial
+                    supplier_id: SUP-10790
+                    email: info@gulfjanitorial.example
+                    past_pos: 0
+                    on_time_pct: null
+                    points_asl: 20
+                    points_history: 0
+                    points_delivery: 0
+                    score: 20
+                    sources: ["{{receipt:search_suppliers}}", "{{receipt:get_supplier_history:SUP-10790}}"]
+      - reply_text: >-
+          I found 5 active suppliers for janitorial equipment in the ERP and ranked them with the standard rubric (approved
+          list, past orders, on-time delivery). Najd Supplies ranks first. Next, the buyer picks at least 3 for the
+          shortlist.

@@ -123,6 +123,18 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
 `WAITING_INPUT`, not `COMPLETED`. The participant's next `postTurn` re-admits from `WAITING_INPUT` → `RUNNING`.
 `COMPLETED` on a task is for workflow templates when the job advances (M2).
 
+**Turns to workflow Tasks (M2-AG-01):** `startInstance` creates the initial state's Tasks like any state entry; the
+first message is admitted on the one whose `on_behalf_of` is the starter (else on the assist Task). On `postTurn`, a
+Task working for the caller that is `WAITING_INPUT` is resumed instead of the assist Task: a new attempt with
+`turn_id` = the turn, on a fresh thread whose context has the answer, and `max_attempts` raised so each answer brings
+the run's full retries. A turn while that Task's turn-bound attempt is live is stored for it to read. Other turns go
+to the assist Task.
+
+**Task contracts:** budget and `classification_ceiling` come from the Skill's `runs.<work_type>` (else the Seat's
+attempt limits); the ceiling never exceeds the `on_behalf_of` role's clearance (the highest classification of fields
+that role sees) or the Seat's (the highest classification of Resources its authority profile grants). Tools of class
+`committed_effect` are granted only to Work Types in `EFFECT_COMMIT_WORK_TYPES`.
+
 - **Claim** (`claimAttempt`): `SELECT … FROM work.attempts WHERE state='ADMITTED' … FOR UPDATE SKIP LOCKED LIMIT 1`;
   set `CLAIMED`, `worker_id`, `lease_expires_at = now() + 90 s`.
 - **Every worker call** checks `X-AOS-Fencing-Token = tasks.fencing_token` and attempt `CLAIMED`; else 409 `fenced`
@@ -134,7 +146,10 @@ Attempt: ADMITTED → CLAIMED (lease) → ENDED{submitted | waiting_approval | n
   (2) freshness: `input_versions` equal current `dependency_versions` else verdict STALE, attempt ended, Task
   → READY (M2 scheduler re-admits READY tasks; no admission inside submit);
   (3) run the Task's verifier on the output versions → PASS (Task COMPLETED, raise `task.completed.<template>`),
-  REWORK (new attempt; findings go into the next envelope), FAIL (EXCEPTION). Settle the budget with actual usage
+  REWORK (new attempt; findings go into the next envelope's `rework`), FAIL (EXCEPTION). The verdict is stamped on
+  each output version's `verification` and sent as `verification.completed` to the Task's `on_behalf_of` role. A
+  verifier's `implementation` must be a module under `aos.verifiers.` exposing `verify`; anything else fails closed.
+  A Task whose completion moves no transition re-checks the state's decisions. Settle the budget with actual usage
   (`max` of kernel-accumulated event usage and `consumed_budget`). Idempotent replay: same worker, same canonical
   request hash → stored `SubmitResponse` on `work.attempts.submit_response`.
 

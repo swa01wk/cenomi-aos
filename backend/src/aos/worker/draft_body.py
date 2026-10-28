@@ -25,8 +25,24 @@ def _artifact_refs_from_envelope(envelope: dict[str, Any]) -> list[dict[str, Any
     return refs
 
 
+def draft_slot(artifact_type: str, key: str) -> str:
+    """Where an attempt tracks a draft it saved: one per artifact type, or per type and key for per-item drafts."""
+    return f"{artifact_type}#{key}" if key else artifact_type
+
+
+def _envelope_artifact(envelope: dict[str, Any], artifact_type: str, key: str) -> dict[str, Any] | None:
+    for art in envelope.get("artifacts") or []:
+        if (
+            isinstance(art, dict)
+            and art.get("artifact_type") == artifact_type
+            and str(art.get("key") or "") == key
+        ):
+            return art
+    return None
+
+
 def _current_content(
-    envelope: dict[str, Any], artifact_type: str, prior: dict[str, Any] | None
+    envelope: dict[str, Any], artifact_type: str, prior: dict[str, Any] | None, key: str = ""
 ) -> dict[str, Any] | None:
     """The draft's current content, or None when the envelope can't show all of it (fields were redacted)."""
     for red in envelope.get("redactions") or []:
@@ -34,9 +50,9 @@ def _current_content(
             return None
     if prior and isinstance(prior.get("content"), dict):
         return dict(prior["content"])  # saved earlier in this attempt; newer than the envelope may be
-    for art in envelope.get("artifacts") or []:
-        if isinstance(art, dict) and art.get("artifact_type") == artifact_type and isinstance(art.get("content"), dict):
-            return dict(art["content"])
+    art = _envelope_artifact(envelope, artifact_type, key)
+    if art is not None and isinstance(art.get("content"), dict):
+        return dict(art["content"])
     return {}
 
 
@@ -73,24 +89,23 @@ def build_save_draft_body(
         raise ValueError("content must be an object")
 
     inputs = _artifact_refs_from_envelope(envelope)
-    key = ""
+    key = str(model_args.get("key") or "").strip()
     artifact_id = None
     base_version = None
 
-    for art in envelope.get("artifacts") or []:
-        if isinstance(art, dict) and art.get("artifact_type") == artifact_type:
-            artifact_id = art.get("artifact_id")
-            base_version = art.get("version")
-            break
+    existing = _envelope_artifact(envelope, artifact_type, key)
+    if existing is not None:
+        artifact_id = existing.get("artifact_id")
+        base_version = existing.get("version")
 
-    prior = saved_in_attempt.get(artifact_type)
+    prior = saved_in_attempt.get(draft_slot(artifact_type, key))
     if prior:
         artifact_id = prior.get("artifact_id") or artifact_id
         base_version = prior.get("version")
 
     body: dict[str, Any] = {
         "artifact_type": artifact_type,
-        "content": merge_draft_content(_current_content(envelope, artifact_type, prior), content),
+        "content": merge_draft_content(_current_content(envelope, artifact_type, prior, key), content),
         "inputs": inputs,
         "key": key,
     }

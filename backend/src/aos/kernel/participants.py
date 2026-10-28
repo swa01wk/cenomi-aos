@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -120,14 +121,6 @@ async def _bound_person(conn: AsyncConnection, instance_id: str, role: str) -> s
     return row[0] if row else None
 
 
-async def _caller_roles_on_instance(conn: AsyncConnection, instance_id: str, person_id: str) -> list[str]:
-    cur = await conn.execute(
-        "select role from work.participants where instance_id = %s and person_id = %s",
-        (instance_id, person_id),
-    )
-    return [r[0] for r in await cur.fetchall()]
-
-
 async def _state_label(conn: AsyncConnection, pack_version_id: str, workflow_name: str, state: str) -> str:
     cur = await conn.execute(
         "select spec from registry.definitions where pack_version_id = %s and kind = 'WorkflowDefinition'"
@@ -218,6 +211,48 @@ async def resolve_participant(
             bound_by="rule",
         )
         return owner
+    if spec.bind == "by_claim" and spec.queue:
+        # The person who started the job is often the only member of the queue that
+        # does the next step. Bind them so the job does not wait for someone else.
+        holder = await _sole_queue_member_on_job(conn, org, instance_id, spec.queue)
+        if holder is None:
+            return None
+        ins = await conn.execute(
+            "insert into work.participants (instance_id, role, person_id, bound_by)"
+            " values (%s, %s, %s, 'claim') on conflict (instance_id, role) do nothing returning person_id",
+            (instance_id, role, holder),
+        )
+        if await ins.fetchone() is None:
+            return await _bound_person(conn, instance_id, role)
+        await _emit_participant_bound(
+            conn,
+            org=org,
+            instance_id=instance_id,
+            role=role,
+            person_id=holder,
+            bound_by="claim",
+        )
+        return holder
+    return None
+
+
+async def _sole_queue_member_on_job(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    queue_path: str,
+) -> str | None:
+    cur = await conn.execute(
+        "select distinct person_id from work.participants where instance_id = %s",
+        (instance_id,),
+    )
+    members: list[str] = []
+    for (person_id,) in await cur.fetchall():
+        person = org.people.get(person_id)
+        if person is not None and person.team == queue_path:
+            members.append(person_id)
+    if len(members) == 1:
+        return members[0]
     return None
 
 
@@ -250,12 +285,12 @@ async def list_queue_instances(
         claim_roles = _by_claim_roles_for_queue(definition, queue_path)
         if not claim_roles:
             continue
-        unbound = False
+        claim_role = None
         for role, _spec in claim_roles:
             if not await _role_bound(conn, inst_id, role):
-                unbound = True
+                claim_role = role
                 break
-        if not unbound:
+        if claim_role is None:
             continue
         state_label = await _state_label(conn, str(pvid), workflow_name, state)
         elapsed = int((now - state_entered_at).total_seconds()) if state_entered_at else 0
@@ -273,9 +308,140 @@ async def list_queue_instances(
                 "time_in_state_s": elapsed,
                 "started_at": created_at.isoformat(),
                 "last_activity_at": state_entered_at.isoformat(),
+                "claim_role": claim_role,
             }
         )
     return items
+
+
+_NOTE_LIMIT = 2000
+
+
+def _review_note(decision: str, note: str | None) -> str:
+    if decision not in ("approve", "reject"):
+        raise ParticipantError(
+            "validation_failed", 422, "Unknown decision", "Choose approve or reject."
+        )
+    text = (note or "").strip()
+    if len(text) > _NOTE_LIMIT:
+        raise ParticipantError(
+            "validation_failed", 422, "Comment is too long", "Keep the comment under 2000 characters."
+        )
+    if decision == "reject" and not text:
+        raise ParticipantError(
+            "validation_failed", 422, "Comment required", "Write a comment to reject this request."
+        )
+    return text
+
+
+async def _post_review_comment(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    person_id: str,
+    text: str,
+) -> None:
+    from .conversation import insert_person_turn
+    from .outbox import OutboxRow, append_outbox_many
+
+    turn = await insert_person_turn(
+        conn,
+        instance_id=instance_id,
+        person_id=person_id,
+        text=text,
+        client_turn_id=str(uuid.uuid4()),
+    )
+    name = org.people[person_id].name if person_id in org.people else person_id
+    payload = {
+        "turn_id": turn["turn_id"],
+        "seq": turn["seq"],
+        "author": {"kind": "person", "id": person_id, "name": name},
+        "blocks": turn["blocks"],
+        "at": turn["at"],
+        "attempt_id": turn["attempt_id"],
+    }
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(instance_id),
+                event_type="turn.created",
+                instance_id=instance_id,
+                audience={},
+                data={"instance_id": instance_id, "turn": payload},
+            )
+        ],
+    )
+
+
+async def _reject_from_queue(
+    conn: AsyncConnection,
+    org: OrgModel,
+    org_id: str,
+    person_id: str,
+    instance_id: str,
+    role: str,
+    current_version: int,
+    comment: str,
+) -> dict[str, Any]:
+    from .decisions import _emit_pending_resolved
+
+    ts = clock.now()
+    upd = await conn.execute(
+        "update work.instances set status = 'cancelled', closed_at = %s, version = version + 1"
+        " where id = %s and version = %s returning version",
+        (ts, instance_id, current_version),
+    )
+    row = await upd.fetchone()
+    if row is None:
+        raise ParticipantError(
+            "stale_version", 409, "Job changed", "Reload the job and try again.", current_version=current_version
+        )
+    await conn.execute(
+        "update work.tasks set state = 'CANCELLED', updated_at = %s"
+        " where instance_id = %s and state not in ('COMPLETED', 'FAILED', 'CANCELLED', 'EXCEPTION')",
+        (ts, instance_id),
+    )
+    await conn.execute(
+        "update work.attempts set state = 'ENDED', outcome = 'cancelled', ended_at = %s"
+        " where state in ('ADMITTED', 'CLAIMED')"
+        " and task_id in (select id from work.tasks where instance_id = %s)",
+        (ts, instance_id),
+    )
+    await conn.execute(
+        "update work.timers set status = 'cancelled' where instance_id = %s and status = 'scheduled'",
+        (instance_id,),
+    )
+    pend = await conn.execute(
+        "select id, for_person_id from work.pending_items where instance_id = %s and status = 'open'",
+        (instance_id,),
+    )
+    open_items = await pend.fetchall()
+    await conn.execute(
+        "update work.pending_items set status = 'voided', resolved_at = %s, resolved_by = %s"
+        " where instance_id = %s and status = 'open'",
+        (ts, person_id, instance_id),
+    )
+    for pending_id, for_person in open_items:
+        if for_person:
+            await _emit_pending_resolved(
+                conn,
+                instance_id=instance_id,
+                person_id=str(for_person),
+                pending_id=str(pending_id),
+                outcome="voided",
+                by=person_id,
+            )
+    await _post_review_comment(conn, org, instance_id, person_id, f"Rejected. {comment}")
+    await audit_store.record(
+        conn,
+        org_id=org_id,
+        actor=person_id,
+        action="participant.queue_rejected",
+        subject=f"instance:{instance_id}",
+        data={"role": role, "note": comment, "version": int(row[0])},
+    )
+    return {"instance_id": instance_id, "decision": "rejected", "note": comment}
 
 
 async def claim_instance(
@@ -288,6 +454,8 @@ async def claim_instance(
     expected_version: int,
     *,
     packs_dir: Path,
+    decision: str = "approve",
+    note: str | None = None,
 ) -> dict[str, Any]:
     from . import decisions as decision_ops
     from . import instances as instance_ops
@@ -321,14 +489,8 @@ async def claim_instance(
             "Not on this queue",
             "Your team is not the queue for this role.",
         )
-    if await _caller_roles_on_instance(conn, instance_id, person_id):
-        raise ParticipantError(
-            "not_permitted",
-            403,
-            "Already on this job",
-            "You already have a role on this job; one person, one role.",
-        )
-
+    # A queue member who already has another role (they started the job) still takes
+    # this queue role. Someone off the queue is refused above.
     if await _role_bound(conn, instance_id, role):
         raise ParticipantError(
             "already_claimed",
@@ -345,6 +507,12 @@ async def claim_instance(
             "Job changed",
             "Reload the job and try again.",
             current_version=current_version,
+        )
+
+    comment = _review_note(decision, note)
+    if decision == "reject":
+        return await _reject_from_queue(
+            conn, org, org_id, person_id, instance_id, role, current_version, comment
         )
 
     # ON CONFLICT, not try/except: a unique violation would abort the transaction before we could answer.
@@ -417,5 +585,7 @@ async def claim_instance(
         ],
     )
 
+    if comment:
+        await _post_review_comment(conn, org, instance_id, person_id, f"Approved. {comment}")
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
     return await instance_ops.build_snapshot(conn, org, org_id, instance_id, person_id)

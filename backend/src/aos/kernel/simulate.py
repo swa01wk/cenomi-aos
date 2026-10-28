@@ -1,4 +1,5 @@
-"""Workflow simulation with stub worker and rolled-back transactions (M2-BE-06)."""
+"""Workflow simulation in a rolled-back transaction (M2-BE-06). Task attempts run through ``run_attempt`` (the real
+graphs with the fake model, see ``aos.sim_worker``) when given, else through the stub."""
 
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from .decisions import _apply_sets
 from .org import OrgModel
 from .regions import latest_artifact_version
 from .seats import insert_seats_for_published_pack
-from .simulate_stub import drain_instance_tasks
+from .simulate_stub import AttemptRunner, drain_instance_tasks
 
 
 class SimulationRollback(Exception):
@@ -43,6 +44,7 @@ class _SimContext:
     tasks_created: int = 0
     dead_ends: list[str] | None = None
     sim_counter: int = 0
+    run_attempt: AttemptRunner | None = None
 
     def __post_init__(self) -> None:
         if self.path is None:
@@ -282,6 +284,8 @@ async def _run_script(conn: AsyncConnection, ctx: _SimContext, steps: list[dict[
                 instance_id=ctx.instance_id or sim_id,
                 packs_dir=ctx.packs_dir,
                 after_progress=lambda: _track_state(conn, ctx),
+                run_attempt=ctx.run_attempt,
+                dead_ends=ctx.dead_ends,
             )
             continue
 
@@ -343,6 +347,19 @@ async def _run_script(conn: AsyncConnection, ctx: _SimContext, steps: list[dict[
                     packs_dir=ctx.packs_dir,
                 )
                 await _track_state(conn, ctx)
+        elif kind == "turn":
+            text = str(step.get("text") or "")
+            await instances.post_turn(
+                conn,
+                ctx.org,
+                org_id=ctx.org_id,
+                instance_id=inst,
+                actor=actor,
+                roles=list(ctx.org.people[actor].roles),
+                text=text,
+                client_turn_id=f"sim-turn-{steps.index(step)}",
+                packs_dir=ctx.packs_dir,
+            )
         elif kind == "mail.message_received":
             created = await events.raise_inbound_event(
                 conn, ctx.org, inst, kind, packs_dir=ctx.packs_dir
@@ -364,6 +381,8 @@ async def _run_script(conn: AsyncConnection, ctx: _SimContext, steps: list[dict[
             instance_id=inst,
             packs_dir=ctx.packs_dir,
             after_progress=lambda: _track_state(conn, ctx),
+            run_attempt=ctx.run_attempt,
+            dead_ends=ctx.dead_ends,
         )
         await _track_state(conn, ctx)
         ctx.tasks_created = await _count_tasks(conn, inst)
@@ -413,6 +432,7 @@ async def run_simulation(
     workflow_name: str,
     script_name: str,
     packs_dir: Path,
+    run_attempt: AttemptRunner | None = None,
 ) -> dict[str, Any]:
     await conn.execute(
         "update registry.pack_versions set status = 'published' where id = %s",
@@ -432,6 +452,7 @@ async def run_simulation(
         packs_dir=packs_dir,
         pack_version_id=pack_version_id,
         workflow_name=workflow_name,
+        run_attempt=run_attempt,
     )
     return await _run_script(conn, ctx, steps)
 
@@ -445,6 +466,7 @@ async def run_simulation_from_pack_dir(
     workflow_name: str,
     script_name: str,
     packs_dir: Path | None = None,
+    run_attempt: AttemptRunner | None = None,
 ) -> dict[str, Any]:
     pack_dir = pack_dir.resolve()
     root_packs = packs_dir or pack_dir.parent
@@ -466,6 +488,7 @@ async def run_simulation_from_pack_dir(
         workflow_name=workflow_name,
         script_name=script_name,
         packs_dir=root_packs,
+        run_attempt=run_attempt,
     )
 
 
@@ -478,6 +501,7 @@ async def run_simulation_rolled_back(
     workflow_name: str,
     script_name: str,
     packs_dir: Path,
+    run_attempt: AttemptRunner | None = None,
 ) -> dict[str, Any]:
     async with pool.connection() as conn:
         try:
@@ -490,6 +514,7 @@ async def run_simulation_rolled_back(
                     workflow_name=workflow_name,
                     script_name=script_name,
                     packs_dir=packs_dir,
+                    run_attempt=run_attempt,
                 )
                 raise SimulationRollback(report)
         except SimulationRollback as exc:
@@ -504,6 +529,7 @@ async def run_simulation_cli_rolled_back(
     pack_dir: Path,
     workflow_name: str,
     script_name: str,
+    run_attempt: AttemptRunner | None = None,
 ) -> dict[str, Any]:
     async with pool.connection() as conn:
         try:
@@ -515,6 +541,7 @@ async def run_simulation_cli_rolled_back(
                     pack_dir=pack_dir,
                     workflow_name=workflow_name,
                     script_name=script_name,
+                    run_attempt=run_attempt,
                 )
                 raise SimulationRollback(report)
         except SimulationRollback as exc:

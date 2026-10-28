@@ -1,0 +1,42 @@
+# Scripted PO raise: read inputs, save po_payload, request create_po (fake model / demo).
+attempts:
+  - turns:
+      - tool_calls:
+          - name: read_artifact
+            args:
+              artifact_type: brief
+          - name: read_artifact
+            args:
+              artifact_type: quote
+              key: SUP-11632
+          - name: save_draft
+            args:
+              artifact_type: po_payload
+              content:
+                supplier_id: SUP-11632
+                ship_to: Al Nakheel Mall, Riyadh, Saudi Arabia
+                need_by: "2026-12-20"
+                currency: SAR
+                reference: AOS-QQ-0001-PO1
+                lines:
+                  - item: Apple MacBook Air 13-inch M4 8GB 256GB
+                    quantity: 13
+                    unit_price: 4250
+                po_amount: 55250
+          - name: request_action
+            args:
+              action: create_po
+              tool: create_po
+              args:
+                supplier_id: SUP-11632
+                ship_to: Al Nakheel Mall, Riyadh, Saudi Arabia
+                need_by: "2026-12-20"
+                currency: SAR
+                reference: AOS-QQ-0001-PO1
+                lines:
+                  - item: Apple MacBook Air 13-inch M4 8GB 256GB
+                    quantity: 13
+                    unit_price: 4250
+      - reply_text: >-
+          I prepared the purchase order payload for Bayan (SUP-11632) and sent it for approval. Once approvals
+          complete, the PO will be created in the ERP.

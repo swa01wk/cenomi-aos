@@ -24,6 +24,7 @@ from aos.kernel.settings import REPO, Settings
 from aos.kernel.worker_attempts import expire_one_attempt, readmit_after_expiry_lease
 
 from . import _pg
+from ._packs import copy_demo_pack
 
 ORG = load_org(REPO / "seed" / "org.yaml")
 SEAT = "seat_sourcing_poc"
@@ -43,11 +44,15 @@ def _failure_notices(db, instance_id: str | None = None) -> list[str]:
 
 class WorkerHarness(unittest.TestCase):
     """Shared Postgres app fixture for worker protocol tests (no test methods)."""
+
+    # Worker protocol suites drive assist turns; suites for the intake Task set this.
+    INTAKE_TASK = False
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = _pg.create_migrated()
         cls.packs = Path(tempfile.mkdtemp(prefix="aos-packs-worker-"))
-        shutil.copytree(REPO / "packs" / "procurement_demo", cls.packs / "procurement_demo")
+        copy_demo_pack(cls.packs, intake_task=cls.INTAKE_TASK)
         cls.settings = Settings.from_env(
             database_url=_pg.kernel_url(cls.db),
             packs_dir=cls.packs,

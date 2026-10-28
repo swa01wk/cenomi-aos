@@ -136,8 +136,8 @@ async def setup_checkpointer_tables(saver: AsyncPostgresSaver, conninfo: str) ->
 
 @dataclass
 class CheckpointerHandle:
-    pool: AsyncConnectionPool
-    saver: AsyncPostgresSaver
+    pool: AsyncConnectionPool | None
+    saver: Any
     _assist_graph: Any = field(default=None, init=False, repr=False, compare=False)
     _task_graph: Any = field(default=None, init=False, repr=False, compare=False)
 
@@ -173,7 +173,15 @@ class CheckpointerHandle:
         return cls(pool=pool, saver=saver)
 
     async def close(self) -> None:
-        await self.pool.close()
+        if self.pool is not None:
+            await self.pool.close()
+
+    @classmethod
+    def in_memory(cls) -> CheckpointerHandle:
+        """Simulation-only checkpointer; graphs do not persist across attempts."""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        return cls(pool=None, saver=MemorySaver())
 
     async def resolve(self, attempt: WorkerAttempt) -> ResolvedThread:
         return await resolve_execution_thread(attempt, self.saver)

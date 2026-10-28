@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from psycopg import AsyncConnection, errors as pg_errors
+
+from aos.registry.kinds import TaskTemplate, WorkflowDefinition
+
 from . import artifacts, contracts, decisions, ids
+from . import workflow as workflow_ops
 from .admission import (
     AdmissionContext,
     check_admission,
@@ -17,6 +21,7 @@ from .admission import (
     refuse_live_attempt_conflict,
     task_has_live_attempt,
 )
+from .console import _waiting_on
 from .contracts import PackMaterialError, finalize_assist_contract, resolve_assist_skill
 from .conversation import (
     find_turn_by_client_id,
@@ -51,6 +56,11 @@ async def _load_definitions(conn: AsyncConnection, pack_version_id: str) -> dict
         doc = spec if isinstance(spec, dict) else json.loads(spec)
         by_kind.setdefault(kind, {})[name] = doc
     return by_kind
+
+
+def _state_tasks(wdoc: dict[str, Any], state: str) -> list[TaskTemplate]:
+    st = WorkflowDefinition.model_validate(wdoc).spec.states.get(state)
+    return list(st.tasks) if st else []
 
 
 async def _pack_meta(conn: AsyncConnection, org_id: str, pack_version_id: str) -> tuple[str, int, str, str]:
@@ -280,13 +290,9 @@ async def list_my_instances(
             continue
         if status == "active" and inst_status != "running":
             continue
+        waiting = await _waiting_on(conn, org, inst_id)
         if status == "waiting_on_me":
-            pend = await conn.execute(
-                "select 1 from work.pending_items where instance_id = %s and status = 'open'"
-                " and for_person_id = %s limit 1",
-                (inst_id, person_id),
-            )
-            if await pend.fetchone() is None:
+            if waiting.get("kind") != "person" or waiting.get("person_id") != person_id:
                 continue
         state_label = state
         items.append(
@@ -297,6 +303,7 @@ async def list_my_instances(
                 "state": state,
                 "state_label": state_label,
                 "version": version,
+                "waiting_on": waiting,
                 "started_at": created_at.isoformat(),
                 "closed_at": closed_at.isoformat() if closed_at else None,
                 "last_activity_at": state_entered_at.isoformat(),
@@ -354,6 +361,19 @@ async def _fetch_turns(
             pname = seat_names.get(row[3], row[3])
         out.append(project_turn(row, person_name=pname))
     return out
+
+
+async def refresh_decisions_for_viewer(
+    conn: AsyncConnection,
+    org: OrgModel,
+    instance_id: str,
+    *,
+    packs_dir: Path,
+) -> None:
+    """Reconcile join regions and open decisions when the client loads a snapshot."""
+    from . import decisions as decision_ops
+
+    await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
 
 
 async def build_snapshot(
@@ -572,6 +592,29 @@ async def start_instance(
                 contract=contract,
                 max_attempts=contracts.max_attempts_from_budget(contract["budget"]),
             )
+            entry = await workflow_ops._create_entry_tasks(
+                conn,
+                packs_dir=packs_dir,
+                org_id=org_id,
+                instance_id=instance_id,
+                seat_name=seat_name,
+                seat_version=int(seat_version),
+                workflow_name=workflow_name,
+                pack_name=pack_name,
+                pack_version=pack_ver,
+                pack_digest=pack_digest,
+                defs=defs,
+                seat_doc=seat_doc,
+                seat_limits=limits,
+                entry_tasks=_state_tasks(wdoc, str(initial_state)),
+                participants=[(participant_role, actor)],
+                org=org,
+            )
+            # The first state's Task working for the starter answers the first message; the assist Task waits for
+            # later turns.
+            intake = next((t for t in entry if t.person_id == actor), None)
+            first_task_id = intake.task_id if intake else task_id
+            first_reservation = float(intake.contract["budget"]["cost_usd"]) if intake else reservation
             turn = await insert_person_turn(
                 conn,
                 instance_id=instance_id,
@@ -584,11 +627,11 @@ async def start_instance(
                 org_id=org_id,
                 seat=seat_name,
                 daily_limit_usd=float(limits["daily_cost_usd"]),
-                task_id=task_id,
+                task_id=first_task_id,
                 attempt_id=attempt_id,
                 turn_id=turn["turn_id"],
                 attempt_n=1,
-                reservation_usd=reservation,
+                reservation_usd=first_reservation,
             )
             await conn.execute(
                 "update work.turns set attempt_id = %s where id = %s",
@@ -605,7 +648,7 @@ async def start_instance(
                     actor_id=actor,
                     correlation_id=correlation_id,
                     redacted_summary=f"Started job {instance_id}",
-                    task_id=task_id,
+                    task_id=first_task_id,
                     attempt_id=attempt_id,
                 ),
             )
@@ -653,6 +696,171 @@ async def start_instance(
     snap = await build_snapshot(conn, org, org_id, instance_id, actor)
     snap["cursor"] = cursor
     return snap
+
+
+async def _conversation_task(conn: AsyncConnection, instance_id: str, person_id: str) -> tuple | None:
+    """A workflow Task working for this person that is in the conversation: waiting for their input, or running an
+    attempt that answers one of their turns. Its turns go to it instead of the assist Task."""
+    cur = await conn.execute(
+        "select t.id, t.template, t.state, t.contract, t.attempts_used, t.max_attempts,"
+        " exists(select 1 from work.attempts a where a.task_id = t.id and a.state in ('ADMITTED', 'CLAIMED')"
+        "        and a.turn_id is not null)"
+        " from work.tasks t"
+        " where t.instance_id = %s and t.kind = 'task' and t.state in ('WAITING_INPUT', 'RUNNING')"
+        " and t.contract->'on_behalf_of'->>'person_id' = %s"
+        " order by t.created_at, t.id for update of t",
+        (instance_id, person_id),
+    )
+    for row in await cur.fetchall():
+        state, in_conversation = row[2], bool(row[6])
+        if state == "WAITING_INPUT" or in_conversation:
+            return row
+    return None
+
+
+async def _post_turn_to_task(
+    conn: AsyncConnection,
+    org: OrgModel,
+    task_row: tuple,
+    *,
+    org_id: str,
+    instance_id: str,
+    actor: str,
+    roles: list[str],
+    my_roles: list[str],
+    text: str,
+    client_turn_id: str,
+    seat_name: str,
+    seat_state: str,
+    workflow_name: str,
+    pack_version_id: str,
+    pack_published: bool,
+    attributes: dict[str, Any],
+) -> dict[str, Any] | CommittedRefusal:
+    """Resume a Task waiting for this person's input with their turn (a fresh attempt on a new thread whose context
+    has the turn), or hold the turn for the Task's running attempt to read."""
+    task_id, template, task_state, contract_json, attempts_used, max_attempts, _ = task_row
+    contract = contract_json if isinstance(contract_json, dict) else json.loads(contract_json)
+    if task_state != "WAITING_INPUT":
+        await insert_person_turn(
+            conn,
+            instance_id=instance_id,
+            person_id=actor,
+            text=text,
+            client_turn_id=client_turn_id,
+            attempt_id=None,
+        )
+        row = await find_turn_by_client_id(conn, instance_id, actor, client_turn_id)
+        assert row is not None
+        turn_payload = project_turn(row, person_name=org.people[actor].name)
+        await append_outbox_many(
+            conn,
+            [
+                OutboxRow(
+                    stream=ids.stream_instance(instance_id),
+                    event_type="turn.created",
+                    instance_id=instance_id,
+                    audience={"roles": my_roles},
+                    data={"instance_id": instance_id, "turn": turn_payload},
+                )
+            ],
+        )
+        return {"turn": turn_payload, "attempt_id": None}
+
+    # Each answer gives the Task a fresh set of retries: its attempt budget counts failures, not questions asked.
+    budget = contract.get("budget") or {}
+    resume_max = int(attempts_used) + contracts.max_attempts_from_budget(budget)
+    reservation = float(budget.get("cost_usd", 0.0))
+    ctx = AdmissionContext(
+        org_id=org_id,
+        actor=actor,
+        actor_roles=roles,
+        seat_name=seat_name,
+        seat_state=seat_state,
+        workflow_name=workflow_name,
+        instance_id=instance_id,
+        pack_version_id=pack_version_id,
+        pack_published=pack_published,
+        task_id=task_id,
+        attempts_used=int(attempts_used),
+        max_attempts=max(int(max_attempts), resume_max),
+        has_live_attempt=False,
+        dependency_versions=attributes,
+        contract_dependency_versions=contract.get("dependency_versions") or {},
+        reservation_usd=reservation,
+        participant_ok=True,
+        live_seat_attempts=await count_live_seat_attempts(conn, org_id, seat_name),
+    )
+    refusal = await check_admission(conn, ctx)
+    if refusal:
+        return refusal
+
+    defs = await _load_definitions(conn, pack_version_id)
+    seat_doc = defs.get("Seat", {}).get(seat_name) or {}
+    attempt_id = ids.new_attempt_id()
+    try:
+        async with conn.transaction():
+            await conn.execute(
+                "update work.tasks set max_attempts = %s, updated_at = now() where id = %s",
+                (ctx.max_attempts, task_id),
+            )
+            turn_row = await insert_person_turn(
+                conn,
+                instance_id=instance_id,
+                person_id=actor,
+                text=text,
+                client_turn_id=client_turn_id,
+                attempt_id=None,
+            )
+            await task_ops.admit_attempt(
+                conn,
+                org_id=org_id,
+                seat=seat_name,
+                daily_limit_usd=float(_seat_limits(seat_doc)["daily_cost_usd"]),
+                task_id=task_id,
+                attempt_id=attempt_id,
+                turn_id=turn_row["turn_id"],
+                attempt_n=int(attempts_used) + 1,
+                reservation_usd=reservation,
+            )
+            await conn.execute(
+                "update work.turns set attempt_id = %s where id = %s",
+                (attempt_id, turn_row["turn_id"]),
+            )
+            row = await find_turn_by_client_id(conn, instance_id, actor, client_turn_id)
+            assert row is not None
+            turn_payload = project_turn(row, person_name=org.people[actor].name)
+            await append_outbox_many(
+                conn,
+                [
+                    OutboxRow(
+                        stream=ids.stream_instance(instance_id),
+                        event_type="turn.created",
+                        instance_id=instance_id,
+                        audience={"roles": my_roles},
+                        data={"instance_id": instance_id, "turn": turn_payload},
+                    ),
+                    OutboxRow(
+                        stream=ids.stream_instance(instance_id),
+                        event_type="task.state_changed",
+                        instance_id=instance_id,
+                        audience={"roles": my_roles},
+                        data={
+                            "instance_id": instance_id,
+                            "task_id": task_id,
+                            "template": template,
+                            "from": "WAITING_INPUT",
+                            "to": "RUNNING",
+                        },
+                    ),
+                ],
+            )
+    except (pg_errors.CheckViolation, pg_errors.UniqueViolation) as exc:
+        refusal = await _refusal_from_admit_backstop(conn, ctx, exc)
+        if refusal:
+            return refusal
+        raise
+    return {"turn": turn_payload, "attempt_id": attempt_id}
 
 
 async def post_turn(
@@ -723,6 +931,27 @@ async def post_turn(
         if refusal:
             return refusal
         raise InstanceError("not_found", 404, "Seat not found", f"Seat {seat_name!r} is not active.")
+
+    conv = await _conversation_task(conn, instance_id, actor)
+    if conv is not None:
+        return await _post_turn_to_task(
+            conn,
+            org,
+            conv,
+            org_id=org_id,
+            instance_id=instance_id,
+            actor=actor,
+            roles=roles,
+            my_roles=my_roles,
+            text=text,
+            client_turn_id=client_turn_id,
+            seat_name=seat_name,
+            seat_state=seat_state,
+            workflow_name=workflow_name,
+            pack_version_id=str(pvid),
+            pack_published=pack_status == "published",
+            attributes=attributes,
+        )
 
     tcur = await conn.execute(
         "select id, contract, attempts_used, max_attempts from work.tasks"

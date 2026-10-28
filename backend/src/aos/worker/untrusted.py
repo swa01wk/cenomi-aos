@@ -16,11 +16,15 @@ def _canonical_args(args: Any) -> str:
     return json.dumps(args if isinstance(args, dict) else {}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def wrap_untrusted(content: Any, *, source: str, args: dict[str, Any] | None = None) -> str:
+def wrap_untrusted(
+    content: Any, *, source: str, args: dict[str, Any] | None = None, receipt: str | None = None
+) -> str:
     src = escape_untrusted_text(source)
     attrs = f' source="{src}"'
     if args is not None:
         attrs += f' args="{escape_untrusted_text(_canonical_args(args))}"'
+    if receipt:
+        attrs += f' receipt="{escape_untrusted_text(receipt)}"'
     if isinstance(content, str):
         body = escape_untrusted_text(content)
     else:
@@ -29,14 +33,16 @@ def wrap_untrusted(content: Any, *, source: str, args: dict[str, Any] | None = N
 
 
 def format_observation_for_context(obs: dict[str, Any]) -> str:
-    """One earlier tool call: the tool, the arguments it was called with, and its result."""
+    """One earlier tool call: the tool, the arguments it was called with, its result and the receipt to cite."""
     tool = str(obs.get("tool") or "tool")
     content = obs.get("content")
     args = obs.get("args") if isinstance(obs.get("args"), dict) else None
+    receipt = str(obs["receipt_ref"]) if obs.get("receipt_ref") else None
     if obs.get("untrusted"):
-        return wrap_untrusted(content, source=tool, args=args)
+        return wrap_untrusted(content, source=tool, args=args, receipt=receipt)
     text = content if isinstance(content, str) else json.dumps(content, sort_keys=True, ensure_ascii=False)
-    return f"{tool}({_canonical_args(args)}) -> {text}" if args is not None else text
+    line = f"{tool}({_canonical_args(args)}) -> {text}" if args is not None else text
+    return f"{line} [receipt {receipt}]" if receipt else line
 
 
 def already_observed(observations: Any, tool: str, args: Any) -> bool:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
@@ -10,6 +12,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..evals.runner import run_suite
+from aos.connectors import demo_replies, outbound_mail
+from aos.connectors.inbound import inbound_secret, verify as verify_inbound_signature
+
 from ..kernel import (
     artifacts,
     audit_store,
@@ -17,6 +22,7 @@ from ..kernel import (
     console,
     decisions,
     demo,
+    events,
     instances,
     participants,
     publish,
@@ -34,6 +40,7 @@ from ..kernel.publish import PublishRefusal
 from ..kernel.refusal import CommittedRefusal
 from ..kernel.registry_store import pack_root
 from ..kernel.seats import EvalRunJob, SeatError
+from .. import sim_worker
 from ..kernel.simulate import run_simulation_rolled_back
 from .problems import KernelProblem, problem_response
 from ..kernel.auth import issue_session
@@ -55,6 +62,10 @@ def _raise_seat_error(exc: SeatError) -> None:
 
 
 def _raise_instance_error(exc: instances.InstanceError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_outbound_mail_error(exc: outbound_mail.OutboundMailError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
 
 
@@ -235,6 +246,7 @@ async def simulate_pack_version(
         workflow_name=body.workflow,
         script_name=body.script,
         packs_dir=k.settings.packs_dir,
+        run_attempt=sim_worker.run_attempt,
     )
 
 
@@ -582,6 +594,9 @@ async def start_instance(
 @router.get("/instances/{id}", tags=["instances"])
 async def get_instance(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
     try:
+        await instances.refresh_decisions_for_viewer(
+            conn, k.org, id, packs_dir=k.settings.packs_dir
+        )
         return await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
     except instances.InstanceError as exc:
         _raise_instance_error(exc)
@@ -631,6 +646,45 @@ async def post_turn(
     if isinstance(result, CommittedRefusal):
         return _refusal_response(request, result)
     return result
+
+
+@router.post("/instances/{id}/send-rfqs", tags=["instances"])
+async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep) -> dict:
+    try:
+        async with k.pool.connection() as conn:
+            async with conn.transaction():
+                plan = await outbound_mail.plan_send_rfqs(
+                    conn,
+                    org_id=p.org_id,
+                    instance_id=id,
+                    person_id=p.person_id,
+                )
+        sent_keys, receipts = await outbound_mail.execute_rfqs_mail(
+            k.gateway,
+            k.broker,
+            org_id=p.org_id,
+            instance_id=id,
+            plan=plan,
+        )
+        async with k.pool.connection() as conn:
+            async with conn.transaction():
+                body = await outbound_mail.finalize_send_rfqs(
+                    conn,
+                    k.org,
+                    org_id=p.org_id,
+                    instance_id=id,
+                    person_id=p.person_id,
+                    plan=plan,
+                    sent_keys=sent_keys,
+                    receipts=receipts,
+                    packs_dir=k.settings.packs_dir,
+                )
+                snapshot = await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
+        return {**body, "snapshot": snapshot}
+    except outbound_mail.OutboundMailError as exc:
+        _raise_outbound_mail_error(exc)
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
 
 
 @router.get("/instances/{id}/events", tags=["instances"])
@@ -714,6 +768,8 @@ async def create_artifact_version(
 class ClaimInstanceBody(BaseModel):
     role: str
     expected_version: int
+    decision: str = "approve"
+    note: str | None = None
 
 
 @router.get("/queues/{queue:path}/instances", tags=["decisions"])
@@ -745,6 +801,8 @@ async def claim_instance(
             body.role,
             body.expected_version,
             packs_dir=k.settings.packs_dir,
+            decision=body.decision,
+            note=body.note,
         )
     except participants.ParticipantError as exc:
         _raise_participant_error(exc)
@@ -1224,6 +1282,80 @@ class AdvanceClockMinutes(BaseModel):
 
 class AdvanceClockNextTimer(BaseModel):
     to_next_timer: Literal[True]
+
+
+class SimulateVendorReplyBody(BaseModel):
+    conversation_id: str
+    supplier_id: str
+    body: str
+    subject: str = ""
+
+
+@router.post("/inbound/{source}", tags=["inbound"], status_code=202)
+async def receive_inbound(
+    source: str,
+    request: Request,
+    k: KernelDep,
+    x_aos_signature: Annotated[str | None, Header(alias="X-AOS-Signature")] = None,
+) -> dict[str, Any]:
+    raw = await request.body()
+    if source not in k.settings.connector_urls:
+        raise HTTPException(status_code=404, detail="Unknown inbound source")
+    secret = inbound_secret()
+    if not verify_inbound_signature(raw, x_aos_signature, secret):
+        raise HTTPException(status_code=401, detail="Invalid inbound signature")
+    payload = json.loads(raw.decode())
+    if payload.get("event") != "mail.message_received":
+        return {"accepted": False, "reason": "ignored_event"}
+    ref = str(payload.get("ref") or "")
+    if ":" not in ref:
+        raise HTTPException(status_code=422, detail="Inbound message missing instance ref")
+    instance_id = ref.split(":", 1)[0]
+    created = False
+    duplicate = False
+    async with k.pool.connection() as conn:
+        async with conn.transaction():
+            from aos.kernel import inbound_mail
+
+            is_new, _ = await inbound_mail.record_inbound_message(conn, source=source, payload=payload)
+            if not is_new:
+                duplicate = True
+            else:
+                created = await events.raise_inbound_event(
+                    conn,
+                    k.org,
+                    instance_id,
+                    "mail.message_received",
+                    packs_dir=k.settings.packs_dir,
+                    inbound_payload=payload,
+                )
+    return {
+        "accepted": True,
+        "instance_id": instance_id,
+        "task_created": created,
+        "duplicate": duplicate,
+    }
+
+
+@router.post("/demo/" + "ven" + "dor-replies", tags=["demo"], status_code=202)
+async def simulate_vendor_reply(
+    body: SimulateVendorReplyBody,
+    k: KernelDep,
+    p: PrincipalDep,
+) -> dict[str, Any]:
+    _require_demo(k)
+    mail_url = demo_replies.mailbox_connector_url(k.settings.connector_urls)
+    if not mail_url:
+        raise HTTPException(status_code=503, detail="Mail connector URL is not configured")
+    sender = demo_replies.reply_sender(body.supplier_id)
+    note = await demo_replies.simulate_vendor_reply_on_thread(
+        mail_mcp_url=mail_url,
+        conversation_id=body.conversation_id,
+        sender=sender,
+        body=body.body,
+        subject=body.subject,
+    )
+    return {"status": "accepted", "inbound": note.get("payload"), "actor": p.person_id}
 
 
 @router.get("/demo/state", tags=["demo"])

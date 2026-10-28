@@ -1,20 +1,44 @@
 apiVersion: aos/v1
 kind: ArtifactType
-metadata: {name: supplier_list, version: 1, owner: head_of_procurement}
+metadata: {name: supplier_list, version: 3, owner: head_of_procurement}
 spec:
-  description: Suppliers found in the ERP, ranked with cited sources.
+  description: Suppliers found in the ERP, ranked with cited sources and a scored rubric.
   fields:
-    rank: {type: integer, required: true}
-    supplier: {type: string, required: true}
-    supplier_id: {type: string, required: true}
-    past_pos: {type: integer}
-    on_time_pct: {type: number}
-    score: {type: number, required: true}
-    sources: {type: list, required: true}
+    rank: {type: integer, required: true, classification: shareable}
+    supplier: {type: string, required: true, classification: shareable}
+    supplier_id: {type: string, required: true, classification: shareable}
+    email:
+      type: string
+      classification: shareable
+      description: The supplier's email from search_suppliers; requests for quotation go here.
+    past_pos: {type: integer, description: "Past purchase orders in this category, from get_supplier_history."}
+    on_time_pct: {type: number, description: "Share of those orders delivered on time, from get_supplier_history."}
+    points_asl:
+      type: integer
+      classification: shareable
+      label: On approved list
+      description: Fixed 20 points for appearing on the approved supplier list for this category.
+    points_history:
+      type: integer
+      classification: shareable
+      label: Past orders
+      description: Up to 50 points (5 per past PO in this category, capped at 50).
+    points_delivery:
+      type: integer
+      classification: shareable
+      label: On-time delivery
+      description: Up to 30 points (30% of on-time % when there is past order history).
+    score: {type: number, required: true, classification: shareable, label: Total score}
+    sources:
+      type: list
+      required: true
+      description: The receipt refs of the search_suppliers and get_supplier_history calls this row comes from.
   row_based: true
   classification: shareable   # supplier_lookup runs at a shareable ceiling; no prices here
   row_key: supplier_id
-  view: {type: sheet, columns: [rank, supplier, past_pos, on_time_pct, score]}
+  view:
+    type: sheet
+    columns: [rank, supplier, past_pos, on_time_pct, points_asl, points_history, points_delivery, score]
   visibility:
     buyer: all
     procurement_approver: all

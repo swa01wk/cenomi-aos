@@ -34,6 +34,21 @@ export function useWorkflowTitle() {
   };
 }
 
+export function useQueue(queue: string | undefined) {
+  return useQuery({
+    queryKey: ["queue", queue ?? ""],
+    enabled: Boolean(queue),
+    queryFn: async () => {
+      const { data, error } = await client.GET("/queues/{queue}/instances", {
+        params: { path: { queue: queue! } },
+      });
+      if (error) throw error;
+      return data!.items;
+    },
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useMyInstances(status?: "active" | "closed") {
   return useQuery({
     queryKey: workspaceKeys.myInstances(status),
@@ -56,6 +71,7 @@ export function useMyInstances(status?: "active" | "closed") {
 export function invalidateWorkspaceLists(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: workspaceKeys.digitalWorkers });
   void queryClient.invalidateQueries({ queryKey: ["myInstances"] });
+  void queryClient.invalidateQueries({ queryKey: ["queue"] });
 }
 
 export function useRefetchWorkspaceOnFocus() {

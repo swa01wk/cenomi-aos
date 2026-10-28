@@ -1,14 +1,21 @@
 import { Link } from "react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSession } from "../app/session";
 import { EmptyState, StatusPill } from "../components";
+import { jobNeedsViewerAction, pendingActionLabel, sortJobsForViewer } from "./instanceAttention";
 import { useMyInstances, useWorkflowTitle } from "./useWorkspaceQueries";
 
 type Filter = "active" | "closed";
 
 export default function MyJobsPage() {
   const [filter, setFilter] = useState<Filter>("active");
+  const { me } = useSession();
   const jobs = useMyInstances(filter);
   const workflowTitle = useWorkflowTitle();
+  const sortedJobs = useMemo(() => {
+    if (!jobs.data?.length || !me) return jobs.data ?? [];
+    return sortJobsForViewer(jobs.data, me.id);
+  }, [jobs.data, me]);
 
   return (
     <>
@@ -38,20 +45,31 @@ export default function MyJobsPage() {
         <EmptyState title="No jobs here" nextStep="Start one from New job when a digital worker is active." />
       )}
       <ul className="ws-job-list" aria-label="Jobs">
-        {jobs.data?.map((j) => (
-          <li key={j.instance_id} className="ws-job-card">
-            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-              <span className="muted" style={{ fontSize: 12 }}>
-                {workflowTitle(j.workflow)} · {j.instance_id}
-              </span>
-              <h2 style={{ margin: "6px 0", fontSize: 17 }}>{j.title}</h2>
-              <StatusPill state={j.state_label} />
-            </div>
-            <Link to={`/workspace/jobs/${j.instance_id}`} className="btn primary ws-open-job">
-              {filter === "active" ? "Continue" : "Open"}
-            </Link>
-          </li>
-        ))}
+        {sortedJobs.map((j) => {
+          const needsYou = me ? jobNeedsViewerAction(j, me.id) : false;
+          return (
+            <li key={j.instance_id} className={needsYou ? "ws-job-card needs-you" : "ws-job-card"}>
+              <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {workflowTitle(j.workflow)} · {j.instance_id}
+                </span>
+                <h2 style={{ margin: "6px 0", fontSize: 17 }}>{j.title}</h2>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                  <StatusPill state={j.state_label} />
+                  {needsYou && <span className="ws-job-needs-badge">Needs you</span>}
+                </div>
+                {needsYou && (
+                  <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+                    {pendingActionLabel(j)}
+                  </p>
+                )}
+              </div>
+              <Link to={`/workspace/jobs/${j.instance_id}`} className="btn primary ws-open-job">
+                {needsYou ? "Take action" : filter === "active" ? "Continue" : "Open"}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </>
   );

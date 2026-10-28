@@ -125,10 +125,19 @@ it from configuration (ADR 014):
 
 ## Fake model scripts
 
-`backend/src/aos/worker/scripts/<skill>.<scenario>.yaml`: an ordered list of turns (text and tool calls) per Skill.
+`backend/src/aos/worker/scripts/<skill>.<scenario>.yaml`: an ordered list of turns (text and tool calls) per Skill,
+or `<template>.<scenario>.yaml` when two templates run the same Skill (`rfq_draft`); `attempts:` gives each attempt
+its own turns. A Task without the requested scenario runs `happy`. Tool-call arguments may name a receipt the script
+can't know in advance: `{{receipt:TOOL}}` or `{{receipt:TOOL:TEXT}}` becomes the ref of the latest TOOL result
+(whose arguments contain TEXT) in the context.
 Scenarios used: `happy`, `leak` (first rfq draft contains `budget_guidance`; driven by the `seed_budget_leak` demo
 switch), `loop` (never finishes; trips the step budget), `injection` (quote_triage sees an instruction in the email
 and must ignore it). The dry-run eval and `aos simulate` pick `happy`.
+
+`aos simulate` (and the Console's simulation) runs each Task that has a script through its real graph and verifier,
+in-process inside the simulation's rolled-back transaction (`aos/sim_worker.py`): connectors from `aos.connectors`
+with fresh in-memory data, checkpoints in memory. Tasks without a script, and installs without the agent runtime,
+use the stub (placeholder outputs, no verifier).
 
 ## Failure classes
 

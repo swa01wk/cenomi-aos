@@ -63,6 +63,16 @@ class DemoPackPasses(unittest.TestCase):
     def test_digest_is_stable(self) -> None:
         self.assertEqual(validate_pack(PACK).digest, validate_pack(PACK).digest)
 
+    def test_procurement_approver_signs_every_purchase_order(self) -> None:
+        gates = parse_yaml((PACK / "policies" / "quick_quote_gates.yaml").read_text())
+        rule = next(r for r in gates["spec"]["rules"] if r["id"] == "po_create")
+        chain = rule["approval"]["chain"]
+        self.assertEqual(
+            [step["approver"] for step in chain],
+            ["participant:buyer", "participant:procurement_approver"],
+        )
+        self.assertTrue(all("when" not in step for step in chain))
+
 
 class BrokenPacksFail(PackCase):
     def test_template_targets_role_without_its_work_type(self) -> None:

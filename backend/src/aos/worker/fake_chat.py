@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import json
+import re
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -13,6 +15,50 @@ from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResu
 from pydantic import Field
 
 from .fake_model import FakeModel, ScriptedTurn
+
+_PLACEHOLDER = re.compile(r"^\{\{receipt:([A-Za-z0-9_]+)(?::(.+))?\}\}$")
+_UNTRUSTED_OBS = re.compile(r'^<untrusted source="([^"]*)"(?: args="([^"]*)")? receipt="([^"]*)">')
+_TRUSTED_OBS = re.compile(r"^([A-Za-z0-9_]+)\((.*?)\) -> .* \[receipt ([^\]]+)\]$", re.DOTALL)
+
+
+def observed_receipts(messages: list[BaseMessage]) -> list[tuple[str, str, str]]:
+    """(tool, args text, receipt ref) of each tool result rendered into the context messages."""
+    out: list[tuple[str, str, str]] = []
+    for message in messages:
+        text = message.content if isinstance(message.content, str) else ""
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            continue
+        lines = doc.get("tool_observations_rendered") if isinstance(doc, dict) else None
+        for line in lines or []:
+            if not isinstance(line, str):
+                continue
+            m = _UNTRUSTED_OBS.match(line)
+            if m:
+                out.append((html.unescape(m.group(1)), html.unescape(m.group(2) or ""), html.unescape(m.group(3))))
+                continue
+            m = _TRUSTED_OBS.match(line)
+            if m:
+                out.append((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
+def resolve_receipts(value: Any, receipts: list[tuple[str, str, str]]) -> Any:
+    """Scripts can't know receipt refs ahead of time: `{{receipt:TOOL}}` or `{{receipt:TOOL:TEXT}}` becomes the ref
+    of the latest TOOL result (whose arguments contain TEXT). Unknown placeholders stay as written."""
+    if isinstance(value, dict):
+        return {k: resolve_receipts(v, receipts) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_receipts(v, receipts) for v in value]
+    if isinstance(value, str):
+        m = _PLACEHOLDER.match(value)
+        if m:
+            tool, text = m.group(1), m.group(2)
+            for name, args, ref in reversed(receipts):
+                if name == tool and (text is None or text in args):
+                    return ref
+    return value
 
 
 def _usage_metadata(turn: ScriptedTurn) -> dict[str, Any]:
@@ -34,11 +80,13 @@ class FakeChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "aos-fake"
 
-    def _tool_call_chunks(self, turn: ScriptedTurn) -> list[dict[str, Any]]:
+    def _tool_call_chunks(self, turn: ScriptedTurn, messages: list[BaseMessage]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
+        receipts = observed_receipts(messages)
         for i, tc in enumerate(turn.tool_calls):
             name = str(tc.get("name") or "")
             args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
+            args = resolve_receipts(args, receipts)
             tid = str(tc.get("id") or uuid.uuid4())
             out.append(
                 {
@@ -51,9 +99,9 @@ class FakeChatModel(BaseChatModel):
             )
         return out
 
-    def _stream_turn(self, turn: ScriptedTurn) -> Iterator[AIMessageChunk]:
+    def _stream_turn(self, turn: ScriptedTurn, messages: list[BaseMessage]) -> Iterator[AIMessageChunk]:
         if turn.tool_calls:
-            for chunk in self._tool_call_chunks(turn):
+            for chunk in self._tool_call_chunks(turn, messages):
                 yield AIMessageChunk(content="", tool_call_chunks=[chunk])
             um = _usage_metadata(turn)
             if um:
@@ -61,8 +109,7 @@ class FakeChatModel(BaseChatModel):
             return
         parts = list(turn.stream_chunks)
         if not parts:
-            text = turn.reply_text or turn.text or ""
-            parts = [text] if text else [""]
+            parts = [turn.text]
         for i, part in enumerate(parts):
             um = _usage_metadata(turn) if i == len(parts) - 1 else None
             if um:
@@ -80,7 +127,7 @@ class FakeChatModel(BaseChatModel):
         self.fake.prompts.append(messages)
         turn = self.fake.next_turn()
         merged: AIMessageChunk | None = None
-        for chunk in self._stream_turn(turn):
+        for chunk in self._stream_turn(turn, messages):
             merged = chunk if merged is None else merged + chunk
         if merged is None:
             return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
@@ -95,7 +142,7 @@ class FakeChatModel(BaseChatModel):
     ) -> Iterator[ChatGenerationChunk]:
         self.fake.prompts.append(messages)
         turn = self.fake.next_turn()
-        for chunk in self._stream_turn(turn):
+        for chunk in self._stream_turn(turn, messages):
             yield ChatGenerationChunk(message=chunk)
 
     async def _astream(

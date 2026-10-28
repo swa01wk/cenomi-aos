@@ -1,0 +1,114 @@
+.guide {
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.guide_action {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.guide_wait {
+  border-color: var(--line);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+}
+
+.guide_complete {
+  border-color: color-mix(in srgb, var(--accent-line) 50%, var(--line));
+  background: var(--panel);
+}
+
+.guide_progress {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface-2) 55%);
+}
+
+.guide_live {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--accent-soft-2),
+    0 0 16px -4px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.detail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.footnote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.guide_progress .title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+  opacity: 0.95;
+  animation: guidePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes guidePulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.guide_wait .title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+.guide_complete .title::before {
+  content: "✓";
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-line);
+  vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide_live {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .guide_progress .title::before {
+    animation: none;
+    opacity: 0.95;
+    transform: none;
+  }
+}

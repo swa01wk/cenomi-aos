@@ -87,11 +87,11 @@ spec:
     - {from: shortlisting, to: rfq_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
     - {from: rfq_drafting, to: rfq_sending, on: task.completed.rfq_draft}
     - {from: rfq_sending, to: awaiting_quotes, on: task.completed.rfq_send, effects: [{start_timer: quote_deadline}]}
-    - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received], guard: "attr.quote_count >= 2"}
+    - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received], guard: "attr.quote_count >= 1"}
     - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: comparison}]}
     - {from: ordering, to: closed, on: task.completed.po_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
   timers:
-    quote_deadline: {after: 5d, demo_after: 15m, emits: quotes_closed}
+    quote_deadline: {after: 5d, demo_after: 1m, emits: quotes_closed}
   decisions:
     brief_confirmed:
       {label: Confirm the brief, state: intake, for: requester, sets: {brief_version: artifact_version}}

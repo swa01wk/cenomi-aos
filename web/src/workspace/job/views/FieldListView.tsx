@@ -15,8 +15,19 @@ export function FieldListView({
   const order = view.columns?.length ? view.columns : view.fields.map((f) => f.name);
   const byName = new Map(view.fields.map((f) => [f.name, f]));
 
+  const rawContent = version.content as Record<string, unknown>;
+  const excerpt = rawContent.reply_excerpt;
+  const excerptText =
+    typeof excerpt === "string" && excerpt.trim().length > 0 ? excerpt.trim() : null;
+
   return (
     <div className={styles.viewBody}>
+      {excerptText && (
+        <section aria-label="Inbound reply preview" className={styles.replyPreview}>
+          <div className={styles.replyPreviewLabel}>Inbound reply</div>
+          <pre className={styles.replyPreviewBody}>{excerptText}</pre>
+        </section>
+      )}
       {version.hidden_fields.length > 0 && (
         <p className={styles.hiddenNote}>Some fields aren&apos;t shared with your role</p>
       )}

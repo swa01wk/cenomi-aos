@@ -1,11 +1,11 @@
 apiVersion: aos/v1
 kind: Skill
-metadata: {name: sourcing_assist, version: 1, owner: head_of_procurement}
+metadata: {name: sourcing_assist, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md
   ceiling: restricted
   budget: {tokens: 20000, cost_usd: 0.5, seconds: 120, steps: 4, actions: 4, retries: 1}
-  reads: [job_snapshot, recent_messages]
+  reads: [job_snapshot, recent_messages, supplier_list]
   produces: []
   may_request: [read_artifact, browse_categories, get_supplier_history]

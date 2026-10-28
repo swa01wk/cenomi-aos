@@ -8,6 +8,7 @@ import SeatsPage from "../console/SeatsPage";
 import VersionPage from "../console/VersionPage";
 import JobPage from "../workspace/job/JobPage";
 import MyJobsPage from "../workspace/MyJobsPage";
+import QueuePage from "../workspace/QueuePage";
 import NewJobPage from "../workspace/NewJobPage";
 import WorkspaceShell from "../workspace/WorkspaceShell";
 import { AppErrorBoundary } from "./AppErrorBoundary";
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
             element: <WorkspaceShell />,
             children: [
               { index: true, element: <MyJobsPage /> },
+              { path: "queue", element: <QueuePage /> },
               { path: "new", element: <NewJobPage /> },
               { path: "jobs/:id", element: <JobPage /> },
             ],

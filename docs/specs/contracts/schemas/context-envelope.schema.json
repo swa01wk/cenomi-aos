@@ -103,6 +103,7 @@
         "required": ["artifact_type", "artifact_id", "version", "content_hash", "status", "content"],
         "properties": {
           "artifact_type": {"type": "string"}, "artifact_id": {"type": "string"}, "version": {"type": "integer"},
+          "key": {"type": "string", "description": "Set on per-item artifacts (types with item_key): the item this draft is for."},
           "content_hash": {
             "type": "string",
             "description": "Stored version hash when the full content is included; projected-content hash when fields were redacted. Freshness and submit inputs are keyed on artifact_id and version, not this hash alone."
@@ -165,6 +166,16 @@
         },
         "additionalProperties": false
       }
+    },
+    "rework": {
+      "type": "object",
+      "description": "Present when this Task's previous attempt was sent back by its verifier: what to fix. Findings name fields, never protected values.",
+      "required": ["verifier", "findings"],
+      "properties": {
+        "verifier": {"type": "string"},
+        "findings": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

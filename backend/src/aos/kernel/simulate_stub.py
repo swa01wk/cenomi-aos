@@ -18,6 +18,9 @@ from .worker_fence import FenceMismatch, require_claimed_attempt
 
 SIM_WORKER_ID = "aos-simulate"
 
+# (conn, *, org, org_id, packs_dir, attempt_id) -> the worker's outcome, or None to leave the attempt to the stub.
+AttemptRunner = Callable[..., Awaitable[str | None]]
+
 
 async def _claim_admitted(
     conn: AsyncConnection,
@@ -50,11 +53,12 @@ async def _save_skill_produces(
     for at_name in produces:
         at = parse_artifact_type(defs, str(at_name))
         content = placeholder_content(at)
+        key = str(content.get(at.spec.item_key) or "") if at.spec.item_key else ""
         saved = await artifacts.save_draft_from_attempt(
             conn,
             org=org,
             gate=gate,
-            body={"artifact_type": str(at_name), "content": content, "inputs": [], "sources": []},
+            body={"artifact_type": str(at_name), "content": content, "key": key, "inputs": [], "sources": []},
             defs=defs,
             packs_dir=packs_dir,
         )
@@ -156,8 +160,11 @@ async def drain_instance_tasks(
     instance_id: str,
     packs_dir: Path,
     after_progress: Callable[[], Awaitable[None]] | None = None,
+    run_attempt: AttemptRunner | None = None,
+    dead_ends: list[str] | None = None,
 ) -> None:
-    """Run readiness and stub-complete every admitted attempt until idle."""
+    """Run readiness and complete every admitted attempt until idle: through ``run_attempt`` (the real graphs) when
+    it takes the attempt, else with the stub."""
     while True:
         progressed = False
         for task_id in await readiness.candidate_task_ids(conn):
@@ -180,13 +187,25 @@ async def drain_instance_tasks(
             (instance_id,),
         )
         for (attempt_id,) in await acur.fetchall():
-            await complete_admitted_attempt(
-                conn,
-                org=org,
-                org_id=org_id,
-                attempt_id=str(attempt_id),
-                packs_dir=packs_dir,
-            )
+            outcome = None
+            if run_attempt is not None:
+                outcome = await run_attempt(
+                    conn, org=org, org_id=org_id, packs_dir=packs_dir, attempt_id=str(attempt_id)
+                )
+            if outcome is None or outcome == "idle":
+                await complete_admitted_attempt(
+                    conn,
+                    org=org,
+                    org_id=org_id,
+                    attempt_id=str(attempt_id),
+                    packs_dir=packs_dir,
+                )
+            elif outcome not in ("submitted", "waiting") and dead_ends is not None:
+                tcur = await conn.execute(
+                    "select t.template from work.attempts a join work.tasks t on t.id = a.task_id where a.id = %s",
+                    (str(attempt_id),),
+                )
+                dead_ends.append(f"task.{(await tcur.fetchone())[0]}: attempt {outcome}")
             if after_progress is not None:
                 await after_progress()
             progressed = True

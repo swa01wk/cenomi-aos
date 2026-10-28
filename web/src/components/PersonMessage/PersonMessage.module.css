@@ -4,10 +4,10 @@
 }
 
 .bubble {
-  max-width: 78%;
-  background: #eef1f5;
-  border-radius: 12px 12px 4px 12px;
-  padding: var(--space-12) var(--space-14);
+  max-width: 86%;
+  background: var(--accent-soft-2, #eef1f5);
+  border-radius: 16px 16px 4px 16px;
+  padding: var(--space-10) var(--space-14);
 }
 
 .text {

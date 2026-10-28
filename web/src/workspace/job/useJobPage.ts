@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { client } from "../../api/client";
-import { ApiProblemError, type Problem } from "../../api/problems";
+import { ApiProblemError, isProblem, problemMessage, type Problem } from "../../api/problems";
 import type { UiEvent } from "../../api/stream";
 import { useEventStream } from "../../api/stream";
 import { useSession } from "../../app/session";
 import type { ToolActivity, Turn } from "../../components/types";
+import { newClientTurnId } from "../../components/clientTurnId";
 import { workspaceKeys } from "../useWorkspaceQueries";
 import {
   emptyJobStreamAux,
@@ -24,7 +25,7 @@ function upsertTurn(turns: Turn[], turn: Turn): Turn[] {
 
 export function useJobPage(instanceId: string) {
   const queryClient = useQueryClient();
-  const { sessionExpired } = useSession();
+  const { sessionExpired, me } = useSession();
   const auxRef = useRef<JobStreamAuxState>(emptyJobStreamAux());
   const [auxVersion, setAuxVersion] = useState(0);
   const [streamProblem, setStreamProblem] = useState<Problem | null>(null);
@@ -79,6 +80,11 @@ export function useJobPage(instanceId: string) {
         }
         if (eff.kind === "invalidate_artifact") {
           void queryClient.invalidateQueries({ queryKey: workspaceKeys.artifact(eff.artifactId) });
+          void queryClient.invalidateQueries({ queryKey: ["artifactVersion", eff.artifactId] });
+        }
+        if (eff.kind === "invalidate_documents") {
+          void queryClient.invalidateQueries({ queryKey: ["artifact"] });
+          void queryClient.invalidateQueries({ queryKey: ["artifactVersion"] });
         }
       }
     },
@@ -111,6 +117,15 @@ export function useJobPage(instanceId: string) {
 
   const aux = auxRef.current;
   void auxVersion;
+
+  // My latest message has an attempt answering it and nothing after it yet: the agent is working on a reply.
+  const awaitingTurn = useMemo(() => {
+    const turns = snapshotQuery.data?.turns ?? [];
+    const last = turns[turns.length - 1];
+    if (!last || last.author.kind !== "person" || !last.attempt_id) return null;
+    if (me && last.author.id !== me.id) return null;
+    return last;
+  }, [snapshotQuery.data, me]);
 
   const streamingTurnId = useMemo(() => {
     if (!aux.deltas.length) return null;
@@ -156,6 +171,54 @@ export function useJobPage(instanceId: string) {
     [instanceId, queryClient],
   );
 
+  const decide = useCallback(
+    async (input: {
+      pendingId: string;
+      value: string;
+      artifactVersion?: number;
+      note?: string;
+      selection?: string[];
+      idempotencyKey: string;
+    }) => {
+      const snap = queryClient.getQueryData<InstanceSnapshot>(workspaceKeys.instance(instanceId));
+      if (!snap) throw new Error("Job is still loading");
+      const { error } = await client.POST("/pending/{id}/decide", {
+        params: {
+          path: { id: input.pendingId },
+          header: { "Idempotency-Key": input.idempotencyKey },
+        },
+        body: {
+          value: input.value,
+          expected_version: snap.version,
+          ...(input.artifactVersion != null ? { artifact_version: input.artifactVersion } : {}),
+          ...(input.note ? { note: input.note } : {}),
+          ...(input.selection ? { selection: input.selection } : {}),
+        },
+      });
+      if (error) throw error;
+      await snapshotQuery.refetch();
+    },
+    [instanceId, queryClient, snapshotQuery],
+  );
+
+  const sendRfqs = useCallback(async () => {
+    const { data, error } = await client.POST("/instances/{id}/send-rfqs", {
+      params: {
+        path: { id: instanceId },
+        header: { "Idempotency-Key": newClientTurnId() },
+      },
+    });
+    if (error) {
+      if (isProblem(error)) throw new ApiProblemError(error);
+      throw new Error(problemMessage(error as Problem) || "Could not send outbound messages");
+    }
+    if (data?.snapshot) {
+      queryClient.setQueryData(workspaceKeys.instance(instanceId), data.snapshot);
+    } else {
+      await snapshotQuery.refetch();
+    }
+  }, [instanceId, queryClient, snapshotQuery]);
+
   const pageError =
     snapshotQuery.error instanceof ApiProblemError
       ? snapshotQuery.error.problem
@@ -174,8 +237,11 @@ export function useJobPage(instanceId: string) {
     isLoading: snapshotQuery.isLoading,
     pageError,
     postTurn,
+    decide,
+    sendRfqs,
     loadOlderTurns,
     streamingTurnId,
+    awaitingTurnId: awaitingTurn?.turn_id ?? null,
     deltas: aux.deltas,
     toolActivity: toolActivityForStream,
     bannerMode,

@@ -2,24 +2,33 @@
   display: flex;
   gap: var(--space-8);
   align-items: flex-end;
+  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-16);
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line-input, var(--border-secondary));
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.3);
+}
+
+.root:focus-within {
+  border-color: var(--accent);
 }
 
 .input {
   flex: 1;
+  min-width: 0;
   min-height: var(--touch-workspace);
-  padding: var(--space-10) var(--space-12);
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-sm);
+  padding: var(--space-10) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
   font: inherit;
-  resize: vertical;
+  resize: none;
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .input[aria-disabled="true"] {
-  background: var(--canvas);
   color: var(--ink-3);
 }

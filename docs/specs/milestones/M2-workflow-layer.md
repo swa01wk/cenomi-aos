@@ -110,6 +110,9 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
   class `committed_effect` only when the template's work type is in `EFFECT_COMMIT_WORK_TYPES` (kinds.py), the same
   rule the Console's `needs_approval` uses. **Test:** the `rfq_draft` contract has no `send_message`; the
   `rfq_send` contract does.
+- **Moved to M2-AG-02:** the simulation item above needs verifiers (M2-AG-03), the Skills' `happy` scripts and an
+  in-process kernel client, so the graphs can run inside the simulation's rolled-back transaction. Until then the
+  stub runs the intake Task like the other Tasks.
 - **Carried from M2-AG-01 part 1 (review), for part 2:** a person's clearance is computed in
   `participant_classification_ceiling` by a hard-coded org role (`end_user` → shareable). Clearance is org data:
   give the org model a clearance per org role (seed: end_user shareable, the procurement roles restricted) and read
@@ -120,6 +123,9 @@ with the fake model. Once dispatched, the job feels agentic (ADR 015):
 ### M2-AG-02 supplier_lookup and rfq_draft
 - Skill specs `supplier_lookup.md`, `rfq_authoring.md` (draft part); fake scripts `happy` and `leak` (driven by the
   `seed_budget_leak` switch).
+- **Carried from M2-AG-01:** `aos simulate` runs Tasks and intake through the real graphs with `FakeRuntime` and the
+  pack's `happy` scripts (worker talks to the kernel in-process, inside the simulation transaction); the stub stays
+  only for Skills without a script. **Test:** the dry run reaches `closed` through FakeRuntime with verifiers running.
 ### M2-AG-04 Assist Skills that keep people informed
 - **`sourcing_assist`:**
   - the Seat's default assist Skill, with spec `agent/skills/sourcing_assist.md`;

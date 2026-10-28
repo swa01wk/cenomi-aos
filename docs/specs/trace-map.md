@@ -203,8 +203,8 @@ states of this one page.
 | 14 | WS-Closed | Handover card; Outcome tab; acknowledge | `markNoticeRead` (the handover is a notice) | `instance.state_changed` → closed | `evidence.outcome_records`, timers cancelled | none |
 
 ### WS-Queue
-- **Components:** `QueueCard` list with Preview and Claim, `ConflictNotice` for a lost claim.
-- **API:** `listQueue`, `claimInstance` (expected_version) → 409 `already_claimed` shows the notice and removes the card.
+- **Components:** `QueueCard` list with a comment, Approve and Reject, `ConflictNotice` for a lost claim.
+- **API:** `listQueue` (each item includes `claim_role`), `claimInstance` with `decision` `approve` or `reject` and `note`. Approve binds the role and posts the comment. Reject requires a comment, closes the job, and posts the comment. 409 `already_claimed` shows the notice and removes the card.
 - **Kernel:** `work.participants` with a unique (instance, role) constraint; queue membership from `org.people.team`.
 
 ### WS-Inbox

@@ -1,0 +1,499 @@
+/* Workspace look, from the Cenomi Agent seat boards (design/cenomi/). Scoped to the Workspace shell so the Console
+   keeps the Components board look. */
+.ws-theme {
+  --ink: #0b1020;
+  --ink-2: #414a61;
+  --ink-3: #56607a;
+  --line: #e3e8f1;
+  --line-2: #dce5f3;
+  --line-input: #c9d3e6;
+  --canvas: #f4f6fb;
+  --panel: #ffffff;
+  --panel-2: #fafbfe;
+  --accent: #4f46e5;
+  --accent-ink: #3730a3;
+  --accent-strong: #4338ca;
+  --accent-soft: #eef0fe;
+  --accent-soft-2: #e0e7ff;
+  --accent-line: #a5b4fc;
+  --seat-soft: #f3f0ff;
+  --seat-line: #e0d9fb;
+  --seat-gradient: linear-gradient(135deg, #4338ca, #7e22ce);
+  --track: #dde3ee;
+  --ok: #166534;
+  --ok-soft: #dcfce7;
+  --ok-dot: #16a34a;
+  --source: #115e59;
+  --source-soft: #ccfbf1;
+  --source-bg: #f0fdfa;
+  --source-line: #99f6e4;
+  --warn: #92400e;
+  --warn-soft: #fef3c7;
+  --bad: #991b1b;
+  --bad-soft: #fee2e2;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.ws-theme h1 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ws-theme h2 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ws-theme .eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.ws-theme .btn {
+  min-height: 44px;
+  height: auto;
+  padding: 0 16px;
+  border-radius: 12px;
+  border-color: var(--line-input);
+  font-weight: 700;
+}
+
+.ws-theme .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ws-theme .btn.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.ws-theme .btn.dark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ws-theme .pill {
+  height: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.ws-theme .pill.info {
+  background: var(--accent-soft-2);
+  color: var(--accent-ink);
+}
+
+.ws-theme .avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--accent-soft-2);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.ws-theme .empty {
+  border-color: var(--line-input);
+  border-radius: 10px;
+}
+
+/* Rail */
+.ws-rail {
+  flex: 1 1 248px;
+  max-width: 100%;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ws-worker-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--seat-soft);
+  border: 1px solid var(--seat-line);
+}
+
+.ws-seat-mark {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--seat-gradient);
+  color: #fff;
+}
+
+.ws-seat-mark.small {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+
+.ws-seat-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ok-dot);
+  border: 2px solid #fff;
+}
+
+.ws-seat-dot.off {
+  background: var(--ink-3);
+}
+
+.ws-new-job {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ws-new-job:hover {
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.ws-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ws-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ws-nav-link:hover {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.ws-nav-link.active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.ws-nav-badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.ws-rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ws-rail-group > .eyebrow {
+  padding: 0 12px 6px;
+}
+
+.ws-rail-group > .empty {
+  margin: 0 12px;
+}
+
+.ws-job-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.ws-job-link:hover {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.ws-job-link .title {
+  font-weight: 600;
+}
+
+.ws-job-link .state {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.ws-job-link.active {
+  background: var(--canvas);
+}
+
+.ws-job-link.active .title {
+  font-weight: 700;
+}
+
+.ws-job-link.active .state {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.ws-rail-group-attention {
+  margin-bottom: 4px;
+}
+
+.ws-eyebrow-attention {
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+.ws-job-needs-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ws-job-link.needs-you {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ws-job-link.needs-you .state {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.ws-job-link.needs-you:hover {
+  background: color-mix(in srgb, var(--accent-soft) 85%, var(--accent) 15%);
+}
+
+.ws-job-card.needs-you {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: var(--accent-soft);
+}
+
+.ws-rail .foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.ws-me .who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ws-me .who span:last-child {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.ws-rail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 0 4px;
+  font-size: 13px;
+}
+
+.ws-rail-actions a,
+.ws-rail-actions button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ws-rail-actions a:hover,
+.ws-rail-actions button:hover {
+  color: var(--accent-ink);
+}
+
+/* Main area */
+.ws-main {
+  flex: 999 1 560px;
+  min-width: 0;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.shell > main.ws-main-flush {
+  padding: 0;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* My jobs */
+.ws-filter-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.ws-filter-tab {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ws-filter-tab.active {
+  background: var(--accent-soft);
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.ws-job-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ws-job-card {
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  align-items: center;
+}
+
+.ws-queue-actions {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+}
+
+.ws-queue-comment {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+}
+
+.ws-queue-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ws-open-job {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.ws-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Document tabs in the work panel */
+.ws-theme aside [role="tablist"] {
+  background: var(--panel);
+  padding-left: 24px;
+  padding-right: 24px;
+  gap: 18px;
+}
+
+.ws-theme aside [role="tab"] {
+  min-height: 44px;
+  padding-left: 0;
+  padding-right: 0;
+  font-weight: 600;
+}
+
+.ws-theme aside [role="tab"][aria-selected="true"] {
+  font-weight: 700;
+  color: var(--accent-ink);
+  border-bottom-color: var(--accent);
+}

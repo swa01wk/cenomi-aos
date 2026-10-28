@@ -1,0 +1,12 @@
+apiVersion: aos/v1
+kind: EvalSuite
+metadata: {name: inbound_quotes, version: 1, owner: head_of_procurement}
+spec:
+  description: >-
+    After RFQs are sent, signed mock_mail notifications create quote_triage Tasks with
+    trigger_context (conversation_id, supplier_id). Supplier replies become quote artifacts.
+  targets: [seat_sourcing_poc]
+  workflow: quick_quote
+  script: inbound_quotes_script.yaml
+  expect: {quote_count: 2, inbound_dedupe: true}
+  pass_condition: {min_pass_rate: 1.0}

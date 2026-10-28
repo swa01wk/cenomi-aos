@@ -8,11 +8,13 @@ export function Composer({
   disabledReason,
   initialText = "",
   onTextChange,
+  agentBusy = false,
 }: {
   onSend: (text: string, clientTurnId: string) => Promise<void>;
   disabledReason?: string;
   initialText?: string;
   onTextChange?: (text: string) => void;
+  agentBusy?: boolean;
 }) {
   const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
@@ -72,20 +74,29 @@ export function Composer({
         onKeyDown={onKeyDown}
         aria-disabled={blocked ? "true" : undefined}
         readOnly={blocked}
-        rows={2}
+        rows={1}
         aria-label="Message"
         placeholder="Message"
       />
+      {agentBusy ? (
+        <Button
+          variant="secondary"
+          disabledReason="Stop is not available in this preview. Leave the page if you do not want to wait; the worker continues until this step finishes."
+          aria-label="Stop"
+        >
+          Stop
+        </Button>
+      ) : null}
       <Button
         variant="dark"
         iconOnly
         aria-label="Send"
-        disabledReason={disabledReason}
+        disabledReason={disabledReason ?? (agentBusy ? "Wait for the current reply to finish" : undefined)}
         aria-busy={sending || undefined}
         onClick={() => void send()}
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M3 9h11M10 5l4 4-4 4" />
+          <path d="M9 15V3M4 8l5-5 5 5" />
         </svg>
       </Button>
     </div>

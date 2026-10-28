@@ -21,7 +21,9 @@ newer than the one it ranked against.
 
 ## Behaviour
 
-- Search the category, fetch history for each match, score on category match, past orders and on-time rate.
+- Search the category, fetch history for each match, then score with a fixed rubric: 20 for approved-list presence,
+  up to 50 from past POs in the category (5 each), up to 30 from on-time % on those POs (30% of the percentage). Store
+  `points_asl`, `points_history`, `points_delivery`, and `score` on each row; the verifier checks the sum.
 - No prices: the ERP tools return none, and the ceiling would strip them anyway.
 - Every row carries `sources`: the receipt refs of the `search_suppliers` and `get_supplier_history` calls it used.
 - "Why is X second?" in an assist turn is answered from the saved `supplier_list` and its sources; the assist
@@ -41,7 +43,9 @@ REWORK otherwise, naming the rows.
 ## Fake model script `happy`
 
 `search_suppliers {category}` → `get_supplier_history` × 5 → `save_draft` supplier_list (5 rows, Najd 88, Al Noor 81,
-Desert Clean 77, Gulf Janitorial 64, Riyadh Facility Mart 58) → finish.
+Desert Clean 77, Gulf Janitorial 64, Riyadh Facility Mart 58) → finish. The script can't know receipt refs in
+advance: a source written `{{receipt:TOOL}}` or `{{receipt:TOOL:TEXT}}` is filled in by the fake model with the ref of
+the latest TOOL result whose arguments contain TEXT.
 
 ## Evals and tests
 

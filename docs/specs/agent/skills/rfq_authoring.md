@@ -58,6 +58,11 @@ ERP email, the instance's `conversation_id`, and the body hash of the approved v
 includes the brief's budget figure from the script (the script has it; the envelope doesn't) → `leak_check` REWORK →
 attempt 2 runs `happy`.
 
+The scripts are named for the template (`rfq_draft.happy`, `rfq_draft.leak`), since `rfq_send` runs the same Skill.
+In M2 they only `save_draft` (key = supplier_id) and finish: `leak_check_diff` needs the gateway's builtin
+tool transport and `draft_message` needs the job's mailbox conversation (both M3). Until the `seed_budget_leak`
+switch exists (M3), the worker runs `leak` when `AOS_FAKE_SCENARIO=leak`.
+
 ## Evals and tests
 
 - Behavioral (M4): emails contain item, quantity, specification, delivery date and site, reply deadline; nothing else

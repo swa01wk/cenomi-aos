@@ -1,0 +1,41 @@
+.wrap {
+  max-width: 420px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0 12px;
+}
+
+.summary {
+  cursor: pointer;
+  padding: 10px 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.wrap[open] .summary::before {
+  transform: rotate(90deg);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.list > div {
+  border-color: var(--line);
+  background: var(--canvas);
+}

@@ -261,18 +261,21 @@ async def claim_next_attempt(
     worker_id: str,
     lanes: list[str],
     lease_seconds: float,
+    attempt_id: str | None = None,
 ) -> dict[str, Any] | None:
+    """Claim the oldest admitted attempt in the lanes, or only ``attempt_id`` when given (simulations)."""
+    only = " and a.id = %s" if attempt_id else ""
     cur = await conn.execute(
         "select a.id, a.task_id, a.n, a.fencing_token, a.turn_id, a.resume,"
         " t.instance_id, t.kind, t.contract"
         " from work.attempts a"
         " join work.tasks t on t.id = a.task_id"
         " join work.instances i on i.id = t.instance_id"
-        " where a.state = 'ADMITTED' and i.org_id = %s and t.kind = any(%s)"
+        f" where a.state = 'ADMITTED' and i.org_id = %s and t.kind = any(%s){only}"
         " order by a.admitted_at"
         " for update of a skip locked"
         " limit 1",
-        (org_id, lanes),
+        (org_id, lanes, attempt_id) if attempt_id else (org_id, lanes),
     )
     row = await cur.fetchone()
     if row is None:

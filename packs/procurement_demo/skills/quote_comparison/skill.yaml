@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Skill
-metadata: {name: quote_comparison, version: 1, owner: head_of_procurement}
+metadata: {name: quote_comparison, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis, record_update]
   instructions: instructions.md
@@ -10,3 +10,10 @@ spec:
   produces: [comparison, po_payload]
   may_request: [price_calculator, create_po, find_po]
   verifiers: [score_recompute]
+  runs:
+    analysis:
+      classification_ceiling: restricted
+      budget: {tokens: 40000, cost_usd: 1.00, time_s: 300, steps: 8, actions: 8, retries: 2}
+    record_update:
+      classification_ceiling: restricted
+      budget: {tokens: 30000, cost_usd: 0.80, time_s: 300, steps: 6, actions: 6, retries: 2}

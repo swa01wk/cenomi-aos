@@ -36,6 +36,9 @@ test: ## run all backend tests (Postgres tests skip if no local Postgres)
 validate: ## aos validate the demo pack against the seeded organization
 	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli validate ../$(PACK) --org ../$(ORG)
 
+sync-pack: ## sync on-disk pack into Postgres, publish it, and repoint seats (after pack.yaml version bumps)
+	bash scripts/sync-pack.sh
+
 api-types: ## regenerate the web API types from openapi.yaml; fails if the committed file is out of date (as CI does)
 	cd web && npm run --silent gen:api && git diff --exit-code -- src/api/schema.d.ts
 
@@ -55,7 +58,8 @@ smoke-real: ## real-model smoke tests (needs OPENAI_API_KEY, OPENAI_MODEL and bo
 		tests.test_worker_models.RealModelSmokeTests tests.test_request_intake_assist.RequestIntakeRealModelSmoke
 
 db: ## start only Postgres (for make test and make dev-api on a laptop)
-	$(COMPOSE) up -d --wait postgres
+	@# Postgres doesn't need the worker token, but Compose interpolates the whole file.
+	AOS_WORKER_TOKEN=$${AOS_WORKER_TOKEN:-unused} $(COMPOSE) up -d --wait postgres
 
 up: ## build and start the stack (mints a worker token into .env if missing); waits until healthy
 	@bash scripts/dev-worker-token.sh --if-missing

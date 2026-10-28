@@ -7,14 +7,15 @@ import type { Problem } from "../api/problems";
 import { Button, EmptyState, ProblemNotice } from "../components";
 import { newClientTurnId } from "../components/clientTurnId";
 import { invalidateWorkspaceLists, useDigitalWorkers, workspaceKeys } from "./useWorkspaceQueries";
+import { SparkleIcon } from "./icons";
 import styles from "./newJob.module.css";
+
+const EXAMPLE_NEED = `e.g. I need 100 MacBook M4 laptops (13-inch, 8GB, 256GB, Space Grey) with Arabic keyboards, delivered to Al Nakheel Mall by 20 December.`;
 
 export default function NewJobPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workers = useDigitalWorkers();
-  const [seat, setSeat] = useState<string>("");
-  const [workflow, setWorkflow] = useState<string>("");
   const [need, setNeed] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -22,22 +23,29 @@ export default function NewJobPage() {
 
   const activeWorkers = workers.data?.filter((w) => w.state === "ACTIVE") ?? [];
 
-  const workflows = useMemo(() => {
-    const w = activeWorkers.find((x) => x.seat === seat);
-    return w?.workflows ?? [];
-  }, [activeWorkers, seat]);
-
-  const selectedWorkflow = workflows.find((w) => w.name === workflow);
+  const startTarget = useMemo(() => {
+    for (const w of activeWorkers) {
+      const wf = w.workflows[0];
+      if (wf) {
+        return { seat: w.seat, workflow: wf.name, worker: w };
+      }
+    }
+    return null;
+  }, [activeWorkers]);
 
   const start = async () => {
-    if (!seat || !workflow || !need.trim() || busy) return;
+    if (!startTarget || !need.trim() || busy) return;
     if (!idempotencyRef.current) idempotencyRef.current = newClientTurnId();
     setBusy(true);
     setProblem(null);
     try {
       const { data, error } = await client.POST("/instances", {
         params: { header: { "Idempotency-Key": idempotencyRef.current } },
-        body: { seat, workflow, first_message: need.trim() },
+        body: {
+          seat: startTarget.seat,
+          workflow: startTarget.workflow,
+          first_message: need.trim(),
+        },
       });
       if (error) throw error;
       if (!data) throw new Error("No snapshot returned");
@@ -62,89 +70,89 @@ export default function NewJobPage() {
 
   if (workers.isLoading) return <p className="muted">Loading digital workers…</p>;
 
-  if (!activeWorkers.length) {
+  if (!activeWorkers.length || !startTarget) {
     return (
       <EmptyState
         title="No digital worker available"
-        nextStep="When a Seat is active for your area, it appears here and you can start the workflows it offers."
+        nextStep="When a Seat is active for your area, you can start a new request here."
       />
     );
   }
 
+  const greeter = startTarget.worker;
+
   return (
     <div className={styles.layout}>
       <section aria-label="Start a job" className={styles.main}>
-        <div>
-          <h1>What do you need?</h1>
-          <p className="sub">
-            Pick a workflow, then describe the need in your own words. The digital worker asks for anything missing.
+        <div className={styles.hero}>
+          <span className={styles.heroMark} aria-hidden="true">
+            <SparkleIcon size={28} />
+          </span>
+          <span className={styles.hello}>Hi, I&apos;m your {greeter.display_name}.</span>
+          <h1 className={styles.heroTitle}>
+            What do you <span className={styles.heroAccent}>need</span>?
+          </h1>
+          <p className={styles.heroSub}>
+            Describe the request in your own words. I&apos;ll ask for anything missing and take it from there.
           </p>
         </div>
 
-        <fieldset className={styles.workflows}>
-          <legend style={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}>Workflow</legend>
-          {activeWorkers.map((w) =>
-            w.workflows.map((wf) => {
-              const selected = seat === w.seat && workflow === wf.name;
-              return (
-                <label key={`${w.seat}-${wf.name}`} className={selected ? styles.cardSelected : styles.card}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="radio"
-                      name="workflow"
-                      checked={selected}
-                      onChange={() => {
-                        setSeat(w.seat);
-                        setWorkflow(wf.name);
-                      }}
-                    />
-                    <span style={{ fontWeight: 600 }}>{wf.title}</span>
-                  </span>
-                  <span className="sub" style={{ fontSize: 13 }}>
-                    {wf.description}
-                  </span>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {w.display_name}
-                  </span>
-                </label>
-              );
-            }),
-          )}
-        </fieldset>
-
         <div className={styles.need}>
-          <label htmlFor="need-text">Describe the need</label>
-          <textarea
-            id="need-text"
-            rows={4}
-            maxLength={4000}
-            value={need}
-            onChange={(e) => setNeed(e.target.value)}
-          />
-          <div className={styles.actions}>
-            <Button variant="primary" disabledReason={!seat || !workflow || !need.trim() ? "Describe the need first" : busy ? "Starting…" : undefined} onClick={() => void start()}>
+          <label htmlFor="need-text" className={styles.needLabel}>
+            Your request
+          </label>
+          <div className={styles.needBox}>
+            <textarea
+              id="need-text"
+              className={styles.needInput}
+              rows={4}
+              maxLength={4000}
+              value={need}
+              placeholder={EXAMPLE_NEED}
+              autoFocus
+              aria-describedby="need-example-hint"
+              onChange={(e) => setNeed(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void start();
+              }}
+            />
+            <Button
+              variant="primary"
+              disabledReason={!need.trim() ? "Describe the need first" : busy ? "Starting…" : undefined}
+              onClick={() => void start()}
+            >
               Start
             </Button>
           </div>
+          <p id="need-example-hint" className={styles.needHint}>
+            Replace the example with your own item, quantity, location and deadline.
+          </p>
         </div>
         {problem && <ProblemNotice problem={problem} />}
       </section>
 
-      {selectedWorkflow && (
-        <aside aria-label="How this workflow works" className={styles.aside}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>How it works</h2>
-          <p className="sub" style={{ fontSize: 13 }}>
-            {selectedWorkflow.description}
+      <aside aria-label="How a new job works" className={styles.aside}>
+        <header className={styles.asideHead}>
+          <div>
+            <div className="eyebrow">Work in progress</div>
+            <div className={styles.asideTitle}>Your request</div>
+          </div>
+          <span className="pill">Empty</span>
+        </header>
+        <div className={styles.asideBody}>
+          <p className={styles.asideLead}>
+            After you start, this panel fills with documents the digital worker saves: briefs, ranked lists, outbound
+            messages, comparisons, and more.
           </p>
           <div className={styles.asideBox}>
-            <span style={{ fontWeight: 500 }}>What you&apos;ll see</span>
-            <span className="sub" style={{ fontSize: 13 }}>
-              Progress through each stage and the documents the worker saves for you. Details you cannot see stay with
-              other roles.
+            <span style={{ fontWeight: 700 }}>What you&apos;ll see</span>
+            <span>
+              Progress through each stage and the artifacts for your role. Details meant for other participants stay
+              with them.
             </span>
           </div>
-        </aside>
-      )}
+        </div>
+      </aside>
     </div>
   );
 }

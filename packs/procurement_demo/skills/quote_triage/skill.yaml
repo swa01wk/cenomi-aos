@@ -1,6 +1,6 @@
 apiVersion: aos/v1
 kind: Skill
-metadata: {name: quote_triage, version: 1, owner: head_of_procurement}
+metadata: {name: quote_triage, version: 2, owner: head_of_procurement}
 spec:
   work_types: [analysis]
   instructions: instructions.md

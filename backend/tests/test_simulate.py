@@ -9,12 +9,14 @@ import sys
 import tempfile
 import unittest
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
 
+from aos import sim_worker
 from aos.cli import main as cli_main
-from aos.kernel import ids, registry_store, simulate, workflow
+from aos.kernel import clock, ids, registry_store, simulate, workflow
 from aos.kernel.events import raise_inbound_event
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.seats import insert_seats_for_published_pack
@@ -160,13 +162,13 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
             except simulate.SimulationRollback as exc:
                 templates = exc.report["templates"]
         counts = Counter(templates)
-        self.assertEqual(counts["supplier_lookup"], 1)
+        self.assertEqual(counts["supplier_lookup"], 2, "the requester's answer changes the brief after the first ranking")
         self.assertEqual(counts["rfq_draft"], 1)
         self.assertEqual(counts["rfq_send"], 1)
         self.assertEqual(counts["quote_comparison"], 1)
         self.assertEqual(counts["po_create"], 1)
         self.assertEqual(counts["quote_triage"], 2)
-        self.assertNotIn("request_intake", counts)
+        self.assertEqual(counts["request_intake"], 1)
 
     async def test_simulate_pack_version_matches(self) -> None:
         from psycopg_pool import AsyncConnectionPool
@@ -201,6 +203,64 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
             except simulate.SimulationRollback as exc:
                 direct = exc.report
         self.assertEqual(api_report, direct)
+
+    async def test_dry_run_through_the_fake_model_with_verifiers(self) -> None:
+        _pg.require_runtime_extra()
+        clock.set_frozen_wall(datetime(2026, 10, 21, 9, 0, tzinfo=UTC))
+        self.addCleanup(clock.set_frozen_wall, None)
+        before = await self._baseline_counts()
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            try:
+                async with conn.transaction():
+                    report = await simulate.run_simulation(
+                        conn,
+                        ORG,
+                        org_id=ORG_ID,
+                        pack_version_id=self.pack_version_id,
+                        workflow_name=WORKFLOW,
+                        script_name="dry_run_script",
+                        packs_dir=self.packs_dir,
+                        run_attempt=sim_worker.run_attempt,
+                    )
+                    cur = await conn.execute(
+                        "select a.artifact_type, a.key, v.version, v.verification->>'verifier',"
+                        " v.verification->>'verdict' from work.artifacts a join work.artifact_versions v"
+                        " on v.artifact_id = a.id and v.version = a.latest_version"
+                        " where a.instance_id like 'QQ-SIM-%' and a.artifact_type in"
+                        " ('brief', 'supplier_list', 'rfq_email') order by a.artifact_type, a.key"
+                    )
+                    outputs = [tuple(r) for r in await cur.fetchall()]
+                    cur = await conn.execute(
+                        "select t.template, count(*) from work.attempts a join work.tasks t on t.id = a.task_id"
+                        " where t.instance_id like 'QQ-SIM-%%' and a.worker_id = %s group by t.template"
+                        " order by t.template",
+                        (sim_worker.WORKER_ID,),
+                    )
+                    graph_runs = dict(await cur.fetchall())
+                    raise simulate.SimulationRollback({**report, "outputs": outputs, "graph_runs": graph_runs})
+            except simulate.SimulationRollback as exc:
+                report = exc.report
+        self.assertEqual(await self._baseline_counts(), before)
+        self.assertEqual(report["reached"], "closed")
+        self.assertEqual(report["path"], EXPECTED_PATH)
+        self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS)
+        self.assertEqual(
+            report["graph_runs"],
+            {"request_intake": 2, "rfq_draft": 1, "supplier_lookup": 2},
+            "Tasks with a script ran through the graphs: the intake asked once and resumed on the answer, and the"
+            " search ranked again against the brief the answer changed",
+        )
+        self.assertEqual(
+            [o for o in report["outputs"] if o[3]],
+            [
+                ("brief", "", 2, "brief_schema", "PASS"),
+                ("rfq_email", "SUP-10217", 1, "leak_check", "PASS"),
+                ("rfq_email", "SUP-10355", 1, "leak_check", "PASS"),
+                ("rfq_email", "SUP-10482", 1, "leak_check", "PASS"),
+                ("supplier_list", "", 2, "sources_cited", "PASS"),
+            ],
+            "every graph-made output passed its verifier; the send Task (no script yet) left a stub draft",
+        )
 
     def test_cli_simulate_reaches_closed(self) -> None:
         # AOS_DATABASE_URL is what Settings reads; with the wrong name the CLI fell back to the default database

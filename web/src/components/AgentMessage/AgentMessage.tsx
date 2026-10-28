@@ -17,11 +17,17 @@ export function AgentMessage({
   onOpenArtifact,
   onOpenSource,
   decisionHref,
+  avatar,
+  renderPending,
 }: {
   turn: Turn;
   onOpenArtifact?: (artifactId: string, version: number) => void;
   onOpenSource?: (sourceRef: string) => void;
   decisionHref?: (decisionId: string) => string | undefined;
+  /** Replaces the author's initials, e.g. with the shell's Seat mark. */
+  avatar?: ReactNode;
+  /** Renders an open decision in place of a pending_ref block. */
+  renderPending?: (pendingId: string) => ReactNode;
 }) {
   const body: ReactNode[] = [];
   let chipRun: ChipBlockData[] = [];
@@ -52,6 +58,7 @@ export function AgentMessage({
         onOpenArtifact={onOpenArtifact}
         onOpenSource={onOpenSource}
         decisionHref={decisionHref}
+        renderPending={renderPending}
       />,
     );
   });
@@ -59,9 +66,11 @@ export function AgentMessage({
 
   return (
     <div className={styles.row}>
-      <span className={styles.avatar} aria-hidden="true">
-        {initials(turn.author.name)}
-      </span>
+      {avatar ?? (
+        <span className={styles.avatar} aria-hidden="true">
+          {initials(turn.author.name)}
+        </span>
+      )}
       <div className={styles.body}>{body}</div>
     </div>
   );
@@ -87,11 +96,13 @@ function BlockView({
   onOpenArtifact,
   onOpenSource,
   decisionHref,
+  renderPending,
 }: {
   block: Block;
   onOpenArtifact?: (artifactId: string, version: number) => void;
   onOpenSource?: (sourceRef: string) => void;
   decisionHref?: (decisionId: string) => string | undefined;
+  renderPending?: (pendingId: string) => ReactNode;
 }) {
   switch (block.kind) {
     case "text":
@@ -107,12 +118,7 @@ function BlockView({
     case "source_chip":
       return <SourceChip block={block} onOpen={onOpenSource} />;
     case "pending_ref":
-      // M2 renders the pending item (DecisionCard) here.
-      return (
-        <span className={styles.pending} data-testid="pending-ref-placeholder">
-          Waiting for input…
-        </span>
-      );
+      return <>{renderPending?.(block.pending_id) ?? null}</>;
     case "refusal":
       return (
         <RefusalNotice

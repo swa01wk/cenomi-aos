@@ -1,36 +1,146 @@
 .jobLayout {
   display: flex;
   flex-wrap: wrap;
-  margin: calc(-1 * var(--space-32)) calc(-1 * var(--space-40));
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Side by side: two equal columns that clip wide tables instead of overlapping chat. */
+@media (min-width: 1080px) {
+  .jobLayout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    flex-wrap: nowrap;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .conversation,
+  .workPanel {
+    height: 100vh;
+    max-height: 100vh;
+  }
+
+  .workPanel {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }
 
 .conversation {
-  flex: 999 1 480px;
+  flex: 999 1 440px;
   min-width: 0;
+  min-height: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--line);
   background: var(--canvas);
+  overflow-x: hidden;
 }
 
 .convHeader {
-  padding: var(--space-18) var(--space-28);
-  background: var(--panel);
+  flex-shrink: 0;
+  padding: 16px 28px 14px;
   border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: var(--space-12);
+  gap: 10px;
+}
+
+.convMeta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.convTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.convTitleRow h1 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.stageBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-soft-2);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.stageBadge_complete {
+  background: color-mix(in srgb, var(--accent-line) 22%, var(--panel));
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--accent-line) 45%, var(--line));
+}
+
+.progress {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segment {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--track);
+}
+
+.segment_done {
+  background: var(--accent-line);
+}
+
+.segment_current {
+  background: var(--accent);
+}
+
+.progress_allComplete .segment {
+  background: var(--accent-line);
+}
+
+.convHeader_closed {
+  border-bottom-color: color-mix(in srgb, var(--accent-line) 25%, var(--line));
+}
+
+.closedFooter {
+  flex-shrink: 0;
+  margin: 0 28px 20px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: center;
 }
 
 .turns {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: var(--space-24) var(--space-28);
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-20);
-  min-height: 280px;
+  gap: 18px;
+}
+
+.turns > :first-child {
+  margin-top: auto;
 }
 
 .agentBlock {
@@ -41,67 +151,291 @@
 
 .agentStream {
   display: flex;
+  gap: 12px;
+}
+
+.agentStreamBody {
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  padding-top: 3px;
 }
 
 .composerWrap {
-  padding: var(--space-16) var(--space-28) var(--space-20);
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+  padding: 0 28px 20px;
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+.workPanel_closed {
+  box-shadow: inset 4px 0 0 var(--accent-line);
 }
 
 .workPanel {
-  flex: 1 1 400px;
+  flex: 1 1 560px;
   min-width: 0;
-  background: var(--panel);
+  max-width: 100%;
+  background: var(--panel-2);
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 320px;
+  overflow: hidden;
 }
 
-.workMeta {
+.workHead {
+  padding: 16px 24px;
+  background: var(--panel);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-12) var(--space-20);
+  justify-content: space-between;
+  gap: 8px 12px;
   border-bottom: 1px solid var(--line);
 }
 
-.workTabs {
+.workTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.workBadges {
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-12) var(--space-16) 0;
-  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.workTab {
-  padding: var(--space-10) var(--space-12);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font: inherit;
-  color: var(--ink-2);
-  cursor: pointer;
-  min-height: 44px;
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--ok-soft);
+  color: var(--ok);
+  white-space: nowrap;
 }
 
-.workTab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
+.versionBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok-dot);
+}
+
+.versionSelect {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-input);
+  background: var(--panel);
   color: var(--ink);
-  font-weight: 500;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.workBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  animation: workPanelFade 0.32s ease-out;
+}
+
+@keyframes workPanelFade {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workBody {
+    animation: none;
+  }
+}
+
+.workByline {
+  padding: 12px 24px 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.workEmpty {
+  margin: 0;
+  padding: 24px;
+  color: var(--ink-2);
+}
+
+.workFoot {
+  margin-top: auto;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--panel);
+}
+
+.workPanelComposerGlow {
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.workTabsWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.workComposerHint {
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
+  animation: workComposerHintIn 420ms ease-out;
+}
+
+@keyframes workComposerHintIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workComposerHintText {
+  margin: 0;
+  flex: 1 1 200px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.workComposerHintActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.workComposerHintDismiss {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.workComposerHintDismiss:hover {
+  color: var(--ink);
+  background: var(--accent-soft-2);
+}
+
+.workSendRfqs {
+  margin: 10px 16px 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workSendRfqsText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.workSendRfqsError {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.workLivePreview {
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+}
+
+.workPanelStageGuide {
+  margin: 10px 16px 0;
+}
+
+.workPanelStageGuide > div {
+  margin: 0;
+}
+
+.workPanelStageGuideLive {
+  position: relative;
+  z-index: 1;
+}
+
+.workTabsWrapLive {
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.pendingInThread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+
+.workComposerTab {
+  position: relative;
+  box-shadow: inset 0 -3px 0 var(--accent);
+  animation: workComposerTabPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes workComposerTabPulse {
+  0%,
+  100% {
+    background: var(--panel);
+  }
+  50% {
+    background: var(--accent-soft);
+  }
 }
 
 @media (max-width: 720px) {
-  .jobLayout {
-    margin: 0;
-  }
-  .conversation {
-    border-right: none;
+  .workPanel {
+    border-left: none;
+    border-top: 1px solid var(--line);
   }
 }

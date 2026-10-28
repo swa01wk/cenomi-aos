@@ -1,7 +1,7 @@
 .text {
-  font-size: 13px;
   white-space: pre-wrap;
   margin: 0;
+  line-height: 1.45;
 }
 
 .caret {

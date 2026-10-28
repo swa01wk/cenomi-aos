@@ -236,8 +236,8 @@ def envelope_content_hash(projected: dict[str, Any]) -> str:
     return str(projected["content_hash"])
 
 
-def envelope_artifact_item(projected: dict[str, Any], *, status: str) -> dict[str, Any]:
-    return {
+def envelope_artifact_item(projected: dict[str, Any], *, status: str, key: str = "") -> dict[str, Any]:
+    item = {
         "artifact_type": projected["artifact_type"],
         "artifact_id": projected["artifact_id"],
         "version": int(projected["version"]),
@@ -245,6 +245,9 @@ def envelope_artifact_item(projected: dict[str, Any], *, status: str) -> dict[st
         "status": status,
         "content": projected["content"],
     }
+    if key:
+        item["key"] = key
+    return item
 
 
 _ENVELOPE_ARTIFACT_STATUSES = frozenset({"draft", "final", "locked"})
@@ -349,6 +352,8 @@ def build_artifact_view(type_spec: ArtifactTypeSpec, allowed: set[str]) -> dict[
     out: dict[str, Any] = {"type": view.type, "fields": fields}
     if columns:
         out["columns"] = columns
+    if type_spec.row_key and type_spec.row_key in allowed:
+        out["row_key"] = type_spec.row_key
     if view.export is not None:
         out["export"] = view.export
     return out
@@ -688,14 +693,33 @@ async def save_draft_from_attempt(
         )
     content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
     artifact_id = body.get("artifact_id")
-    key = body.get("key") or ""
+    key = str(body.get("key") or "")
     base_version = body.get("base_version")
     inputs = body.get("inputs") or []
     sources = body.get("sources") or []
+    item_key = at.spec.item_key
+    if item_key:
+        item = content.get(item_key)
+        if not key or (item is not None and str(item) != key):
+            raise ArtifactError(
+                "validation_failed",
+                422,
+                "Draft key is invalid",
+                f"Each {artifact_type} draft needs key equal to its {item_key}.",
+                errors=[{"pointer": "/key", "message": f"must equal content.{item_key}"}],
+            )
+    elif key:
+        raise ArtifactError(
+            "validation_failed",
+            422,
+            "Draft key is invalid",
+            f"{artifact_type} keeps one draft per job; send no key.",
+            errors=[{"pointer": "/key", "message": "must be empty"}],
+        )
 
     if artifact_id:
         cur = await conn.execute(
-            "select a.id, a.instance_id, a.latest_version, a.artifact_type, a.name"
+            "select a.id, a.instance_id, a.latest_version, a.artifact_type, a.name, a.key"
             " from work.artifacts a where a.id = %s for update",
             (artifact_id,),
         )
@@ -706,6 +730,8 @@ async def save_draft_from_attempt(
             raise ArtifactError("not_permitted", 403, "Wrong job", "Artifact belongs to another job.")
         if row[3] != artifact_type:
             raise ArtifactError("validation_failed", 422, "Type mismatch", "artifact_id does not match artifact_type.")
+        if str(row[5] or "") != key:
+            raise ArtifactError("validation_failed", 422, "Key mismatch", "artifact_id does not match key.")
         latest = int(row[2])
         if base_version is not None and int(base_version) != latest:
             raise ArtifactError(
@@ -740,7 +766,8 @@ async def save_draft_from_attempt(
             new_version = latest + 1
         else:
             artifact_id = ids.new_artifact_id()
-            name = str(content.get("title") or artifact_type.replace("_", " ").title())
+            type_name = artifact_type.replace("_", " ").title()
+            name = str(content.get("title") or (f"{type_name} {key}" if key else type_name))
             await conn.execute(
                 "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
                 " values (%s, %s, %s, %s, %s, 'draft', 0)",

@@ -193,6 +193,39 @@ async def _validate_outputs(
             )
 
 
+async def _record_verification(
+    conn: AsyncConnection,
+    *,
+    gate: ClaimedAttempt,
+    refs: list[dict[str, Any]],
+    verifier_doc: dict[str, Any],
+) -> None:
+    """Stamp the verdict on each output version and tell the reviewing role (and the Console)."""
+    verification = {
+        "verifier": verifier_doc["name"],
+        "verdict": verifier_doc["verdict"],
+        "findings": list(verifier_doc["findings"]),
+    }
+    for ref in refs:
+        await conn.execute(
+            "update work.artifact_versions set verification = %s where artifact_id = %s and version = %s",
+            (Jsonb(verification), ref["artifact_id"], int(ref["version"])),
+        )
+    role = (gate.contract.get("on_behalf_of") or {}).get("role")
+    await append_outbox_many(
+        conn,
+        [
+            OutboxRow(
+                stream=ids.stream_instance(gate.instance_id),
+                event_type="verification.completed",
+                instance_id=gate.instance_id,
+                audience={"roles": [str(role)]} if role else {},
+                data={"instance_id": gate.instance_id, "task_id": gate.task_id, **verification},
+            )
+        ],
+    )
+
+
 async def _finish_submit(
     conn: AsyncConnection,
     *,
@@ -532,6 +565,8 @@ async def submit_result(
     )
     if isinstance(finished, CommittedFenced):
         return finished
+    if verifier_doc is not None:
+        await _record_verification(conn, gate=gate, refs=refs, verifier_doc=verifier_doc)
     if gate.kind != "assist" and task_to == "COMPLETED":
         from . import events as workflow_events
 
