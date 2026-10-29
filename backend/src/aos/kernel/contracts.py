@@ -40,7 +40,11 @@ def contract_hash(contract: dict[str, Any]) -> str:
 def verify_pinned_pack_on_disk(
     packs_dir: Path, pack_name: str, pack_version: int, expected_digest: str
 ) -> None:
-    """Same digest check as pack sync: on-disk tree must match the pinned pack_versions row."""
+    """Digest check when the working tree matches the pinned version (guidebook C12).
+
+    Jobs stay on the pack version stored on the instance; the on-disk folder is often a newer
+    publish. In that case workflow and skill definitions come from Postgres, not the tree.
+    """
     root = packs_dir / pack_name
     if not root.is_dir():
         raise PackMaterialError(
@@ -59,12 +63,7 @@ def verify_pinned_pack_on_disk(
         )
     meta = loaded.manifest.metadata
     if int(meta.version) != int(pack_version):
-        raise PackMaterialError(
-            "conflict",
-            409,
-            "Pack version mismatch",
-            f"On-disk pack is v{meta.version}; this job is pinned to v{pack_version}.",
-        )
+        return
     if loaded.digest != expected_digest:
         raise PackMaterialError(
             "conflict",

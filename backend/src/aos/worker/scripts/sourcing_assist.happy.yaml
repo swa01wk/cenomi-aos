@@ -1,0 +1,12 @@
+turns:
+  - stream_chunks:
+      - "Got it — "
+      - "20 laptops, noted. "
+      - "I'll help you shape this when you're ready. "
+      - "Anything else you want to add, or should we keep it simple for now?"
+    reply_text: >-
+      Got it — 20 laptops, noted. I'll help you shape this when you're ready. Anything else you want to add, or should
+      we keep it simple for now?
+    usage:
+      tokens_in: 32
+      tokens_out: 36

@@ -222,6 +222,36 @@ async def heal_discovery_region_after_lookup(
     return True
 
 
+async def heal_intake_brief_ready(
+    conn: AsyncConnection,
+    instance_id: str,
+    definition: WorkflowDefinition,
+) -> bool:
+    """Brief draft exists but request_intake never completed — close the task so confirm can open."""
+    intake = definition.spec.states.get("intake")
+    if intake is None or not intake.view:
+        return False
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    if row is None or str(row[0]) != "intake":
+        return False
+    tcur = await conn.execute(
+        "select id, state from work.tasks where instance_id = %s and template = 'request_intake' limit 1",
+        (instance_id,),
+    )
+    trow = await tcur.fetchone()
+    if trow is None or str(trow[1]) == "COMPLETED":
+        return False
+    bound = await _latest_view_artifact(conn, instance_id, str(intake.view))
+    if bound is None or int(bound[1]) < 1:
+        return False
+    await conn.execute(
+        "update work.tasks set state = 'COMPLETED', updated_at = now() where id = %s",
+        (str(trow[0]),),
+    )
+    return True
+
+
 async def heal_stale_outbound_send_retry(conn: AsyncConnection, instance_id: str) -> bool:
     """Work-panel send replaces a failed outbound-send task; drop a stale retry card."""
     cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
@@ -395,6 +425,7 @@ async def open_ready_decisions(
     _org_id, _wf_name, definition, _defs = await _load_workflow(conn, instance_id)
     await heal_discovery_region_after_lookup(conn, instance_id, definition)
     await heal_stale_outbound_send_retry(conn, instance_id)
+    await heal_intake_brief_ready(conn, instance_id, definition)
     from . import regions as region_ops
     opened: list[str] = []
     ts = clock.now()

@@ -134,11 +134,15 @@ export function useJobPage(instanceId: string) {
 
   const toolActivityForStream = useMemo((): ToolActivity | undefined => {
     const snap = snapshotQuery.data;
-    const turn = streamingTurnId ? snap?.turns.find((t) => t.turn_id === streamingTurnId) : undefined;
+    const activeTurnId = streamingTurnId ?? awaitingTurn?.turn_id ?? null;
+    if (!activeTurnId || !snap) return undefined;
+    const turn = snap.turns.find((t) => t.turn_id === activeTurnId);
     const attemptId = turn?.attempt_id;
-    if (attemptId) return aux.toolActivityByAttempt.get(attemptId);
-    return aux.toolActivityByAttempt.values().next().value;
-  }, [aux.toolActivityByAttempt, snapshotQuery.data, streamingTurnId, auxVersion]);
+    if (!attemptId) return undefined;
+    const activity = aux.toolActivityByAttempt.get(attemptId);
+    if (!activity || activity.state === "completed") return undefined;
+    return activity;
+  }, [aux.toolActivityByAttempt, snapshotQuery.data, streamingTurnId, awaitingTurn, auxVersion]);
 
   const loadOlderTurns = useCallback(async () => {
     const snap = snapshotQuery.data;

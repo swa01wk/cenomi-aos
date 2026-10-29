@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { TEST_SNAPSHOT_SHELL } from "../testJobFixtures";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import { emptyJobStreamAux, markStages, reduceJobStreamEvent } from "./jobStreamReducer";
 
 function baseSnapshot(): InstanceSnapshot {
   return {
+    ...TEST_SNAPSHOT_SHELL,
     instance_id: "inst-1",
     title: "Job",
     workflow: "wf",

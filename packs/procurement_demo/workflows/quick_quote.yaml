@@ -5,21 +5,28 @@ spec:
   title: Quick Quote
   id_prefix: QQ
   description: Find suppliers, collect quotes and raise a purchase order for a defined item.
+  intake_hints: [order, purchase, quote, laptop, equipment, supplies, delivery, furniture, service, need, buy]
   start_on: seat_ui.new_job
   start_roles: [requester]
   seat_role: sourcing_agent
-  initial: intake
+  initial: conversation
   participants:
     requester: {bind: at_creation, org_roles: [end_user, sourcing_user]}
     buyer: {bind: by_claim, queue: procurement/sourcing}
     procurement_approver: {bind: by_rule, rule: team_owner(procurement/procurement)}
   attributes:
+    repeat_from: string
     brief_version: int
     shortlist_count: int
     quote_count: int
     invited_count: int
     po_amount: {type: decimal, classification: restricted}
+    detail_signal: int
   events:
+    detail_ready:
+      on_attributes: [detail_signal]
+      when: "attr.detail_signal > 0"
+      once: true
     intent_identified:
       on_artifact: brief
       when: "size(artifact.category) > 0"
@@ -29,9 +36,12 @@ spec:
       when: "attr.invited_count > 0 && attr.quote_count >= attr.invited_count"
       once: true
   states:
+    conversation:
+      label: Chat
+      assist: sourcing_assist
     intake:
       label: Intake
-      assist: request_intake
+      assist: sourcing_assist
       view: brief
       tasks:
         - {template: request_intake, skill: request_intake, work_type: analysis, verifier: brief_schema, on_behalf_of: requester}
@@ -83,6 +93,7 @@ spec:
       join_at: shortlisting
       join_guard: same(brief_version)
   transitions:
+    - {from: conversation, to: intake, on: event.detail_ready}
     - {from: intake, to: shortlisting, on: decision.brief_confirmed, by: requester}
     - {from: shortlisting, to: rfq_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
     - {from: rfq_drafting, to: rfq_sending, on: task.completed.rfq_draft}

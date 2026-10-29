@@ -1,7 +1,8 @@
 .layout {
   display: flex;
   flex-wrap: wrap;
-  min-height: 100vh;
+  min-height: 100%;
+  height: 100%;
 }
 
 .main {
@@ -61,6 +62,7 @@
   margin: 0;
   max-width: 440px;
   color: var(--ink-2);
+  line-height: 1.55;
 }
 
 .need {
@@ -95,6 +97,7 @@
   margin: 0;
   font-size: 12px;
   color: var(--ink-3);
+  line-height: 1.45;
 }
 
 .needBox:focus-within {
@@ -124,58 +127,197 @@
   outline: none;
 }
 
+/* Right column: mirrors the job work panel before anything exists */
 .aside {
-  flex: 1 1 560px;
-  min-width: 0;
-  background: var(--panel);
+  flex: 1 1 400px;
+  min-width: 280px;
+  max-width: 520px;
+  background: var(--panel-2);
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .asideHead {
-  padding: 16px 24px;
+  padding: 20px 24px 16px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.asideHeadText {
+  min-width: 0;
+}
+
+.asideEyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 4px;
 }
 
 .asideTitle {
-  font-size: 17px;
+  margin: 0;
+  font-size: 18px;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.asideSubtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.asideBadge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  background: var(--canvas);
+  border: 1px solid var(--line);
 }
 
 .asideBody {
-  padding: 20px 24px;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.panelMock {
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.panelMockTabs {
+  display: flex;
+  gap: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.panelMockTab,
+.panelMockTabActive {
+  padding: 12px 0;
+  margin-right: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  border-bottom: 2px solid transparent;
+}
+
+.panelMockTabActive {
+  color: var(--accent-ink);
+  font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+.panelMockContent {
+  padding: 20px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panelMockLine {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--line) 0%, var(--canvas) 100%);
+}
+
+.panelMockLineShort {
+  width: 55%;
+}
+
+.asideLead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.stageList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.asideLead {
-  margin: 0;
-  color: var(--ink-2);
+.stageList li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.asideBox {
+.stageStep {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-2);
+}
+
+.stageList li div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--accent-soft);
-  border: 1px dashed var(--accent-line);
-  font-size: 13px;
-  color: var(--ink-2);
+  gap: 2px;
+  min-width: 0;
+}
+
+.stageName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.stageDetail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+@media (max-width: 900px) {
+  .aside {
+    max-width: none;
+    flex: 1 1 100%;
+  }
 }
 
 @media (max-width: 720px) {
   .aside {
     border-left: none;
     border-top: 1px solid var(--line);
+  }
+
+  .main {
+    min-height: auto;
+    padding-top: 28px;
   }
 }

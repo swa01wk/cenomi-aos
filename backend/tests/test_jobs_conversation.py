@@ -454,6 +454,57 @@ class JobsConversationTests(unittest.TestCase):
         self.assertEqual(r.status_code, 201, r.text)
         self.assertEqual(r.json()["instance_id"], "QQ-race")
 
+    def test_start_repeat_from_closed_job_seeds_intake_draft(self) -> None:
+        self._activate_seat()
+        r1 = self._start(message="First order for trolleys")
+        self.assertEqual(r1.status_code, 201, r1.text)
+        prior_id = r1.json()["instance_id"]
+        brief = {
+            "title": "Cleaning trolleys",
+            "category": "CAT-JAN-EQ",
+            "quantity": 40,
+            "specification": "Standard mall trolley",
+            "delivery_date": "2026-11-20",
+            "delivery_site": "Mall A",
+        }
+        import hashlib
+        import json as json_mod
+
+        from aos.kernel.contracts import _canonical_json
+
+        content_hash = hashlib.sha256(_canonical_json(brief)).hexdigest()
+        _pg.admin_sql(
+            self.db,
+            f"""
+            insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)
+            values ('art_brief_{prior_id}', '{prior_id}', 'brief', '', 'Brief', 'final', 1);
+            insert into work.artifact_versions (artifact_id, version, content, content_hash, produced_by_kind, produced_by)
+            values ('art_brief_{prior_id}', 1, '{json_mod.dumps(brief)}'::jsonb, '{content_hash}', 'person', 'faisal');
+            update work.instances set status = 'closed', state = 'closed' where id = '{prior_id}';
+            """,
+        )
+        r2 = self.client.post(
+            "/api/instances",
+            headers=self.login("faisal"),
+            json={
+                "seat": SEAT,
+                "workflow": WORKFLOW,
+                "first_message": "Same again, deliver by 1 Dec",
+                "repeat_from_instance_id": prior_id,
+            },
+        )
+        self.assertEqual(r2.status_code, 201, r2.text)
+        new_id = r2.json()["instance_id"]
+        attrs = _pg.admin_sql(
+            self.db, f"select attributes::text from work.instances where id = '{new_id}'"
+        ).stdout.strip()
+        self.assertIn(prior_id, attrs)
+        count = _pg.admin_sql(
+            self.db,
+            f"select count(*) from work.artifacts where instance_id = '{new_id}' and artifact_type = 'brief'",
+        ).stdout.strip()
+        self.assertEqual(count, "1")
+
     def test_start_refuses_when_pack_on_disk_drifts(self) -> None:
         self._activate_seat()
         instr = self.packs / "procurement_demo" / "skills" / "request_intake" / "instructions.md"

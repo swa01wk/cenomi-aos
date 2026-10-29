@@ -38,7 +38,7 @@ export function shouldAutoFocusWorkPanel(
   const target = recommendedWorkPanelArtifactId(snapshot);
   if (!target) return null;
   if (target === currentPanelId) return null;
-  if (userOverrodePanel && currentPanelId) return null;
+  if (userOverrodePanel) return null;
 
   const current = currentPanelId
     ? snapshot.artifacts.find((a) => a.artifact_id === currentPanelId)

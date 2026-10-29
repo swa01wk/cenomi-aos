@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { TEST_WORKFLOW } from "../testJobFixtures";
+import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
 import { jobStepGuide, stageGuideIsLive, stepGuideShowsWaitingDots } from "./stageGuideLogic";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
 function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "state">): InstanceSnapshot {
   return {
+    ...TEST_SNAPSHOT_SHELL,
     instance_id: "QQ-1",
     title: "Test",
     workflow: TEST_WORKFLOW,
@@ -99,9 +100,33 @@ describe("jobStepGuide", () => {
     expect(g && stageGuideIsLive(g, snapshot.state)).toBe(false);
   });
 
+  it("does not show a footer guide during chat-only workflow states", () => {
+    expect(jobStepGuide(snap({ state: "conversation" }), { agentBusy: false, openPendingForYou: 0 })).toBeNull();
+    expect(jobStepGuide(snap({ state: "chat" }), { agentBusy: false, openPendingForYou: 0 })).toBeNull();
+  });
+
+  it("guides intake toward brief review when a draft exists", () => {
+    const snapshot = snap({
+      state: "intake",
+      artifacts: [
+        {
+          artifact_id: "art_brief",
+          artifact_type: "brief",
+          name: "Brief",
+          latest_version: 1,
+          status: "draft",
+          view: { type: "form", fields: [] },
+        },
+      ],
+    });
+    const g = jobStepGuide(snapshot, { agentBusy: false, openPendingForYou: 0 });
+    expect(g?.kind).toBe("action");
+    expect(g?.title).toMatch(/Review your brief/i);
+  });
+
   it("shows waiting dots on progress and open wait guides, not when closed", () => {
-    const intake = jobStepGuide(snap({ state: "intake" }), { agentBusy: false, openPendingForYou: 0 });
-    expect(intake && stepGuideShowsWaitingDots(intake, "intake")).toBe(true);
+    const intakeBusy = jobStepGuide(snap({ state: "intake" }), { agentBusy: true, openPendingForYou: 0 });
+    expect(intakeBusy && stepGuideShowsWaitingDots(intakeBusy, "intake")).toBe(true);
     const waiting = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: false, openPendingForYou: 0 });
     expect(waiting && stepGuideShowsWaitingDots(waiting, "awaiting_quotes")).toBe(true);
     const closed = jobStepGuide(snap({ state: "closed" }), { agentBusy: false, openPendingForYou: 0 });

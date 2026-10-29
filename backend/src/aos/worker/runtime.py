@@ -52,15 +52,29 @@ def _attempt_kind(attempt: WorkerAttempt) -> str:
     return str(contract.get("kind") or "assist")
 
 
+def _assist_fake_script(attempt: WorkerAttempt) -> str:
+    """Pick a scripted reply for assist attempts: skill script, then env override, then generic stream."""
+    from .scripts_loader import SCRIPTS_DIR
+
+    contract = attempt.get("contract") if isinstance(attempt.get("contract"), dict) else {}
+    skill = str((contract.get("skill") or {}).get("name") or "")
+    scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"
+    if skill:
+        candidate = f"{skill}.{scenario}.yaml"
+        if (SCRIPTS_DIR / candidate).is_file():
+            return candidate
+    env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
+    if env_script:
+        return env_script
+    return "assist.stream.yaml"
+
+
 def _fake_script_name(attempt: WorkerAttempt, explicit: str | None) -> str:
     if explicit and explicit.strip():
         return explicit.strip()
     kind = _attempt_kind(attempt)
     if kind == "assist":
-        # AOS_FAKE_SCRIPT configures the chat (assist) attempts, as in M1. It never applies to workflow Tasks:
-        # .env sets it to the intake chat script, which a Task graph can't play.
-        env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
-        return env_script or "assist.stream.yaml"
+        return _assist_fake_script(attempt)
     skill = (contract.get("skill") or {}).get("name") if isinstance(contract := attempt.get("contract"), dict) else None
     skill = str(skill or "unknown")
     scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"
@@ -120,7 +134,7 @@ class FakeRuntime:
 
     async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
         from .fake_chat import chat_model_from_script
-        from .graph_runner import run_assist_graph, run_task_graph
+        from .graph_runner import run_attempt_graph, run_task_graph
         from .scripts_loader import load_fake_script
 
         script_name = _fake_script_name(attempt, self._script)
@@ -142,7 +156,7 @@ class FakeRuntime:
                 resolved=resolved,
                 adapter="fake",
             )
-        return await run_assist_graph(
+        return await run_attempt_graph(
             attempt=attempt,
             ctx=ctx,
             chat_model=model,
@@ -169,7 +183,7 @@ class LangGraphRuntime:
         return await self._run_graph(attempt, ctx, resolved)
 
     async def _run_graph(self, attempt: WorkerAttempt, ctx: AttemptContext, resolved) -> AgentResult:
-        from .graph_runner import run_assist_graph, run_task_graph
+        from .graph_runner import run_attempt_graph, run_task_graph
         from .models import build_chat_model
 
         contract = attempt.get("contract") or {}
@@ -186,7 +200,7 @@ class LangGraphRuntime:
                 resolved_model=self._resolved,
                 model_cfg=self._cfg,
             )
-        return await run_assist_graph(
+        return await run_attempt_graph(
             attempt=attempt,
             ctx=ctx,
             chat_model=model,

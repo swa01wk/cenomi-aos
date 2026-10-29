@@ -398,6 +398,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspace/intake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Start a job from a free-text request. The kernel picks seat and workflow from published intake hints on each workflow the caller may start, then runs the same admission path as startInstance. */
+        post: operations["startFromIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/inbox": {
         parameters: {
             query?: never;
@@ -1533,15 +1550,33 @@ export interface components {
             /** Format: date-time */
             finished_at?: string | null;
         };
+        ColleaguePersona: {
+            given_name: string;
+            family_name?: string;
+            title?: string;
+        };
+        JobAssignee: {
+            seat: string;
+            /** @description Full name shown in chat */
+            colleague_name: string;
+            /** @description Role line under the name */
+            title: string;
+            persona?: components["schemas"]["ColleaguePersona"];
+        };
         DigitalWorker: {
             seat: string;
             display_name: string;
+            colleague_name: string;
+            title: string;
+            persona?: components["schemas"]["ColleaguePersona"];
             version: number;
             state: components["schemas"]["SeatState"];
             workflows: {
                 name: string;
                 title: string;
                 description: string;
+                /** @description Pack-declared tokens for intake routing */
+                intake_hints?: string[];
             }[];
         };
         Stage: {
@@ -1561,6 +1596,7 @@ export interface components {
             instance_id: string;
             title: string;
             workflow: string;
+            seat: string;
             state: string;
             state_label: string;
             version: number;
@@ -1593,6 +1629,8 @@ export interface components {
             instance_id: string;
             title: string;
             workflow: string;
+            seat: string;
+            assignee: components["schemas"]["JobAssignee"];
             pack_version: string;
             state: string;
             version: number;
@@ -3729,6 +3767,41 @@ export interface operations {
             };
         };
     };
+    startFromIntake: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: string;
+                    /** @description When set */
+                    seat?: string;
+                    /** @description Copy intake from a closed job when repeating an order */
+                    repeat_from_instance_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Job started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceSnapshot"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
     getInbox: {
         parameters: {
             query?: never;
@@ -3831,6 +3904,12 @@ export interface operations {
                     seat: string;
                     workflow: string;
                     first_message: string;
+                    /**
+                     * @description Optional closed job to copy the initial state's view artifact from (same workflow). The caller
+                     *     must have been the requester on that job. The kernel stores repeat_from on instance attributes
+                     *     and seeds a draft for the agent to refresh dates or quantities from first_message.
+                     */
+                    repeat_from_instance_id?: string;
                 };
             };
         };

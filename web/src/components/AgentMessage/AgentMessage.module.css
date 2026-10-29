@@ -22,6 +22,12 @@
   gap: var(--space-12);
   min-width: 0;
   padding-top: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px 18px 18px 18px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(11, 16, 32, 0.06);
+  max-width: min(560px, 88vw);
 }
 
 .text {

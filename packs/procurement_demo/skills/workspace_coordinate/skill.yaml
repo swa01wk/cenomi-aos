@@ -1,0 +1,11 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: workspace_coordinate, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [analysis]
+  instructions: instructions.md
+  ceiling: internal
+  budget: {tokens: 12000, cost_usd: 0.25, seconds: 90, steps: 4, actions: 2, retries: 1}
+  reads: [job_snapshot, recent_messages]
+  produces: []
+  may_request: []

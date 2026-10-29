@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceSnapshot } from "./jobStreamReducer";
-import { TEST_WORKFLOW } from "../testJobFixtures";
+import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
 import { retryMatchesCurrentStage, splitConversationPending } from "./conversationPending";
 
 function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "pending">): InstanceSnapshot {
   const { pending, ...rest } = partial;
   return {
+    ...TEST_SNAPSHOT_SHELL,
     instance_id: "QQ-1",
     workflow: TEST_WORKFLOW,
     title: "Test",

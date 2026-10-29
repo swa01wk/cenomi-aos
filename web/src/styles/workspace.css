@@ -108,16 +108,48 @@
   border-radius: 10px;
 }
 
+/* Workspace shell: one viewport, no page-length rail */
+.ws-theme.shell {
+  height: 100%;
+  max-height: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
 /* Rail */
 .ws-rail {
-  flex: 1 1 248px;
-  max-width: 100%;
+  flex: 0 0 248px;
+  width: 248px;
+  max-width: min(248px, 38vw);
+  height: 100%;
+  min-height: 0;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  padding: 20px 16px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.ws-rail-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+  scrollbar-gutter: stable;
 }
 
 .ws-worker-card {
@@ -180,6 +212,61 @@
 .ws-new-job:hover {
   background: var(--accent-strong);
   color: #fff;
+}
+
+.ws-person-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.ws-person-link:hover {
+  background: var(--canvas);
+}
+
+.ws-person-link.active {
+  background: var(--accent-soft);
+}
+
+.ws-person-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--seat-gradient);
+}
+
+.ws-person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.ws-person-name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-person-title {
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ws-nav {
@@ -247,6 +334,14 @@
   border-radius: 10px;
   color: var(--ink);
   text-decoration: none;
+  min-width: 0;
+}
+
+.ws-job-id {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
 }
 
 .ws-job-link:hover {
@@ -256,11 +351,35 @@
 
 .ws-job-link .title {
   font-weight: 600;
+  font-size: 13px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .ws-job-link .state {
   font-size: 12px;
   color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-rail-more {
+  display: block;
+  margin: 4px 12px 0;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.ws-rail-more:hover {
+  color: var(--accent-strong);
 }
 
 .ws-job-link.active {
@@ -318,10 +437,13 @@
 }
 
 .ws-rail .foot {
+  flex: none;
   margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 
 .ws-me {
@@ -372,12 +494,16 @@
 
 /* Main area */
 .ws-main {
-  flex: 999 1 560px;
+  flex: 1 1 560px;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   padding: 32px 40px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .shell > main.ws-main-flush {

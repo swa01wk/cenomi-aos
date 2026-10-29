@@ -1,0 +1,7 @@
+apiVersion: aos/v1
+kind: Policy
+metadata: {name: workspace_coordinator, version: 1, owner: risk}
+spec:
+  type: authority_profile
+  grants:
+    - {resource: job_artifacts, actions: [read], effect: ALLOW}

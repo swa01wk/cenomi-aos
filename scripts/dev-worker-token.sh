@@ -4,7 +4,7 @@
 #   scripts/dev-worker-token.sh               always mint a new token
 #   scripts/dev-worker-token.sh --if-missing  only when .env has no token, or it expires within the hour (`make up`)
 #
-# Also adds AOS_FAKE_SCRIPT=request_intake.happy.yaml when .env doesn't set it (the walkthrough script).
+# Assist fake replies use per-skill scripts (e.g. workspace_coordinate.happy.yaml) unless AOS_FAKE_SCRIPT is set.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -29,11 +29,6 @@ except Exception:
     sys.exit(1)
 PY
 }
-
-if ! grep -qE '^AOS_FAKE_SCRIPT=' "$ENV_FILE"; then
-  set_value AOS_FAKE_SCRIPT request_intake.happy.yaml
-  echo "Added AOS_FAKE_SCRIPT=request_intake.happy.yaml to $ENV_FILE"
-fi
 
 current=$(env_value AOS_WORKER_TOKEN)
 if [ "${1:-}" = "--if-missing" ] && is_jwt "$current" && token_fresh "$current"; then

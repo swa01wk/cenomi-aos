@@ -1,0 +1,11 @@
+turns:
+  - stream_chunks:
+      - "Hey! "
+      - "All good here — "
+      - "how are you? "
+      - "What's up? "
+      - "Tell me what you need and we'll figure it out."
+    reply_text: "Hey! All good here — how are you? What's up? Tell me what you need and we'll figure it out."
+    usage:
+      tokens_in: 24
+      tokens_out: 22

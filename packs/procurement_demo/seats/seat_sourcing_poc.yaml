@@ -2,7 +2,8 @@ apiVersion: aos/v1
 kind: Seat
 metadata: {name: seat_sourcing_poc, version: 1, owner: head_of_procurement}
 spec:
-  display_name: Sourcing Agent
+  display_name: Noor Al-Rashid
+  persona: {given_name: Noor, family_name: Al-Rashid, title: Sourcing specialist}
   placement: procurement/sourcing
   role: sourcing_agent
   assist_skill: sourcing_assist
