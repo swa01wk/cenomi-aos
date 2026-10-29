@@ -1,0 +1,30 @@
+apiVersion: aos/v1
+kind: WorkflowDefinition
+metadata: {name: workspace_coordination, version: 1, owner: head_of_procurement}
+spec:
+  title: Workspace coordination
+  id_prefix: WC
+  description: First-line chat before a specialist job is opened.
+  intake_hints: []
+  start_on: seat_ui.workspace_entry
+  start_roles: [requester]
+  seat_role: workspace_coordinator
+  initial: chat
+  participants:
+    requester: {bind: at_creation, org_roles: [end_user, sourcing_user]}
+  attributes: {}
+  events:
+    handoff:
+      on_artifact: brief
+      when: "size(artifact.category) > 0"
+      once: true
+  states:
+    chat:
+      label: Chat
+      assist: workspace_coordinate
+    handed_off:
+      label: Handed off
+      final: true
+  transitions:
+    - {from: chat, to: handed_off, on: event.handoff}
+  decisions: {}

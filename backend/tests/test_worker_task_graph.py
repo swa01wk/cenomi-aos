@@ -242,6 +242,10 @@ class TaskGraphWorkerTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         os.environ.pop("AOS_FAKE_SCRIPT", None)
         try:
             self.assertEqual(_fake_script_name(attempt, None), "supplier_lookup.happy.yaml")
+            assist_skill = {
+                "contract": {"kind": "assist", "skill": {"name": "sourcing_assist"}},
+            }
+            self.assertEqual(_fake_script_name(assist_skill, None), "sourcing_assist.happy.yaml")
             self.assertEqual(_fake_script_name({"contract": {"kind": "assist"}}, None), "assist.stream.yaml")
         finally:
             if prev_scenario is None:

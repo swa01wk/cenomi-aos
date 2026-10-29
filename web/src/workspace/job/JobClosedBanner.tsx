@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import styles from "./JobClosedBanner.module.css";
 
 export function JobClosedBanner({ instanceId }: { instanceId: string }) {
@@ -12,6 +13,12 @@ export function JobClosedBanner({ instanceId }: { instanceId: string }) {
           <span className={styles.jobId}>{instanceId}</span> is closed. The purchase path finished — open documents on
           the right or scroll above for the full history.
         </p>
+        <Link
+          to={`/workspace?repeat=${encodeURIComponent(instanceId)}`}
+          className={styles.repeatLink}
+        >
+          Repeat this order
+        </Link>
       </div>
     </div>
   );

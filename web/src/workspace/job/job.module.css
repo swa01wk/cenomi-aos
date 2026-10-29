@@ -47,6 +47,130 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background: var(--panel);
+}
+
+.convPeer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.convPeerAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  background: var(--seat-gradient);
+}
+
+.convPeerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.convPeerName {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.convPeerTitle {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.convHeaderTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.convBack {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.convBack:hover {
+  color: var(--accent-strong);
+}
+
+.convDocsBtn {
+  margin-left: auto;
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-input);
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.convDocsBtn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.jobLayoutChatOnly {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  background: var(--canvas);
+}
+
+.jobLayoutChatOnly .conversation {
+  flex: 1;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: none;
+  background: rgba(11, 16, 32, 0.35);
+  cursor: pointer;
+}
+
+.workPanelDrawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: min(480px, 94vw);
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+  pointer-events: none;
+}
+
+.workPanelDrawerOpen {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.workPanelDrawerOpen .workPanel {
+  height: 100%;
+  max-height: 100%;
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 40px rgba(11, 16, 32, 0.12);
 }
 
 .convMeta {

@@ -34,6 +34,15 @@ def _limits():
 
 
 class TaskContractTests(unittest.TestCase):
+    def test_verify_pinned_pack_allows_newer_on_disk_tree(self) -> None:
+        loaded = load_pack(PACK)
+        meta = loaded.manifest
+        assert meta is not None
+        pinned = int(meta.version) - 1
+        if pinned < 1:
+            self.skipTest("pack version 1 has no older pin")
+        contracts.verify_pinned_pack_on_disk(PACKS_DIR, "procurement_demo", pinned, loaded.digest)
+
     def _build(self, template: dict, *, person_id: str | None = None, role: str = "requester"):
         return contracts.build_task_contract(
             packs_dir=PACKS_DIR,

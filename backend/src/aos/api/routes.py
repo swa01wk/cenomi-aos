@@ -537,6 +537,7 @@ class StartInstanceBody(BaseModel):
     seat: str
     workflow: str
     first_message: str = Field(max_length=4000)
+    repeat_from_instance_id: str | None = None
 
 
 class PostTurnBody(BaseModel):
@@ -544,10 +545,45 @@ class PostTurnBody(BaseModel):
     client_turn_id: str
 
 
+class WorkspaceIntakeBody(BaseModel):
+    message: str = Field(max_length=4000)
+    seat: str | None = None
+    repeat_from_instance_id: str | None = None
+
+
 @router.get("/workspace/digital-workers", tags=["workspace"])
 async def list_digital_workers(p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
     items = await instances.list_digital_workers(conn, k.org, p.org_id, p.person_id, p.roles)
     return {"items": items}
+
+
+@router.post("/workspace/intake", tags=["workspace"], status_code=201)
+async def start_from_intake(
+    request: Request,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    body: WorkspaceIntakeBody,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+):
+    try:
+        result = await instances.start_from_intake_message(
+            conn,
+            k.org,
+            org_id=p.org_id,
+            actor=p.person_id,
+            roles=p.roles,
+            message=body.message.strip(),
+            idempotency_key=idempotency_key,
+            packs_dir=k.settings.packs_dir,
+            repeat_from_instance_id=body.repeat_from_instance_id,
+            seat_hint=body.seat,
+        )
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+    if isinstance(result, CommittedRefusal):
+        return _refusal_response(request, result)
+    return result
 
 
 @router.get("/instances", tags=["instances"])
@@ -583,6 +619,7 @@ async def start_instance(
             first_message=body.first_message,
             idempotency_key=idempotency_key,
             packs_dir=k.settings.packs_dir,
+            repeat_from_instance_id=body.repeat_from_instance_id,
         )
     except instances.InstanceError as exc:
         _raise_instance_error(exc)

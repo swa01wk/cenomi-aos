@@ -13,6 +13,7 @@ from psycopg import AsyncConnection
 from aos.registry.kinds import Participant, WorkflowDefinition
 
 from . import audit_store, clock, ids
+from .job_title import derive_job_title
 from .org import OrgModel
 
 _TEAM_OWNER_RULE = re.compile(r"^team_owner\(([a-z0-9_]+/[a-z0-9_]+)\)$")
@@ -256,6 +257,21 @@ async def _sole_queue_member_on_job(
     return None
 
 
+async def _queue_display_title(conn: AsyncConnection, instance_id: str, stored: str) -> str:
+    cur = await conn.execute(
+        "select name from work.artifacts where instance_id = %s and artifact_type = 'brief'"
+        " and latest_version >= 1 order by latest_version desc limit 1",
+        (instance_id,),
+    )
+    row = await cur.fetchone()
+    if row is not None:
+        name = str(row[0] or "").strip()
+        if name and name.lower() not in ("brief", "request brief"):
+            return name
+    cleaned = derive_job_title(stored)
+    return cleaned or stored
+
+
 async def list_queue_instances(
     conn: AsyncConnection,
     org: OrgModel,
@@ -294,10 +310,11 @@ async def list_queue_instances(
             continue
         state_label = await _state_label(conn, str(pvid), workflow_name, state)
         elapsed = int((now - state_entered_at).total_seconds()) if state_entered_at else 0
+        display_title = await _queue_display_title(conn, inst_id, str(title or ""))
         items.append(
             {
                 "instance_id": inst_id,
-                "title": title,
+                "title": display_title,
                 "workflow": workflow_name,
                 "state": state,
                 "state_label": state_label,

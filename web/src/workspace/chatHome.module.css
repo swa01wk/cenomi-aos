@@ -1,0 +1,110 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--panel);
+}
+
+.header {
+  flex-shrink: 0;
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.header h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.header p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  max-width: 52ch;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.peopleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.personChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.personChip:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--seat-gradient);
+}
+
+.composerDock {
+  flex-shrink: 0;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.composerBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+}
+
+.composerInput {
+  width: 100%;
+  min-height: 52px;
+  max-height: 160px;
+  padding: 14px 16px;
+  border-radius: 24px;
+  border: 1px solid var(--line-input);
+  font: inherit;
+  resize: vertical;
+  background: var(--panel);
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.routingNote {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}

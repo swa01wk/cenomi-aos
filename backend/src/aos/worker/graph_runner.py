@@ -33,7 +33,7 @@ async def run_attempt_graph(
     model_cfg: ModelRegistryConfig | None = None,
 ) -> AgentResult:
     contract = attempt.get("contract") or {}
-    graph = checkpointer.graph_for(contract)
+    graph = checkpointer.assist_graph()
     configurable: dict[str, Any] = {
         "thread_id": resolved.thread_id,
         "ctx": ctx,

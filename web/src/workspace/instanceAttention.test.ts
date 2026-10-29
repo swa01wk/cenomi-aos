@@ -6,7 +6,7 @@ import {
   pendingActionLabel,
   sortJobsForViewer,
 } from "./instanceAttention";
-import { TEST_WORKFLOW } from "./testJobFixtures";
+import { TEST_SEAT, TEST_WORKFLOW } from "./testJobFixtures";
 
 type Job = components["schemas"]["InstanceSummary"];
 
@@ -15,6 +15,7 @@ function job(id: string, waiting_on?: Job["waiting_on"], last = "2026-01-02T00:0
     instance_id: id,
     title: id,
     workflow: TEST_WORKFLOW,
+    seat: TEST_SEAT,
     state: "shortlisting",
     state_label: "shortlisting",
     version: 1,

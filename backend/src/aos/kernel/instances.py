@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from psycopg import AsyncConnection, errors as pg_errors
+from psycopg.types.json import Jsonb
 
 from aos.registry.kinds import TaskTemplate, WorkflowDefinition
 
@@ -32,8 +33,35 @@ from .conversation import (
 from .org import OrgModel
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 from .refusal import CommittedRefusal
+from .intake_routing import route_intake_message
+from .job_title import derive_job_title
+from .request_detail import message_indicates_request_detail
 from .seats import may_start_workflow, seat_audience
 from . import tasks as task_ops
+
+
+def _seat_colleague(seat_doc: dict[str, Any] | None, db_display_name: str) -> dict[str, Any]:
+    if seat_doc is None:
+        return {"colleague_name": db_display_name, "title": ""}
+    spec = seat_doc.get("spec") or {}
+    persona = spec.get("persona")
+    title = str(spec.get("display_name") or "").strip()
+    colleague_name = db_display_name
+    if isinstance(persona, dict):
+        gn = str(persona.get("given_name") or "").strip()
+        fn = str(persona.get("family_name") or "").strip()
+        title = str(persona.get("title") or title).strip()
+        full = f"{gn} {fn}".strip()
+        if full:
+            colleague_name = full
+    out: dict[str, Any] = {"colleague_name": colleague_name, "title": title}
+    if isinstance(persona, dict) and persona:
+        out["persona"] = {
+            "given_name": str(persona.get("given_name") or ""),
+            "family_name": str(persona.get("family_name") or ""),
+            "title": title,
+        }
+    return out
 
 
 class InstanceError(Exception):
@@ -44,6 +72,68 @@ class InstanceError(Exception):
         self.detail = detail
         self.extra = extra
         super().__init__(title)
+
+
+def _intake_view_artifact_type(wdoc: dict[str, Any]) -> str | None:
+    """Artifact type name for the workflow's initial state view (from pack workflow data)."""
+    spec = wdoc.get("spec") or {}
+    initial = spec.get("initial")
+    if not initial:
+        return None
+    state = (spec.get("states") or {}).get(initial) or {}
+    view = state.get("view")
+    return str(view) if view else None
+
+
+async def _assert_repeat_source(
+    conn: AsyncConnection,
+    *,
+    org_id: str,
+    actor: str,
+    starter_role: str,
+    workflow_name: str,
+    repeat_from_instance_id: str,
+) -> None:
+    cur = await conn.execute(
+        "select status, workflow, org_id from work.instances where id = %s",
+        (repeat_from_instance_id,),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        raise InstanceError(
+            "not_found",
+            404,
+            "Prior job not found",
+            f"No job {repeat_from_instance_id!r}.",
+        )
+    status, src_workflow, src_org = str(row[0]), str(row[1]), str(row[2])
+    if src_org != org_id:
+        raise InstanceError("not_found", 404, "Prior job not found", "That job is not in your organization.")
+    if status != "closed":
+        raise InstanceError(
+            "conflict",
+            409,
+            "Prior job not finished",
+            "Repeat order only works from a completed job.",
+        )
+    if src_workflow != workflow_name:
+        raise InstanceError(
+            "validation_failed",
+            422,
+            "Different workflow",
+            "The prior job must use the same workflow as this one.",
+        )
+    pcur = await conn.execute(
+        "select 1 from work.participants where instance_id = %s and person_id = %s and role = %s",
+        (repeat_from_instance_id, actor, starter_role),
+    )
+    if await pcur.fetchone() is None:
+        raise InstanceError(
+            "not_permitted",
+            403,
+            "Not your prior job",
+            "You can only repeat a job you started as the requester.",
+        )
 
 
 async def _load_definitions(conn: AsyncConnection, pack_version_id: str) -> dict[str, dict[str, dict]]:
@@ -240,15 +330,22 @@ async def list_digital_workers(
         ):
             continue
         workflows: list[dict[str, str]] = []
+        seat_doc = defs.get("Seat", {}).get(name)
+        colleague = _seat_colleague(seat_doc, display_name)
+        seat_role = str((seat_doc or {}).get("spec", {}).get("role") or "")
         for wname, wdoc in defs.get("WorkflowDefinition", {}).items():
+            spec = wdoc.get("spec") or {}
+            if seat_role and str(spec.get("seat_role") or "") != seat_role:
+                continue
             if may_start_workflow(wdoc, role_set) is None:
                 continue
-            spec = wdoc.get("spec") or {}
+            hints = spec.get("intake_hints") or []
             workflows.append(
                 {
                     "name": wname,
                     "title": spec.get("title", wname),
                     "description": spec.get("description", ""),
+                    "intake_hints": hints if isinstance(hints, list) else [],
                 }
             )
         if not workflows:
@@ -257,6 +354,9 @@ async def list_digital_workers(
             {
                 "seat": name,
                 "display_name": display_name,
+                "colleague_name": colleague["colleague_name"],
+                "title": colleague["title"],
+                "persona": colleague.get("persona"),
                 "version": version,
                 "state": state,
                 "workflows": workflows,
@@ -274,7 +374,7 @@ async def list_my_instances(
     status: str | None,
 ) -> list[dict[str, Any]]:
     cur = await conn.execute(
-        "select i.id, i.title, i.workflow, i.state, i.version, i.created_at, i.closed_at, i.status,"
+        "select i.id, i.title, i.workflow, i.state, i.version, i.seat, i.created_at, i.closed_at, i.status,"
         " i.state_entered_at"
         " from work.instances i"
         " join work.participants p on p.instance_id = i.id"
@@ -285,7 +385,7 @@ async def list_my_instances(
     rows = await cur.fetchall()
     items: list[dict[str, Any]] = []
     for row in rows:
-        inst_id, title, workflow, state, version, created_at, closed_at, inst_status, state_entered_at = row
+        inst_id, title, workflow, state, version, seat, created_at, closed_at, inst_status, state_entered_at = row
         if status == "closed" and inst_status not in ("closed", "cancelled"):
             continue
         if status == "active" and inst_status != "running":
@@ -300,6 +400,7 @@ async def list_my_instances(
                 "instance_id": inst_id,
                 "title": title,
                 "workflow": workflow,
+                "seat": seat,
                 "state": state,
                 "state_label": state_label,
                 "version": version,
@@ -414,12 +515,27 @@ async def build_snapshot(
                 "bound_by": bound_by,
             }
         )
+    seat_doc = defs.get("Seat", {}).get(seat)
+    seat_cur = await conn.execute(
+        "select display_name from registry.seats where org_id = %s and name = %s and version = %s",
+        (org_id, seat, seat_version),
+    )
+    seat_disp_row = await seat_cur.fetchone()
+    db_display = str(seat_disp_row[0]) if seat_disp_row else seat
+    colleague = _seat_colleague(seat_doc, db_display)
     turns = await _fetch_turns(conn, org, instance_id, my_roles, limit=50)
     cursor = await _stream_cursor(conn, instance_id)
     return {
         "instance_id": instance_id,
         "title": title,
         "workflow": workflow,
+        "seat": seat,
+        "assignee": {
+            "seat": seat,
+            "colleague_name": colleague["colleague_name"],
+            "title": colleague["title"],
+            **({"persona": colleague["persona"]} if colleague.get("persona") else {}),
+        },
         "pack_version": f"{pack_name}@{pack_ver}",
         "state": state,
         "version": version,
@@ -448,6 +564,7 @@ async def start_instance(
     idempotency_key: str | None,
     packs_dir: Path,
     simulation_instance_id: str | None = None,
+    repeat_from_instance_id: str | None = None,
 ) -> dict[str, Any] | CommittedRefusal:
     existing_id = await _idempotent_instance_id(conn, org_id, actor, idempotency_key)
     if existing_id:
@@ -525,6 +642,25 @@ async def start_instance(
     participant_role = bind_role_name
     if participant_role is None:
         raise InstanceError("internal", 500, "Admission inconsistency", "Start role binding missing.")
+    repeat_from = (repeat_from_instance_id or "").strip() or None
+    seed_artifact_type: str | None = None
+    if repeat_from:
+        await _assert_repeat_source(
+            conn,
+            org_id=org_id,
+            actor=actor,
+            starter_role=participant_role,
+            workflow_name=workflow_name,
+            repeat_from_instance_id=repeat_from,
+        )
+        seed_artifact_type = _intake_view_artifact_type(wdoc)
+        if not seed_artifact_type:
+            raise InstanceError(
+                "conflict",
+                409,
+                "Cannot repeat",
+                "This workflow has no initial artifact to copy.",
+            )
     initial_state = (wdoc.get("spec") or {}).get("initial")
     assist_skill = resolve_assist_skill(seat_doc, wdoc, str(initial_state))
     skill_doc = defs.get("Skill", {}).get(assist_skill) or {}
@@ -554,7 +690,8 @@ async def start_instance(
     except PackMaterialError as exc:
         raise _pack_material_error(exc) from exc
     correlation_id = secrets.token_hex(16)
-    title = (first_message[:80] + "…") if len(first_message) > 80 else first_message
+    intake_hints = (wdoc.get("spec") or {}).get("intake_hints") or []
+    title = derive_job_title(first_message, hints=intake_hints if isinstance(intake_hints, list) else [])
     person_name = org.people[actor].name
     turn: dict[str, Any]
     try:
@@ -610,6 +747,26 @@ async def start_instance(
                 participants=[(participant_role, actor)],
                 org=org,
             )
+            if repeat_from and seed_artifact_type:
+                seeded = await artifacts.seed_draft_from_prior_job(
+                    conn,
+                    source_instance_id=repeat_from,
+                    target_instance_id=instance_id,
+                    artifact_type=seed_artifact_type,
+                    actor_person_id=actor,
+                    prior_label=f"Copied from {repeat_from}",
+                )
+                if not seeded:
+                    raise InstanceError(
+                        "validation_failed",
+                        422,
+                        "Nothing to repeat",
+                        "The prior job has no intake document to copy.",
+                    )
+                await conn.execute(
+                    "update work.instances set attributes = attributes || %s::jsonb where id = %s",
+                    (Jsonb({"repeat_from": repeat_from}), instance_id),
+                )
             # The first state's Task working for the starter answers the first message; the assist Task waits for
             # later turns.
             intake = next((t for t in entry if t.person_id == actor), None)
@@ -698,6 +855,52 @@ async def start_instance(
     return snap
 
 
+async def start_from_intake_message(
+    conn: AsyncConnection,
+    org: OrgModel,
+    *,
+    org_id: str,
+    actor: str,
+    roles: list[str],
+    message: str,
+    idempotency_key: str | None,
+    packs_dir: Path,
+    repeat_from_instance_id: str | None = None,
+    seat_hint: str | None = None,
+) -> dict[str, Any] | CommittedRefusal:
+    workers = await list_digital_workers(conn, org, org_id, actor, roles)
+    if seat_hint:
+        workers = [w for w in workers if w["seat"] == seat_hint]
+    if not workers:
+        raise InstanceError(
+            "not_permitted",
+            403,
+            "No colleague available",
+            "No active digital employee is available for your account.",
+        )
+    seat_name, workflow_name = route_intake_message(message, workers)
+    if not workflow_name:
+        raise InstanceError(
+            "conflict",
+            409,
+            "Nothing to start",
+            "No workflow is configured for the available colleagues.",
+        )
+    return await start_instance(
+        conn,
+        org,
+        org_id=org_id,
+        actor=actor,
+        roles=roles,
+        seat_name=seat_name,
+        workflow_name=workflow_name,
+        first_message=message,
+        idempotency_key=idempotency_key,
+        packs_dir=packs_dir,
+        repeat_from_instance_id=repeat_from_instance_id,
+    )
+
+
 async def _conversation_task(conn: AsyncConnection, instance_id: str, person_id: str) -> tuple | None:
     """A workflow Task working for this person that is in the conversation: waiting for their input, or running an
     attempt that answers one of their turns. Its turns go to it instead of the assist Task."""
@@ -708,7 +911,8 @@ async def _conversation_task(conn: AsyncConnection, instance_id: str, person_id:
         " from work.tasks t"
         " where t.instance_id = %s and t.kind = 'task' and t.state in ('WAITING_INPUT', 'RUNNING')"
         " and t.contract->'on_behalf_of'->>'person_id' = %s"
-        " order by t.created_at, t.id for update of t",
+        " order by case when t.template = 'request_intake' then 0 else 1 end, t.created_at, t.id"
+        " for update of t",
         (instance_id, person_id),
     )
     for row in await cur.fetchall():
@@ -863,6 +1067,89 @@ async def _post_turn_to_task(
     return {"turn": turn_payload, "attempt_id": attempt_id}
 
 
+def _text_from_turn_blocks(blocks: Any) -> str:
+    if not isinstance(blocks, list):
+        return ""
+    parts: list[str] = []
+    for block in blocks:
+        if isinstance(block, dict) and block.get("kind") == "text":
+            parts.append(str(block.get("text") or ""))
+    return " ".join(parts).strip()
+
+
+async def _thread_indicates_request_detail(
+    conn: AsyncConnection,
+    instance_id: str,
+    message: str,
+    wdoc: dict[str, Any],
+) -> bool:
+    if message_indicates_request_detail(message, wdoc):
+        return True
+    cur = await conn.execute(
+        "select blocks from work.turns where instance_id = %s and author_kind = 'person' order by seq",
+        (instance_id,),
+    )
+    for row in await cur.fetchall():
+        blocks = row[0]
+        if message_indicates_request_detail(_text_from_turn_blocks(blocks), wdoc):
+            return True
+    return False
+
+
+async def _apply_detail_signal_if_needed(
+    conn: AsyncConnection,
+    org: OrgModel,
+    *,
+    instance_id: str,
+    instance_state: str,
+    attributes: dict[str, Any],
+    workflow_name: str,
+    pack_version_id: str,
+    message: str,
+    packs_dir: Path,
+) -> tuple[str, dict[str, Any]]:
+    if instance_state != "conversation":
+        return instance_state, attributes
+    if int(attributes.get("detail_signal") or 0) > 0:
+        return instance_state, attributes
+    defs = await _load_definitions(conn, pack_version_id)
+    wdoc = defs.get("WorkflowDefinition", {}).get(workflow_name) or {}
+    pcur = await conn.execute(
+        "select count(*) from work.turns where instance_id = %s and author_kind = 'person'",
+        (instance_id,),
+    )
+    person_turns = int((await pcur.fetchone() or (0,))[0])
+    # Stay in casual assist until at least one reply cycle (handoff jobs start with one person turn).
+    if person_turns < 2:
+        return instance_state, attributes
+    if not await _thread_indicates_request_detail(conn, instance_id, message, wdoc):
+        return instance_state, attributes
+    new_attrs = {**attributes, "detail_signal": 1}
+    await conn.execute(
+        "update work.instances set attributes = %s where id = %s",
+        (Jsonb(new_attrs), instance_id),
+    )
+    from .events import evaluate_attribute_triggers
+
+    await evaluate_attribute_triggers(
+        conn,
+        org,
+        instance_id,
+        changed={"detail_signal"},
+        packs_dir=packs_dir,
+    )
+    cur = await conn.execute(
+        "select state, attributes from work.instances where id = %s",
+        (instance_id,),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        return instance_state, new_attrs
+    st = str(row[0])
+    att = row[1] if isinstance(row[1], dict) else json.loads(row[1] or "{}")
+    return st, att
+
+
 async def post_turn(
     conn: AsyncConnection,
     org: OrgModel,
@@ -895,6 +1182,18 @@ async def post_turn(
         raise InstanceError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
     seat_name, seat_version, workflow_name, pvid, attributes, correlation_id, instance_state = inst
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
+
+    instance_state, attributes = await _apply_detail_signal_if_needed(
+        conn,
+        org,
+        instance_id=instance_id,
+        instance_state=str(instance_state),
+        attributes=attributes,
+        workflow_name=str(workflow_name),
+        pack_version_id=str(pvid),
+        message=text,
+        packs_dir=packs_dir,
+    )
 
     scur = await conn.execute(
         "select state from registry.seats"
@@ -951,6 +1250,14 @@ async def post_turn(
             pack_version_id=str(pvid),
             pack_published=pack_status == "published",
             attributes=attributes,
+        )
+
+    if str(instance_state) == "intake" and "requester" in my_roles:
+        raise InstanceError(
+            "conflict",
+            409,
+            "Brief is still updating",
+            "Send another message with any missing detail, or open Documents to review the draft.",
         )
 
     tcur = await conn.execute(

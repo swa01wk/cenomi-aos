@@ -6,7 +6,9 @@ import { WorkspaceRail } from "./WorkspaceRail";
 export default function WorkspaceShell() {
   useRefetchWorkspaceOnFocus();
   const location = useLocation();
-  const flushMain = /^\/workspace\/(jobs\/|new$)/.test(location.pathname);
+  const flushMain =
+    location.pathname === "/workspace" ||
+    /^\/workspace\/(jobs\/|people\/|new$)/.test(location.pathname);
 
   return (
     <ShellProvider shell="workspace">

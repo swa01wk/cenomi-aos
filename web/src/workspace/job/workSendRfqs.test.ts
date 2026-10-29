@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceSnapshot } from "./jobStreamReducer";
-import { TEST_WORKFLOW } from "../testJobFixtures";
+import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
 import { hasOpenTaskRetry, showSendRfqsBar } from "./workSendRfqs";
 
 function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
   return {
+    ...TEST_SNAPSHOT_SHELL,
     instance_id: "QQ-1",
     title: "t",
     workflow: TEST_WORKFLOW,

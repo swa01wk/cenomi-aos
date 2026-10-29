@@ -21,6 +21,7 @@ export function WorkPanel({
   onSelectArtifact,
   onSendRfqs,
   agentBusy = false,
+  onClose,
 }: {
   instanceId: string;
   snapshot: InstanceSnapshot;
@@ -28,6 +29,7 @@ export function WorkPanel({
   onSelectArtifact: (artifactId: string) => void;
   onSendRfqs?: () => Promise<void>;
   agentBusy?: boolean;
+  onClose?: () => void;
 }) {
   const artifacts = snapshot.artifacts;
   const activeId = panelArtifactId ?? artifacts[0]?.artifact_id ?? "";
@@ -69,10 +71,15 @@ export function WorkPanel({
     return (
       <aside aria-label="Work in progress" className={styles.workPanel}>
         <header className={styles.workHead}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div className="eyebrow">Work in progress</div>
             <div className={styles.workTitle}>Nothing yet</div>
           </div>
+          {onClose ? (
+            <button type="button" className="btn" onClick={onClose}>
+              Close
+            </button>
+          ) : null}
         </header>
         <div className={styles.workBody}>
           <p className={styles.workEmpty}>Documents fill in here as the digital worker saves them.</p>
@@ -115,6 +122,11 @@ export function WorkPanel({
           <div className="eyebrow">{closed ? "Completed job" : "Work in progress"}</div>
           <div className={styles.workTitle}>{summary?.name ?? "Documents"}</div>
         </div>
+        {onClose ? (
+          <button type="button" className="btn" onClick={onClose}>
+            Close
+          </button>
+        ) : null}
         {summary && (
           <div className={styles.workBadges}>
             <StatusPill state={summary.status} />

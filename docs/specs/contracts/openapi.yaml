@@ -330,6 +330,32 @@ paths:
         the starter is bound as that participant (e.g. requester).
       responses:
         '200': {description: Digital workers, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/DigitalWorker'}}}}}}}
+  /workspace/intake:
+    post:
+      tags: [workspace]
+      operationId: startFromIntake
+      x-milestone: M2
+      x-screens: [WS-New]
+      description: >-
+        Start a job from a free-text request. The kernel picks seat and workflow from published intake hints on each
+        workflow the caller may start, then runs the same admission path as startInstance.
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: {type: string, maxLength: 4000}
+                seat: {type: string, description: When set, start on this colleague's seat (workflows still matched by hints)}
+                repeat_from_instance_id: {type: string, description: Copy intake from a closed job when repeating an order}
+      responses:
+        '201': {description: Job started, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /inbox:
     get:
       tags: [workspace]
@@ -382,7 +408,21 @@ paths:
       parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
       requestBody:
         required: true
-        content: {application/json: {schema: {type: object, required: [seat, workflow, first_message], properties: {seat: {type: string}, workflow: {type: string}, first_message: {type: string, maxLength: 4000}}}}}
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seat, workflow, first_message]
+              properties:
+                seat: {type: string}
+                workflow: {type: string}
+                first_message: {type: string, maxLength: 4000}
+                repeat_from_instance_id:
+                  type: string
+                  description: |
+                    Optional closed job to copy the initial state's view artifact from (same workflow). The caller
+                    must have been the requester on that job. The kernel stores repeat_from on instance attributes
+                    and seeds a draft for the agent to refresh dates or quantities from first_message.
       responses:
         '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/InstanceSnapshot'}}}}
         '403': {$ref: '#/components/responses/Problem'}
@@ -1174,24 +1214,52 @@ components:
             reason: {type: string}
           additionalProperties: true
         finished_at: {type: [string, 'null'], format: date-time}
+    ColleaguePersona:
+      type: object
+      required: [given_name]
+      properties:
+        given_name: {type: string}
+        family_name: {type: string}
+        title: {type: string}
+    JobAssignee:
+      type: object
+      required: [seat, colleague_name, title]
+      properties:
+        seat: {type: string}
+        colleague_name: {type: string, description: Full name shown in chat}
+        title: {type: string, description: Role line under the name}
+        persona: {$ref: '#/components/schemas/ColleaguePersona'}
     DigitalWorker:
       type: object
-      required: [seat, display_name, version, state, workflows]
+      required: [seat, display_name, colleague_name, title, version, state, workflows]
       properties:
         seat: {type: string}
         display_name: {type: string}
+        colleague_name: {type: string}
+        title: {type: string}
+        persona: {$ref: '#/components/schemas/ColleaguePersona'}
         version: {type: integer}
         state: {$ref: '#/components/schemas/SeatState'}
-        workflows: {type: array, items: {type: object, required: [name, title, description], properties: {name: {type: string}, title: {type: string}, description: {type: string}}}}
+        workflows:
+          type: array
+          items:
+            type: object
+            required: [name, title, description]
+            properties:
+              name: {type: string}
+              title: {type: string}
+              description: {type: string}
+              intake_hints: {type: array, items: {type: string}, description: Pack-declared tokens for intake routing}
     Stage: {type: object, required: [state, label, status], properties: {state: {type: string}, label: {type: string}, status: {enum: [done, current, next]}}}
     Participant: {type: object, required: [role, person_id, name], properties: {role: {type: string}, person_id: {type: string}, name: {type: string}, bound_by: {enum: [creation, claim, rule]}}}
     InstanceSummary:
       type: object
-      required: [instance_id, title, workflow, state, state_label, version]
+      required: [instance_id, title, workflow, seat, state, state_label, version]
       properties:
         instance_id: {type: string}
         title: {type: string}
         workflow: {type: string}
+        seat: {type: string}
         state: {type: string}
         state_label: {type: string}
         version: {type: integer}
@@ -1213,11 +1281,13 @@ components:
         note: {type: string}
     InstanceSnapshot:
       type: object
-      required: [instance_id, title, workflow, pack_version, state, version, stages, participants, my_roles, pending, artifacts, turns, cursor]
+      required: [instance_id, title, workflow, seat, assignee, pack_version, state, version, stages, participants, my_roles, pending, artifacts, turns, cursor]
       properties:
         instance_id: {type: string}
         title: {type: string}
         workflow: {type: string}
+        seat: {type: string}
+        assignee: {$ref: '#/components/schemas/JobAssignee'}
         pack_version: {type: string}
         state: {type: string}
         version: {type: integer}

@@ -655,6 +655,46 @@ def _contract_allows_artifact_type(contract: dict[str, Any], artifact_type: str)
     return False
 
 
+async def seed_draft_from_prior_job(
+    conn: AsyncConnection,
+    *,
+    source_instance_id: str,
+    target_instance_id: str,
+    artifact_type: str,
+    actor_person_id: str,
+    prior_label: str,
+) -> bool:
+    """Copy the latest version of a singleton artifact from a closed job into a new job as draft v1."""
+    cur = await conn.execute(
+        "select a.id, a.name, v.content from work.artifacts a"
+        " join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version"
+        " where a.instance_id = %s and a.artifact_type = %s and coalesce(a.key, '') = ''"
+        " order by a.latest_version desc limit 1",
+        (source_instance_id, artifact_type),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        return False
+    _old_id, name, raw = row
+    content = dict(raw if isinstance(raw, dict) else json.loads(raw or "{}"))
+    artifact_id = ids.new_artifact_id()
+    content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
+    display_name = str(content.get("title") or name or artifact_type.replace("_", " ").title())
+    await conn.execute(
+        "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
+        " values (%s, %s, %s, '', %s, 'draft', 1)",
+        (artifact_id, target_instance_id, artifact_type, display_name),
+    )
+    sources = [{"source_ref": source_instance_id, "label": prior_label}]
+    await conn.execute(
+        "insert into work.artifact_versions ("
+        " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
+        ") values (%s, 1, %s, %s, 'person', %s, '[]'::jsonb, %s)",
+        (artifact_id, Jsonb(content), content_hash, actor_person_id, Jsonb(sources)),
+    )
+    return True
+
+
 async def save_draft_from_attempt(
     conn: AsyncConnection,
     *,
@@ -820,6 +860,14 @@ async def save_draft_from_attempt(
         "update work.artifacts set latest_version = %s, status = 'draft' where id = %s",
         (new_version, artifact_id),
     )
+    if artifact_type == "brief":
+        brief_title = str(content.get("title") or "").strip()
+        if brief_title:
+            await conn.execute("update work.artifacts set name = %s where id = %s", (brief_title, artifact_id))
+            await conn.execute(
+                "update work.instances set title = %s where id = %s",
+                (brief_title[:120], gate.instance_id),
+            )
 
     from . import decisions as decision_ops
     from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event

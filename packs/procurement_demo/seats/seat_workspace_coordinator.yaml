@@ -1,0 +1,23 @@
+apiVersion: aos/v1
+kind: Seat
+metadata: {name: seat_workspace_coordinator, version: 1, owner: head_of_procurement}
+spec:
+  display_name: Sam Taylor
+  persona: {given_name: Sam, family_name: Taylor, title: Workspace coordinator}
+  placement: platform/platform
+  role: workspace_coordinator
+  assist_skill: workspace_coordinate
+  skills: [workspace_coordinate]
+  resources: [job_artifacts]
+  authority_profile: workspace_coordinator@1
+  autonomy_mode: supervised
+  runtime: {adapter: langgraph_agent, model_alias: enterprise_reasoning}
+  limits:
+    run_minutes: 5
+    actions_per_run: 6
+    daily_cost_usd: 10
+    attempt_cost_usd: 0.5
+    attempt_tokens: 30000
+    attempt_steps: 8
+    attempt_actions: 6
+  evals: []

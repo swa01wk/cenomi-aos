@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { TEST_WORKFLOW } from "../testJobFixtures";
+import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
 import { recommendedWorkPanelArtifactId, shouldAutoFocusWorkPanel } from "./workPanelAutoFocus";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
 function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
   return {
+    ...TEST_SNAPSHOT_SHELL,
     instance_id: "QQ-1",
     title: "Test",
     workflow: TEST_WORKFLOW,
@@ -96,5 +97,23 @@ describe("workPanelAutoFocus", () => {
       ],
     });
     expect(shouldAutoFocusWorkPanel(snapshot, "brief1", true)).toBeNull();
+  });
+
+  it("does not reopen the panel after the user closes it", () => {
+    const snapshot = snap({
+      state: "intake",
+      artifacts: [
+        {
+          artifact_id: "brief1",
+          artifact_type: "type_brief",
+          name: "Brief",
+          latest_version: 2,
+          status: "draft",
+          view: { type: "document", fields: [], columns: [] },
+        },
+      ],
+    });
+    expect(shouldAutoFocusWorkPanel(snapshot, null, true)).toBeNull();
+    expect(shouldAutoFocusWorkPanel(snapshot, null, false)).toBe("brief1");
   });
 });

@@ -54,3 +54,23 @@
   font-weight: 600;
   color: var(--ink);
 }
+
+.repeatLink {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--good, #1a7f4b) 45%, var(--line));
+  color: var(--good, #1a7f4b);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.repeatLink:hover {
+  background: color-mix(in srgb, var(--good, #1a7f4b) 8%, var(--panel));
+  color: var(--good, #1a7f4b);
+}

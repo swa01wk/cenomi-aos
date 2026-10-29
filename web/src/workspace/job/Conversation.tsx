@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useEffect, useRef, type ReactNode } from "react";
 import {
   AgentMessage,
@@ -20,6 +21,8 @@ import { orphanOpenDecisions, splitConversationPending } from "./conversationPen
 import { StaleRetriesPanel } from "./StaleRetriesPanel";
 import { jobStepGuide, stageGuideIsLive } from "./stageGuideLogic";
 import { AgentWorkStatus } from "./AgentWorkStatus";
+import { assigneeLabel } from "../persona";
+import { isCoordinatorJob, isSmallTalk } from "../workspaceEntry";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
@@ -40,6 +43,10 @@ export function Conversation({
   onDecide,
   onLoadOlder,
   showLoadOlder,
+  chatLayout = false,
+  documentCount = 0,
+  documentsOpen = false,
+  onToggleDocuments,
 }: {
   snapshot: InstanceSnapshot;
   streamingTurnId: string | null;
@@ -64,6 +71,10 @@ export function Conversation({
   }) => Promise<void>;
   onLoadOlder?: () => void;
   showLoadOlder?: boolean;
+  chatLayout?: boolean;
+  documentCount?: number;
+  documentsOpen?: boolean;
+  onToggleDocuments?: () => void;
 }) {
   const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
@@ -80,6 +91,13 @@ export function Conversation({
   const personTurns = snapshot.turns.filter((t) => t.author.kind === "person").length;
   const isFirstExchange = personTurns <= 1;
   const stepGuide = jobStepGuide(snapshot, { agentBusy, openPendingForYou });
+  const coordinatorChat = isCoordinatorJob(snapshot);
+  const chatOnlyStage = snapshot.state === "conversation" || snapshot.state === "chat";
+  const latestPerson = [...snapshot.turns].reverse().find((t) => t.author.kind === "person");
+  const latestText =
+    latestPerson?.blocks.flatMap((b) => (b.kind === "text" ? [b.text] : [])).join(" ") ?? "";
+  const casualChat = coordinatorChat || chatOnlyStage || snapshot.state === "intake" || isSmallTalk(latestText);
+  const colleague = assigneeLabel(snapshot.assignee);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
@@ -95,19 +113,46 @@ export function Conversation({
       {bannerMode === "synced" && <ConnectionBanner mode="synced" updateCount={syncCount} />}
 
       <header className={[styles.convHeader, closed ? styles.convHeader_closed : ""].filter(Boolean).join(" ")}>
-        <span className={styles.convMeta}>
-          {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
-        </span>
-        <div className={styles.convTitleRow}>
-          <h1>{snapshot.title}</h1>
-          {badge && (
-            <span className={[styles.stageBadge, closed ? styles.stageBadge_complete : ""].filter(Boolean).join(" ")}>
-              {badge}
+        <div className={styles.convHeaderTop}>
+          {chatLayout && snapshot.seat ? (
+            <Link to={`/workspace/people/${encodeURIComponent(snapshot.seat)}`} className={styles.convBack}>
+              Back
+            </Link>
+          ) : null}
+          <div className={styles.convPeer}>
+            <span className={styles.convPeerAvatar} aria-hidden="true">
+              {(colleague.name[0] ?? "?").toUpperCase()}
             </span>
-          )}
+            <div className={styles.convPeerText}>
+              <span className={styles.convPeerName}>{colleague.name}</span>
+              {colleague.title ? <span className={styles.convPeerTitle}>{colleague.title}</span> : null}
+            </div>
+          </div>
+          {chatLayout && documentCount > 0 && onToggleDocuments ? (
+            <button type="button" className={styles.convDocsBtn} onClick={onToggleDocuments}>
+              {documentsOpen ? "Hide" : "Documents"}
+            </button>
+          ) : null}
         </div>
+        {!chatLayout ? (
+          <>
+            <span className={styles.convMeta}>
+              {workflowTitle(snapshot.workflow)} · {snapshot.instance_id}
+            </span>
+            <div className={styles.convTitleRow}>
+              <h1>{snapshot.title}</h1>
+              {badge && (
+                <span className={[styles.stageBadge, closed ? styles.stageBadge_complete : ""].filter(Boolean).join(" ")}>
+                  {badge}
+                </span>
+              )}
+            </div>
+          </>
+        ) : (
+          <span className={styles.convMeta}>{snapshot.title}</span>
+        )}
         {closed ? <JobClosedBanner instanceId={snapshot.instance_id} /> : null}
-        <JobProgress stages={displayStages} allComplete={closed} />
+        {!chatLayout ? <JobProgress stages={displayStages} allComplete={closed} /> : null}
       </header>
 
       <div
@@ -134,6 +179,7 @@ export function Conversation({
             toolActivity={toolActivity}
             workflowState={snapshot.state}
             isFirstExchange={isFirstExchange}
+            coordinatorChat={casualChat}
             onOpenArtifact={onOpenArtifact}
             renderPending={(pendingId) => {
               const pending = snapshot.pending.find((item) => item.pending_id === pendingId && item.status === "open");
@@ -146,11 +192,15 @@ export function Conversation({
         {streamingOnly && (
           <AgentStream>
             {showThinking ? (
-              <AgentWorkStatus
-                workflowState={snapshot.state}
-                toolActivity={toolActivity}
-                isFirstExchange={isFirstExchange}
-              />
+              casualChat ? (
+                <p className="muted">Replying…</p>
+              ) : (
+                <AgentWorkStatus
+                  workflowState={snapshot.state}
+                  toolActivity={toolActivity}
+                  isFirstExchange={isFirstExchange}
+                />
+              )
             ) : (
               <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
             )}
@@ -190,7 +240,7 @@ export function Conversation({
         />
       )}
 
-      {stepGuide && !seatNotice && !closed && primaryPending.length === 0 ? (
+      {stepGuide && !casualChat && !seatNotice && !closed && primaryPending.length === 0 ? (
         <JobStepGuide
           guide={stepGuide}
           live={stageGuideIsLive(stepGuide, snapshot.state)}
@@ -232,6 +282,7 @@ function TurnView({
   toolActivity,
   workflowState,
   isFirstExchange,
+  coordinatorChat,
   onOpenArtifact,
   renderPending,
 }: {
@@ -242,6 +293,7 @@ function TurnView({
   toolActivity?: ToolActivityType;
   workflowState: string;
   isFirstExchange: boolean;
+  coordinatorChat: boolean;
   onOpenArtifact: (artifactId: string) => void;
   renderPending?: (pendingId: string) => ReactNode;
 }) {
@@ -255,11 +307,15 @@ function TurnView({
         {(isStreaming || turn.turn_id === awaitingTurnId) && (
           <AgentStream>
             {turn.turn_id === awaitingTurnId && !isStreaming ? (
-              <AgentWorkStatus
-                workflowState={workflowState}
-                toolActivity={toolActivity}
-                isFirstExchange={isFirstExchange}
-              />
+              coordinatorChat ? (
+                <p className="muted">Replying…</p>
+              ) : (
+                <AgentWorkStatus
+                  workflowState={workflowState}
+                  toolActivity={toolActivity}
+                  isFirstExchange={isFirstExchange}
+                />
+              )
             ) : (
               <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />
             )}

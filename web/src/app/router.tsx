@@ -9,6 +9,9 @@ import VersionPage from "../console/VersionPage";
 import JobPage from "../workspace/job/JobPage";
 import MyJobsPage from "../workspace/MyJobsPage";
 import QueuePage from "../workspace/QueuePage";
+import ChatHomePage from "../workspace/ChatHomePage";
+import EmployeeHubPage from "../workspace/EmployeeHubPage";
+import PersonChatPage from "../workspace/PersonChatPage";
 import NewJobPage from "../workspace/NewJobPage";
 import WorkspaceShell from "../workspace/WorkspaceShell";
 import { AppErrorBoundary } from "./AppErrorBoundary";
@@ -53,8 +56,11 @@ export const router = createBrowserRouter([
             path: "/workspace",
             element: <WorkspaceShell />,
             children: [
-              { index: true, element: <MyJobsPage /> },
+              { index: true, element: <ChatHomePage /> },
+              { path: "jobs", element: <MyJobsPage /> },
               { path: "queue", element: <QueuePage /> },
+              { path: "people/:seat", element: <EmployeeHubPage /> },
+              { path: "people/:seat/:instanceId", element: <PersonChatPage /> },
               { path: "new", element: <NewJobPage /> },
               { path: "jobs/:id", element: <JobPage /> },
             ],

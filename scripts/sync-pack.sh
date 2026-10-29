@@ -12,6 +12,7 @@ import asyncio
 from aos.kernel.settings import Settings
 from aos.kernel.org import load_org
 from aos.kernel import registry_store
+from aos.kernel.seats import insert_seats_for_published_pack
 from psycopg_pool import AsyncConnectionPool
 
 async def main() -> None:
@@ -29,6 +30,16 @@ async def main() -> None:
             "update registry.pack_versions set status = 'published',"
             " published_at = coalesce(published_at, now()) where id = %s",
             (r.pack_version_id,),
+        )
+        await insert_seats_for_published_pack(
+            conn, org=org, org_id=org_id, pack_version_id=r.pack_version_id
+        )
+        await conn.execute(
+            "update registry.seats set state = 'ACTIVE', configured_by = 'platform_admin',"
+            " activated_by = 'head_of_procurement'"
+            " where org_id = %s and name = 'seat_workspace_coordinator'"
+            " and state in ('DRAFT', 'CONFIGURED', 'TESTING')",
+            (org_id,),
         )
         cur = await conn.execute(
             "update registry.seats set pack_version_id = %s where org_id = %s returning name",

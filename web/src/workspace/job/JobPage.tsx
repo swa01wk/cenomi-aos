@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { ApiProblemError } from "../../api/problems";
 import {
   ProblemNotice,
@@ -15,14 +16,28 @@ import { Conversation } from "./Conversation";
 import { useJobPage } from "./useJobPage";
 import { WorkPanel } from "./WorkPanel";
 import { shouldAutoFocusWorkPanel } from "./workPanelAutoFocus";
+import { newClientTurnId } from "../../components/clientTurnId";
+import { personChatPath } from "../jobPaths";
+import { startSpecialistFromIntake } from "../startJobs";
+import { useDigitalWorkers } from "../useWorkspaceQueries";
+import { buildHandoffIntakeMessage, isCoordinatorJob, shouldHandOffFromCoordinator } from "../workspaceEntry";
+import { markCoordinatorHandedOff } from "../openPersonChat";
 import styles from "./job.module.css";
 
-export default function JobPage() {
-  const { id: instanceId = "" } = useParams();
+export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }) {
+  const params = useParams();
+  const instanceId = (chatLayout ? params.instanceId : params.id) ?? "";
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const workers = useDigitalWorkers();
   const [searchParams, setSearchParams] = useSearchParams();
   const panelId = searchParams.get("panel");
 
   const job = useJobPage(instanceId);
+  const activeWorkers = useMemo(
+    () => workers.data?.filter((w) => w.state === "ACTIVE") ?? [],
+    [workers.data],
+  );
   const [composerProblem, setComposerProblem] = useState<Problem | null>(null);
   const [seatBlock, setSeatBlock] = useState<Problem | null>(null);
 
@@ -35,6 +50,11 @@ export default function JobPage() {
     },
     [setSearchParams],
   );
+
+  const closeDocuments = useCallback(() => {
+    userPanelOverride.current = true;
+    setSearchParams({});
+  }, [setSearchParams]);
 
   const selectWorkPanelArtifact = useCallback(
     (artifactId: string) => {
@@ -49,6 +69,19 @@ export default function JobPage() {
       setComposerProblem(null);
       setSeatBlock(null);
       try {
+        const snap = job.snapshot;
+        if (
+          snap &&
+          isCoordinatorJob(snap) &&
+          shouldHandOffFromCoordinator(snap, text, snap.turns, activeWorkers)
+        ) {
+          const intake = buildHandoffIntakeMessage(text, snap.turns, activeWorkers);
+          const data = await startSpecialistFromIntake(intake, newClientTurnId(), queryClient);
+          markCoordinatorHandedOff(instanceId);
+          clearComposerDraft(instanceId);
+          void navigate(personChatPath(data.seat, data.instance_id), { replace: true });
+          return;
+        }
         await job.postTurn(text, clientTurnId);
         clearComposerDraft(instanceId);
       } catch (e) {
@@ -60,7 +93,7 @@ export default function JobPage() {
         throw e;
       }
     },
-    [instanceId, job],
+    [instanceId, job, activeWorkers, queryClient, navigate],
   );
 
   const snapshot = job.snapshot;
@@ -76,8 +109,12 @@ export default function JobPage() {
       prevWorkflowState.current = snapshot.state;
     }
     const next = shouldAutoFocusWorkPanel(snapshot, panelId, userPanelOverride.current);
-    if (next) openArtifact(next);
-  }, [snapshot, artifactFocusKey, panelId, openArtifact]);
+    if (!next) return;
+    if (chatLayout) {
+      userPanelOverride.current = true;
+    }
+    openArtifact(next);
+  }, [snapshot, artifactFocusKey, panelId, openArtifact, chatLayout]);
 
   if (job.isLoading) {
     return <Skeleton />;
@@ -120,8 +157,27 @@ export default function JobPage() {
   else if (seatBlock) composerDisabled = seatBlock.title;
   else composerDisabled = composerBlockedForPoLoop(snapshot);
 
+  const documentsOpen = Boolean(panelId);
+  const layoutClass = chatLayout ? styles.jobLayoutChatOnly : styles.jobLayout;
+
+  const workPanel = (
+    <WorkPanel
+      instanceId={instanceId}
+      snapshot={snapshot}
+      panelArtifactId={panelId}
+      onSelectArtifact={selectWorkPanelArtifact}
+      onSendRfqs={job.sendRfqs}
+      agentBusy={Boolean(
+        job.awaitingTurnId ||
+          job.streamingTurnId ||
+          (job.toolActivity && job.toolActivity.state !== "completed"),
+      )}
+      onClose={documentsOpen ? closeDocuments : undefined}
+    />
+  );
+
   return (
-    <div className={styles.jobLayout}>
+    <div className={layoutClass}>
       <Conversation
         snapshot={snapshot}
         streamingTurnId={job.streamingTurnId}
@@ -139,17 +195,33 @@ export default function JobPage() {
         onOpenArtifact={openArtifact}
         onLoadOlder={() => void job.loadOlderTurns()}
         showLoadOlder={snapshot.turns.length >= 50}
+        chatLayout={chatLayout}
+        documentCount={snapshot.artifacts.length}
+        documentsOpen={documentsOpen}
+        onToggleDocuments={() => {
+          if (documentsOpen) closeDocuments();
+          else if (snapshot.artifacts[0]) openArtifact(snapshot.artifacts[0].artifact_id);
+        }}
       />
-      <WorkPanel
-        instanceId={instanceId}
-        snapshot={snapshot}
-        panelArtifactId={panelId}
-        onSelectArtifact={selectWorkPanelArtifact}
-        onSendRfqs={job.sendRfqs}
-        agentBusy={Boolean(job.awaitingTurnId || job.streamingTurnId || job.toolActivity)}
-      />
+      {chatLayout ? (
+        <>
+          {documentsOpen && (
+            <button
+              type="button"
+              className={styles.drawerBackdrop}
+              aria-label="Close documents"
+              onClick={closeDocuments}
+            />
+          )}
+          <div className={[styles.workPanelDrawer, documentsOpen ? styles.workPanelDrawerOpen : ""].join(" ")}>
+            {workPanel}
+          </div>
+        </>
+      ) : (
+        workPanel
+      )}
       {composerProblem && (
-        <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 10 }}>
+        <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 50 }}>
           <ProblemNotice problem={composerProblem} />
         </div>
       )}

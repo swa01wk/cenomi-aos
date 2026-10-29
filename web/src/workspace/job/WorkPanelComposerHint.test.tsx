@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TEST_WORKFLOW } from "../testJobFixtures";
+import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import { WorkPanelComposerHint } from "./WorkPanelComposerHint";
 
 const base: InstanceSnapshot = {
+  ...TEST_SNAPSHOT_SHELL,
   instance_id: "QQ-1",
   title: "Job",
   workflow: TEST_WORKFLOW,

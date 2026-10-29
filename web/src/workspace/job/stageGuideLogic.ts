@@ -76,13 +76,25 @@ export function jobStepGuide(
   }
 
   switch (snapshot.state) {
-    case "intake":
-      return {
-        kind: "progress",
-        title: "Confirm the request",
-        detail:
-          "The worker is shaping your brief. When the brief is ready, you will confirm it here so the next stage can start.",
-      };
+    case "intake": {
+      const brief = snapshot.artifacts.find((a) => a.artifact_type === "brief");
+      if (brief && brief.latest_version >= 1) {
+        return {
+          kind: "action",
+          title: "Review your brief",
+          detail:
+            "Open Documents to check the draft. When Confirm the brief appears in the thread, approve it to continue.",
+        };
+      }
+      if (agentBusy) {
+        return {
+          kind: "progress",
+          title: "Updating your brief",
+          detail: "Your specialist is saving details to the brief. This usually takes less than a minute.",
+        };
+      }
+      return null;
+    }
     case "shortlisting": {
       const listReady = hasRankedSheet(snapshot);
       if (listReady && snapshot.my_roles.includes("buyer")) {
@@ -165,6 +177,9 @@ export function jobStepGuide(
         title: "Lifecycle complete",
         detail: "Nothing else is required on this job. Use the work panel for final documents.",
       };
+    case "conversation":
+    case "chat":
+      return null;
     default:
       return {
         kind: "wait",

@@ -185,8 +185,15 @@ class DelegationSpec(Strict):
     max_depth: int = Field(default=1, ge=0, le=3)
 
 
+class PersonaSpec(Strict):
+    given_name: str
+    family_name: str = ""
+    title: str = ""
+
+
 class SeatSpec(Strict):
     display_name: str
+    persona: PersonaSpec | None = None
     placement: str = Field(pattern=r"^[a-z0-9_]+(/[a-z0-9_]+)*$")
     role: Name
     assist_skill: Name
@@ -453,6 +460,7 @@ class WorkflowEventTrigger(Strict):
 class WorkflowSpec(Strict):
     title: str
     description: str = ""
+    intake_hints: list[str] = []
     id_prefix: str = Field(default="JOB", pattern=r"^[A-Z]{2,5}$")  # job numbers: <prefix>-0001
     start_on: str
     start_roles: list[Name] = Field(min_length=1)

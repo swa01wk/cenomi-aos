@@ -39,6 +39,9 @@ validate: ## aos validate the demo pack against the seeded organization
 sync-pack: ## sync on-disk pack into Postgres, publish it, and repoint seats (after pack.yaml version bumps)
 	bash scripts/sync-pack.sh
 
+sync-pack-docker: ## sync pack from the running API container (use when host Postgres port differs from .env)
+	bash scripts/sync-pack-docker.sh
+
 api-types: ## regenerate the web API types from openapi.yaml; fails if the committed file is out of date (as CI does)
 	cd web && npm run --silent gen:api && git diff --exit-code -- src/api/schema.d.ts
 
