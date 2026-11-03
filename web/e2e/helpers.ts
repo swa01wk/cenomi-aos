@@ -34,4 +34,8 @@ export const people = {
   riskReviewer: "Risk reviewer",
   headOfProcurement: "Head of Procurement",
   faisal: "Faisal",
+  noura: "Noura",
+  khalid: "Khalid",
+  cdo: "Samir Al-Farsi",
+  headOfProcurement: "Head of Procurement",
 } as const;

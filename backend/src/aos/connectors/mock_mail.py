@@ -9,6 +9,7 @@ notification to the kernel's inbound endpoint.
 from __future__ import annotations
 
 import argparse
+from typing import Any
 import json
 import os
 import smtplib
@@ -83,6 +84,12 @@ def _migrate_smtp_relayed(store: Store) -> None:
     cols = {row["name"] for row in store.q("pragma table_info(message)")}
     if "smtp_relayed" not in cols:
         store.x("alter table message add column smtp_relayed integer not null default 0")
+    if "imap_message_id" not in cols:
+        store.x("alter table message add column imap_message_id text")
+        store.x(
+            "create unique index if not exists message_imap_mid on message(imap_message_id)"
+            " where imap_message_id is not null"
+        )
 
 
 def _relay_sent_row(store: Store, row: dict) -> None:
@@ -95,7 +102,7 @@ def _relay_sent_row(store: Store, row: dict) -> None:
 
 
 def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
-                 inbound_secret: str = "dev-inbound-secret") -> tuple[MCPServer, Store]:
+                 inbound_secret: str = "dev-inbound-secret") -> tuple[MCPServer, Store, Any]:
     store = Store(cfg.db_path, SCHEMA)
     _migrate_smtp_relayed(store)
     server = MCPServer("mock_mail", version="0.1.0",
@@ -194,16 +201,27 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
         return {"conversation_id": conversation_id, "items": [_view(r) for r in rows]}
 
     @server.tool()
+    def poll_imap_inbox(token: str | None = None, instance_id: str | None = None) -> dict:
+        """Fetch unseen replies from the configured IMAP inbox and raise inbound events."""
+        guard(token, "read", "poll_imap_inbox")
+        from .imap_inbound import poll_imap_into_store
+
+        return poll_imap_into_store(store, notify=notify, instance_id=instance_id or None)
+
+    @server.tool()
     def admin_simulate_reply(conversation_id: str, sender: str, body: str, subject: str = "") -> dict:
         """Demo control (vendor simulator): a supplier replies on a thread; raises a signed inbound event."""
         first = store.one("select * from message where conversation_id = ? order by created_at limit 1",
                           (conversation_id,))
         if first is None:
             raise ToolError(f"not_found: no conversation {conversation_id}")
+        from .quote_reply_parse import append_parse_hints, parse_quote_reply_text
+
+        body_stored = append_parse_hints(body, parse_quote_reply_text(body))
         mid = "msg-" + uuid.uuid4().hex[:12]
         store.x("insert into message(id, conversation_id, folder, sender, recipient, subject, body, ref, created_at)"
                 " values (?,?,?,?,?,?,?,?,?)",
-                (mid, conversation_id, "inbox", sender, MAILBOX, subject or "RE: " + first["subject"], body,
+                (mid, conversation_id, "inbox", sender, MAILBOX, subject or "RE: " + first["subject"], body_stored,
                  first["ref"], _now()))
         return notify(store.one("select * from message where id = ?", (mid,)))
 
@@ -218,10 +236,14 @@ def build_server(cfg: ConnectorConfig, *, inbound_url: str | None = None,
         """Demo control: list a folder, to prove nothing was sent twice."""
         return {"items": [_view(r) for r in store.q("select * from message where folder = ? order by created_at", (folder,))]}
 
-    return server, store
+    return server, store, notify
 
 
 def main() -> None:
+    import threading
+
+    from .imap_inbound import _imap_enabled, poll_imap_loop
+
     parser = argparse.ArgumentParser(description="Mock mail MCP server")
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8102")))
@@ -229,8 +251,22 @@ def main() -> None:
     args = parser.parse_args()
     cfg = ConnectorConfig(name="mock_mail", secret=os.environ.get("MOCK_MAIL_SECRET", "dev-mail-secret"),
                           db_path=args.db)
-    server, _ = build_server(cfg, inbound_url=os.environ.get("AOS_INBOUND_URL"),
-                             inbound_secret=os.environ.get("AOS_INBOUND_SECRET", "dev-inbound-secret"))
+    server, store, notify = build_server(
+        cfg,
+        inbound_url=os.environ.get("AOS_INBOUND_URL"),
+        inbound_secret=os.environ.get("AOS_INBOUND_SECRET", "dev-inbound-secret"),
+    )
+    if (
+        _imap_enabled()
+        and os.environ.get("AOS_INBOUND_URL")
+        and os.environ.get("AOS_IMAP_BACKGROUND", "0").strip().lower() in ("1", "true", "yes")
+    ):
+        threading.Thread(
+            target=poll_imap_loop,
+            args=(store,),
+            kwargs={"notify": notify, "interval_s": float(os.environ.get("AOS_IMAP_POLL_INTERVAL", "20"))},
+            daemon=True,
+        ).start()
     server.run("streamable-http", host=args.host, port=args.port)
 
 

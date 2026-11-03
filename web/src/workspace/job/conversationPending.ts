@@ -1,4 +1,5 @@
 import type { components } from "../../api/schema";
+import { holdBriefConfirmDecision, specialistAwaitingReply } from "./conversationDisplay";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
 type PendingItem = components["schemas"]["PendingItem"];
@@ -49,7 +50,16 @@ export function splitConversationPending(
   orphan: PendingItem[],
   snapshot: InstanceSnapshot,
 ): ConversationPendingSplit {
-  const forward = orphan.filter((p) => p.event !== "task.retry");
+  if (snapshot.state === "closed") {
+    return { primary: [], staleRetries: [] };
+  }
+  const holdDecisions = specialistAwaitingReply(snapshot) && !snapshot.intake_ready_for_confirm;
+  const forward = orphan.filter((p) => {
+    if (p.event === "task.retry") return false;
+    if (holdBriefConfirmDecision(snapshot, p)) return false;
+    if (holdDecisions && p.kind === "decision") return false;
+    return true;
+  });
   const retries = orphan.filter((p) => p.event === "task.retry");
 
   if (forward.length > 0) {

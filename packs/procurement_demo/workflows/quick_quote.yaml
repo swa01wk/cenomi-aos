@@ -35,6 +35,10 @@ spec:
       on_attributes: [quote_count, invited_count]
       when: "attr.invited_count > 0 && attr.quote_count >= attr.invited_count"
       once: true
+    first_quote_ready:
+      on_attributes: [quote_count]
+      when: "attr.quote_count >= 1"
+      once: true
   states:
     conversation:
       label: Chat
@@ -62,7 +66,7 @@ spec:
           work_type: outbound_communication
           verifier: recipient_check
           on_behalf_of: buyer
-          budget: {tokens: 20000, cost_usd: 0.5, seconds: 300, steps: 6, actions: 10, retries: 2}
+          budget: {tokens: 20000, cost_usd: 0.5, seconds: 300, steps: 24, actions: 18, retries: 2}
     awaiting_quotes:
       label: Awaiting quotes
       view: quote
@@ -71,8 +75,15 @@ spec:
     comparison:
       label: Comparison
       view: comparison
+      on_event:
+        mail.message_received: {template: quote_triage, skill: quote_triage, work_type: analysis, on_behalf_of: buyer}
       tasks:
-        - {template: quote_comparison, skill: quote_comparison, work_type: analysis, verifier: score_recompute, on_behalf_of: buyer}
+        - template: quote_comparison
+          skill: quote_comparison
+          work_type: analysis
+          verifier: score_recompute
+          on_behalf_of: buyer
+          budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
     ordering:
       label: Ordering
       view: po_payload
@@ -82,7 +93,7 @@ spec:
           work_type: record_update
           verifier: payload_match
           on_behalf_of: buyer
-          budget: {tokens: 30000, cost_usd: 0.8, seconds: 300, steps: 6, actions: 6, retries: 2}
+          budget: {tokens: 80000, cost_usd: 1.5, seconds: 600, steps: 24, actions: 14, retries: 3}
     closed:
       label: Closed
       final: true
@@ -98,11 +109,11 @@ spec:
     - {from: shortlisting, to: rfq_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
     - {from: rfq_drafting, to: rfq_sending, on: task.completed.rfq_draft}
     - {from: rfq_sending, to: awaiting_quotes, on: task.completed.rfq_send, effects: [{start_timer: quote_deadline}]}
-    - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received], guard: "attr.quote_count >= 1"}
+    - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received, event.first_quote_ready], guard: "attr.quote_count >= 1"}
     - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: comparison}]}
     - {from: ordering, to: closed, on: task.completed.po_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
   timers:
-    quote_deadline: {after: 5d, demo_after: 1m, emits: quotes_closed}
+    quote_deadline: {after: 5d, demo_after: 90s, emits: quotes_closed}
   decisions:
     brief_confirmed:
       {label: Confirm the brief, state: intake, for: requester, sets: {brief_version: artifact_version}}
@@ -110,4 +121,4 @@ spec:
       {label: Confirm the shortlist, state: shortlisting, for: buyer, selection: true,
        sets: {shortlist_count: selection_count}}
     supplier_selected:
-      {label: Select the supplier, state: comparison, for: buyer, selection: true}
+      {label: Award this order, state: comparison, for: buyer, selection: true}

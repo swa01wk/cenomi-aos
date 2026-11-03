@@ -98,6 +98,36 @@ describe("artifact views", () => {
     expect(screen.getByText(new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(10))).toBeInTheDocument();
   });
 
+  it("renders PO order lines as readable bullets, not [object Object]", () => {
+    const View = artifactViewComponent("record_preview");
+    render(
+      <View
+        view={{
+          type: "record_preview",
+          fields: [
+            { name: "lines", label: "Lines", type: "list" },
+            { name: "reference", label: "Reference", type: "string" },
+          ],
+        }}
+        version={version({
+          reference: "AOS-QQ-0088-PO1",
+          lines: [
+            {
+              description: "Apple iPhone 17 Pro Max, 528 GB",
+              quantity: 1,
+              unit_price: 6450,
+              currency: "SAR",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Order lines")).toBeInTheDocument();
+    expect(screen.queryByText(/object Object/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Apple iPhone 17 Pro Max/)).toBeInTheDocument();
+    expect(screen.getByText(/Qty 1/)).toBeInTheDocument();
+  });
+
   it("shows hidden-fields note", () => {
     const View = artifactViewComponent("document");
     render(

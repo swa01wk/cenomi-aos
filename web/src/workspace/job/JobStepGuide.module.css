@@ -6,6 +6,22 @@
   background: var(--surface-2);
 }
 
+.guide_compact {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.guide_compact .title {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.guide_compact .detail {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .guide_action {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -24,6 +40,11 @@
 .guide_progress {
   border-color: var(--accent);
   background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface-2) 55%);
+}
+
+.guide_notice {
+  border-color: color-mix(in srgb, var(--warn, #c9872a) 55%, var(--line));
+  background: color-mix(in srgb, var(--warn, #c9872a) 12%, var(--surface-2));
 }
 
 .guide_live {

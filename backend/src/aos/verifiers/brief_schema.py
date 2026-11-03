@@ -75,6 +75,9 @@ def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
     if not is_typed_string(brief.get("delivery_site")):
         findings.append("delivery_site: required string missing or empty")
 
+    if not is_typed_string(brief.get("vendor_reply_deadline")):
+        findings.append("vendor_reply_deadline: required string missing or empty")
+
     # Typed check for money field when present (not required on brief).
     if "budget_guidance" in brief and brief["budget_guidance"] is not None:
         if money_number(brief["budget_guidance"]) is None:

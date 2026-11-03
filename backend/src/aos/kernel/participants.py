@@ -13,7 +13,7 @@ from psycopg import AsyncConnection
 from aos.registry.kinds import Participant, WorkflowDefinition
 
 from . import audit_store, clock, ids
-from .job_title import derive_job_title
+from .job_title import display_instance_title
 from .org import OrgModel
 
 _TEAM_OWNER_RULE = re.compile(r"^team_owner\(([a-z0-9_]+/[a-z0-9_]+)\)$")
@@ -257,19 +257,43 @@ async def _sole_queue_member_on_job(
     return None
 
 
-async def _queue_display_title(conn: AsyncConnection, instance_id: str, stored: str) -> str:
-    cur = await conn.execute(
-        "select name from work.artifacts where instance_id = %s and artifact_type = 'brief'"
-        " and latest_version >= 1 order by latest_version desc limit 1",
-        (instance_id,),
-    )
-    row = await cur.fetchone()
-    if row is not None:
-        name = str(row[0] or "").strip()
-        if name and name.lower() not in ("brief", "request brief"):
-            return name
-    cleaned = derive_job_title(stored)
-    return cleaned or stored
+async def _queue_summary_row(
+    conn: AsyncConnection,
+    *,
+    inst_id: str,
+    title: str,
+    workflow_name: str,
+    pvid: str,
+    state: str,
+    version: int,
+    created_at: Any,
+    state_entered_at: Any,
+    now: Any,
+    waiting_on: dict[str, Any],
+    claim_role: str | None,
+    queue_item_kind: str,
+) -> dict[str, Any]:
+    state_label = await _state_label(conn, pvid, workflow_name, state)
+    elapsed = int((now - state_entered_at).total_seconds()) if state_entered_at else 0
+    display_title = await display_instance_title(conn, inst_id, str(title or ""))
+    row: dict[str, Any] = {
+        "instance_id": inst_id,
+        "title": display_title,
+        "workflow": workflow_name,
+        "state": state,
+        "state_label": state_label,
+        "version": version,
+        "requester": None,
+        "buyer": None,
+        "waiting_on": waiting_on,
+        "time_in_state_s": elapsed,
+        "started_at": created_at.isoformat(),
+        "last_activity_at": state_entered_at.isoformat(),
+        "queue_item_kind": queue_item_kind,
+    }
+    if claim_role is not None:
+        row["claim_role"] = claim_role
+    return row
 
 
 async def list_queue_instances(
@@ -295,8 +319,57 @@ async def list_queue_instances(
     )
     now = clock.now()
     items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    review_cur = await conn.execute(
+        "select p.instance_id, p.title, i.title, i.workflow, i.pack_version_id, i.state, i.version,"
+        " i.created_at, i.state_entered_at"
+        " from work.pending_items p"
+        " join work.instances i on i.id = p.instance_id"
+        " where i.org_id = %s and i.status = 'running' and p.status = 'open'"
+        " and p.for_person_id = %s"
+        " order by p.created_at desc",
+        (org_id, person_id),
+    )
+    for row in await review_cur.fetchall():
+        inst_id = str(row[0])
+        pending_title = str(row[1] or "Review required")
+        title, workflow_name, pvid, state, version, created_at, state_entered_at = (
+            row[2],
+            row[3],
+            str(row[4]),
+            row[5],
+            row[6],
+            row[7],
+            row[8],
+        )
+        seen.add(inst_id)
+        items.append(
+            await _queue_summary_row(
+                conn,
+                inst_id=inst_id,
+                title=str(title or ""),
+                workflow_name=str(workflow_name),
+                pvid=pvid,
+                state=str(state),
+                version=int(version),
+                created_at=created_at,
+                state_entered_at=state_entered_at,
+                now=now,
+                waiting_on={
+                    "kind": "person",
+                    "label": pending_title,
+                    "person_id": person_id,
+                },
+                claim_role=None,
+                queue_item_kind="review",
+            )
+        )
+
     for row in await cur.fetchall():
         inst_id, title, workflow_name, pvid, state, version, created_at, state_entered_at = row
+        if inst_id in seen:
+            continue
         _oid, _wn, definition, _pv = await _load_workflow(conn, inst_id)
         claim_roles = _by_claim_roles_for_queue(definition, queue_path)
         if not claim_roles:
@@ -308,25 +381,22 @@ async def list_queue_instances(
                 break
         if claim_role is None:
             continue
-        state_label = await _state_label(conn, str(pvid), workflow_name, state)
-        elapsed = int((now - state_entered_at).total_seconds()) if state_entered_at else 0
-        display_title = await _queue_display_title(conn, inst_id, str(title or ""))
         items.append(
-            {
-                "instance_id": inst_id,
-                "title": display_title,
-                "workflow": workflow_name,
-                "state": state,
-                "state_label": state_label,
-                "version": version,
-                "requester": None,
-                "buyer": None,
-                "waiting_on": {"kind": "queue", "label": queue_label, "person_id": None},
-                "time_in_state_s": elapsed,
-                "started_at": created_at.isoformat(),
-                "last_activity_at": state_entered_at.isoformat(),
-                "claim_role": claim_role,
-            }
+            await _queue_summary_row(
+                conn,
+                inst_id=str(inst_id),
+                title=str(title or ""),
+                workflow_name=str(workflow_name),
+                pvid=str(pvid),
+                state=str(state),
+                version=int(version),
+                created_at=created_at,
+                state_entered_at=state_entered_at,
+                now=now,
+                waiting_on={"kind": "queue", "label": queue_label, "person_id": None},
+                claim_role=claim_role,
+                queue_item_kind="claim",
+            )
         )
     return items
 

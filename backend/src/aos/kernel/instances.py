@@ -34,7 +34,7 @@ from .org import OrgModel
 from .outbox import ExecutionEventWrite, OutboxRow, append_outbox_many, write_execution_event
 from .refusal import CommittedRefusal
 from .intake_routing import route_intake_message
-from .job_title import derive_job_title
+from .job_title import derive_job_title, display_instance_title
 from .request_detail import message_indicates_request_detail
 from .seats import may_start_workflow, seat_audience
 from . import tasks as task_ops
@@ -75,14 +75,23 @@ class InstanceError(Exception):
 
 
 def _intake_view_artifact_type(wdoc: dict[str, Any]) -> str | None:
-    """Artifact type name for the workflow's initial state view (from pack workflow data)."""
+    """Artifact type to seed when repeating a closed job (usually the intake-stage view, e.g. brief)."""
     spec = wdoc.get("spec") or {}
-    initial = spec.get("initial")
-    if not initial:
-        return None
-    state = (spec.get("states") or {}).get(initial) or {}
-    view = state.get("view")
-    return str(view) if view else None
+    states = spec.get("states") or {}
+    for state_name in ("intake", spec.get("initial")):
+        if not state_name:
+            continue
+        state = states.get(state_name) or {}
+        view = state.get("view")
+        if view:
+            return str(view)
+    for state in states.values():
+        if not isinstance(state, dict):
+            continue
+        view = state.get("view")
+        if view:
+            return str(view)
+    return None
 
 
 async def _assert_repeat_source(
@@ -377,8 +386,10 @@ async def list_my_instances(
         "select i.id, i.title, i.workflow, i.state, i.version, i.seat, i.created_at, i.closed_at, i.status,"
         " i.state_entered_at"
         " from work.instances i"
-        " join work.participants p on p.instance_id = i.id"
-        " where i.org_id = %s and p.person_id = %s"
+        " where i.org_id = %s"
+        " and exists ("
+        "   select 1 from work.participants p where p.instance_id = i.id and p.person_id = %s"
+        " )"
         " order by i.created_at desc",
         (org_id, person_id),
     )
@@ -395,10 +406,11 @@ async def list_my_instances(
             if waiting.get("kind") != "person" or waiting.get("person_id") != person_id:
                 continue
         state_label = state
+        display_title = await display_instance_title(conn, str(inst_id), str(title or ""))
         items.append(
             {
                 "instance_id": inst_id,
-                "title": title,
+                "title": display_title,
                 "workflow": workflow,
                 "seat": seat,
                 "state": state,
@@ -464,6 +476,19 @@ async def _fetch_turns(
     return out
 
 
+async def _freeze_rfq_emails_past_send(conn: AsyncConnection, instance_id: str) -> None:
+    """Mark RFQ email drafts final once the job has left the send step (idempotent heal)."""
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    if row is None or str(row[0]) in ("rfq_drafting", "rfq_sending"):
+        return
+    await conn.execute(
+        "update work.artifacts set status = 'final'"
+        " where instance_id = %s and artifact_type = 'rfq_email' and status = 'draft'",
+        (instance_id,),
+    )
+
+
 async def refresh_decisions_for_viewer(
     conn: AsyncConnection,
     org: OrgModel,
@@ -473,8 +498,43 @@ async def refresh_decisions_for_viewer(
 ) -> None:
     """Reconcile join regions and open decisions when the client loads a snapshot."""
     from . import decisions as decision_ops
+    from .progress import heal_legacy_selection_decision_turns
+
+    icur = await conn.execute(
+        "select state, attributes, workflow, pack_version_id from work.instances where id = %s",
+        (instance_id,),
+    )
+    irow = await icur.fetchone()
+    if irow is not None and str(irow[0]) == "conversation":
+        attrs = irow[1] if isinstance(irow[1], dict) else json.loads(irow[1] or "{}")
+        await _apply_detail_signal_if_needed(
+            conn,
+            org,
+            instance_id=instance_id,
+            instance_state=str(irow[0]),
+            attributes=attrs,
+            workflow_name=str(irow[2]),
+            pack_version_id=str(irow[3]),
+            message="",
+            packs_dir=packs_dir,
+        )
 
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
+    await heal_legacy_selection_decision_turns(
+        conn,
+        org_id=org.organization.id,
+        instance_id=instance_id,
+    )
+    await _freeze_rfq_emails_past_send(conn, instance_id)
+    if irow is not None and str(irow[0]) == "closed":
+        from .po_ordered import post_po_ordered_announcement_if_needed
+
+        await post_po_ordered_announcement_if_needed(
+            conn,
+            org=org,
+            org_id=org.organization.id,
+            instance_id=instance_id,
+        )
 
 
 async def build_snapshot(
@@ -525,6 +585,31 @@ async def build_snapshot(
     colleague = _seat_colleague(seat_doc, db_display)
     turns = await _fetch_turns(conn, org, instance_id, my_roles, limit=50)
     cursor = await _stream_cursor(conn, instance_id)
+    intake_ready = await decisions.intake_ready_for_confirm(conn, instance_id, defs)
+    from . import shared_attachments as shared_att
+
+    shared_attachments = await shared_att.list_for_snapshot(conn, org_id=org_id, instance_id=instance_id)
+    from . import quotes as quote_ops
+    from .reply_deadline import parse_demo_reply_minutes
+
+    if str(state) == "awaiting_quotes":
+        await quote_ops.ensure_quote_deadline_from_brief(conn, instance_id)
+    quote_timer = await quote_ops.quote_timer_for_snapshot(conn, instance_id)
+    brief_minutes: float | None = None
+    if str(state) == "awaiting_quotes":
+        bcur = await conn.execute(
+            "select v.content from work.artifacts a"
+            " join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version"
+            " where a.instance_id = %s and a.artifact_type = 'brief' limit 1",
+            (instance_id,),
+        )
+        brow = await bcur.fetchone()
+        if brow is not None:
+            raw = brow[0]
+            brief = raw if isinstance(raw, dict) else json.loads(raw or "{}")
+            brief_minutes = parse_demo_reply_minutes(brief.get("vendor_reply_deadline"))
+        else:
+            brief_minutes = parse_demo_reply_minutes(None)
     return {
         "instance_id": instance_id,
         "title": title,
@@ -548,6 +633,10 @@ async def build_snapshot(
         ),
         "turns": turns,
         "cursor": cursor,
+        "intake_ready_for_confirm": intake_ready,
+        "shared_attachments": shared_attachments,
+        **quote_timer,
+        **({"vendor_reply_window_minutes": brief_minutes} if brief_minutes is not None else {}),
     }
 
 
@@ -901,6 +990,29 @@ async def start_from_intake_message(
     )
 
 
+async def _request_intake_task_row(
+    conn: AsyncConnection, instance_id: str, person_id: str
+) -> tuple | None:
+    cur = await conn.execute(
+        "select t.id, t.template, t.state, t.contract, t.attempts_used, t.max_attempts,"
+        " exists(select 1 from work.attempts a where a.task_id = t.id and a.state in ('ADMITTED', 'CLAIMED')"
+        "        and a.turn_id is not null)"
+        " from work.tasks t"
+        " where t.instance_id = %s and t.template = 'request_intake'"
+        " and t.state in ('WAITING_INPUT', 'RUNNING')"
+        " and t.contract->'on_behalf_of'->>'person_id' = %s"
+        " order by t.id for update of t",
+        (instance_id, person_id),
+    )
+    row = await cur.fetchone()
+    if row is None:
+        return None
+    state, in_conversation = row[2], bool(row[6])
+    if state == "WAITING_INPUT" or in_conversation:
+        return row
+    return None
+
+
 async def _conversation_task(conn: AsyncConnection, instance_id: str, person_id: str) -> tuple | None:
     """A workflow Task working for this person that is in the conversation: waiting for their input, or running an
     attempt that answers one of their turns. Its turns go to it instead of the assist Task."""
@@ -1119,8 +1231,13 @@ async def _apply_detail_signal_if_needed(
         (instance_id,),
     )
     person_turns = int((await pcur.fetchone() or (0,))[0])
-    # Stay in casual assist until at least one reply cycle (handoff jobs start with one person turn).
-    if person_turns < 2:
+    scur = await conn.execute(
+        "select count(*) from work.turns where instance_id = %s and author_kind = 'seat'",
+        (instance_id,),
+    )
+    seat_replies = int((await scur.fetchone() or (0,))[0])
+    # One reply cycle: requester spoke and the seat acknowledged before structured intake.
+    if person_turns < 1 or seat_replies < 1:
         return instance_state, attributes
     if not await _thread_indicates_request_detail(conn, instance_id, message, wdoc):
         return instance_state, attributes
@@ -1183,6 +1300,17 @@ async def post_turn(
     seat_name, seat_version, workflow_name, pvid, attributes, correlation_id, instance_state = inst
     attributes = attributes if isinstance(attributes, dict) else json.loads(attributes or "{}")
 
+    from .pack_publish import heal_instance_pack_pin
+
+    if await heal_instance_pack_pin(conn, org_id=org_id, instance_id=instance_id, packs_dir=packs_dir):
+        pcur = await conn.execute(
+            "select pack_version_id from work.instances where id = %s",
+            (instance_id,),
+        )
+        prow = await pcur.fetchone()
+        if prow is not None:
+            pvid = prow[0]
+
     instance_state, attributes = await _apply_detail_signal_if_needed(
         conn,
         org,
@@ -1232,6 +1360,8 @@ async def post_turn(
         raise InstanceError("not_found", 404, "Seat not found", f"Seat {seat_name!r} is not active.")
 
     conv = await _conversation_task(conn, instance_id, actor)
+    if conv is None and str(instance_state) == "intake":
+        conv = await _request_intake_task_row(conn, instance_id, actor)
     if conv is not None:
         return await _post_turn_to_task(
             conn,
@@ -1250,14 +1380,6 @@ async def post_turn(
             pack_version_id=str(pvid),
             pack_published=pack_status == "published",
             attributes=attributes,
-        )
-
-    if str(instance_state) == "intake" and "requester" in my_roles:
-        raise InstanceError(
-            "conflict",
-            409,
-            "Brief is still updating",
-            "Send another message with any missing detail, or open Documents to review the draft.",
         )
 
     tcur = await conn.execute(

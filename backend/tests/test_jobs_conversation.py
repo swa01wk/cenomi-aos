@@ -466,6 +466,7 @@ class JobsConversationTests(unittest.TestCase):
             "specification": "Standard mall trolley",
             "delivery_date": "2026-11-20",
             "delivery_site": "Mall A",
+        "vendor_reply_deadline": "1.5 minutes",
         }
         import hashlib
         import json as json_mod
@@ -517,6 +518,19 @@ class JobsConversationTests(unittest.TestCase):
             self.assertIn("Pack content changed", r.json()["title"])
         finally:
             instr.write_text(original)
+
+
+class IntakeViewForRepeatTests(unittest.TestCase):
+    def test_quick_quote_uses_intake_brief_not_conversation(self) -> None:
+        from aos.kernel.instances import _intake_view_artifact_type
+
+        wdoc = {
+            "spec": {
+                "initial": "conversation",
+                "states": {"conversation": {"assist": "sourcing_assist"}, "intake": {"view": "brief"}},
+            }
+        }
+        self.assertEqual(_intake_view_artifact_type(wdoc), "brief")
 
 
 if __name__ == "__main__":

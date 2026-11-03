@@ -20,7 +20,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .base import ConnectorConfig, ConnectorError, Faults, Store, stall
-from .mock_erp_seed import PRC_BU, SCHEMA, seed
+from .mock_erp_seed import IT_DEV_CATEGORY, PRC_BU, SCHEMA, ensure_it_dev_rfp_catalog, seed
 
 AOS_PO = "AOS"  # PO_HEADERS_ALL.ATTRIBUTE_CATEGORY on orders AOS created; ATTRIBUTE1 is the reference
 FIRST_AOS_PO = 778201
@@ -134,6 +134,8 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     def search_suppliers(category_id: str, token: str | None = None) -> dict:
         """Active suppliers on the approved supplier list for a category."""
         guard(token, "erp_supplier", "read", "search_suppliers")
+        if category_id == IT_DEV_CATEGORY:
+            ensure_it_dev_rfp_catalog(store)
         rows = store.q(_SUPPLIERS_IN_CATEGORY, (category_id,))
         if cfg.faults.oversized_reads:
             rows = rows * 500

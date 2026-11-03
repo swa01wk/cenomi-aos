@@ -1,5 +1,5 @@
 import type { components } from "../../../api/schema";
-import { formatFieldValue } from "./formatFieldValue";
+import { formatFieldValue, formatLineItemObject } from "./formatFieldValue";
 import styles from "./views.module.css";
 
 type ArtifactView = components["schemas"]["ArtifactView"];
@@ -35,8 +35,26 @@ export function FieldListView({
         {order.map((name) => {
           const field = byName.get(name);
           if (!field) return null;
-          const raw = version.content[name];
-          // Right-aligning numbers is for row views (sheet, tracker); in a label/value list they stay under their label.
+          const raw = rawContent[name];
+          const lineObjects =
+            field.type === "list" &&
+            Array.isArray(raw) &&
+            raw.length > 0 &&
+            raw.every((item) => item !== null && typeof item === "object" && !Array.isArray(item));
+          if (lineObjects) {
+            return (
+              <div key={name} className={styles.fieldRow}>
+                <dt>{field.label === "Lines" ? "Order lines" : field.label}</dt>
+                <dd>
+                  <ul className={styles.orderLines}>
+                    {(raw as Record<string, unknown>[]).map((line, i) => (
+                      <li key={i}>{formatLineItemObject(line)}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            );
+          }
           const { text } = formatFieldValue(field, raw);
           return (
             <div key={name} className={styles.fieldRow}>

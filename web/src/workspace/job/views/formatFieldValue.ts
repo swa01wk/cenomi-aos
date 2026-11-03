@@ -2,6 +2,32 @@ import type { components } from "../../../api/schema";
 
 type FieldDef = components["schemas"]["ArtifactView"]["fields"][number];
 
+/** One PO or catalog line stored as an object on a list field. */
+export function formatLineItemObject(value: Record<string, unknown>): string {
+  const desc = value.description ?? value.name ?? value.item ?? "Item";
+  const qty = value.quantity ?? value.qty;
+  const price = value.unit_price ?? value.price;
+  const currency = typeof value.currency === "string" ? value.currency : "";
+  let line = String(desc);
+  if (qty != null && qty !== "") line += ` · Qty ${qty}`;
+  if (price != null && price !== "") {
+    const n = typeof price === "number" ? price : Number(price);
+    line += Number.isFinite(n)
+      ? ` · ${currency ? `${currency} ` : ""}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })} each`
+      : ` · ${String(price)}`;
+  }
+  return line;
+}
+
+function formatListValue(value: unknown): string {
+  if (!Array.isArray(value)) return String(value);
+  if (value.length === 0) return "—";
+  if (value.every((item) => item !== null && typeof item === "object" && !Array.isArray(item))) {
+    return value.map((item) => formatLineItemObject(item as Record<string, unknown>)).join("\n");
+  }
+  return value.map((item) => (item == null ? "" : String(item))).filter(Boolean).join(", ");
+}
+
 export function formatFieldValue(
   field: FieldDef,
   value: unknown,
@@ -48,7 +74,7 @@ export function formatFieldValue(
     case "boolean":
       return { text: value ? "Yes" : "No" };
     case "list":
-      return { text: Array.isArray(value) ? value.join(", ") : String(value) };
+      return { text: formatListValue(value) };
     case "object":
       return { text: JSON.stringify(value) };
     default:

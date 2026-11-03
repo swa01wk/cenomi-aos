@@ -16,11 +16,16 @@ type ArtifactView = components["schemas"]["ArtifactView"];
 export function DecisionCard({
   pending,
   view,
+  selectionVersion,
+  latestArtifactVersion,
   onApprove,
   variant = "default",
 }: {
   pending: PendingItem;
   view?: ArtifactView;
+  /** Version pinned on the pending item, or latest comparison version. */
+  selectionVersion?: number;
+  latestArtifactVersion?: number;
   variant?: "default" | "retry";
   onApprove: (input: {
     pendingId: string;
@@ -45,10 +50,17 @@ export function DecisionCard({
     (preferConfirm ? pending.options?.find((o) => o.value === "confirm") : pending.options?.[0]) ??
     pending.options?.[0];
   const value = option?.value ?? "confirm";
-  const actionLabel = option?.label ?? (pending.event === "task.retry" ? "Retry this step" : "Approve");
+  const isAward = pending.event === "decision.supplier_selected";
+  const actionLabel = isAward
+    ? "Award to this vendor"
+    : (option?.label ?? (pending.event === "task.retry" ? "Retry this step" : "Approve"));
   const minimum = pending.select_min ?? 0;
   const needsChoice = minimum > 0;
   const short = needsChoice && selected.length < minimum;
+  const cardDetail =
+    isAward && !pending.detail
+      ? "Choose the vendor you are awarding this order to."
+      : pending.detail;
 
   const approve = async () => {
     if (busy || short) return;
@@ -93,17 +105,22 @@ export function DecisionCard({
       <p className={styles.title}>
         {compactRetry ? pending.title.replace(/^Retry:\s*/i, "") : pending.title}
       </p>
-      {pending.detail && !compactRetry ? <p className={styles.detail}>{pending.detail}</p> : null}
+      {cardDetail && !compactRetry ? <p className={styles.detail}>{cardDetail}</p> : null}
       {compactRetry && pending.detail ? <p className={styles.detailMuted}>{pending.detail}</p> : null}
       {needsChoice && pending.artifact_ref?.artifact_id && view?.row_key ? (
         <RowChoices
           artifactId={pending.artifact_ref.artifact_id}
-          version={pending.artifact_ref.version ?? 1}
+          version={selectionVersion ?? pending.artifact_ref.version ?? 1}
+          latestVersion={latestArtifactVersion}
           view={view}
           rowKey={view.row_key}
+          minimum={minimum}
+          singlePick={isAward}
           selected={selected}
           onChange={setSelected}
         />
+      ) : needsChoice ? (
+        <p className={styles.detail}>Reload the job — quoted vendors for this award could not be loaded.</p>
       ) : null}
       {showNote ? (
         <label>
@@ -134,23 +151,34 @@ export function DecisionCard({
 function RowChoices({
   artifactId,
   version,
+  latestVersion,
   view,
   rowKey,
+  minimum,
+  singlePick,
   selected,
   onChange,
 }: {
   artifactId: string;
   version: number;
+  latestVersion?: number;
   view: ArtifactView;
   rowKey: string;
+  minimum: number;
+  singlePick?: boolean;
   selected: string[];
   onChange: (next: string[]) => void;
 }) {
+  const [loadVersion, setLoadVersion] = useState(version);
+  useEffect(() => {
+    setLoadVersion(version);
+  }, [artifactId, version]);
+
   const content = useQuery({
-    queryKey: workspaceKeys.artifactVersion(artifactId, version),
+    queryKey: workspaceKeys.artifactVersion(artifactId, loadVersion),
     queryFn: async () => {
       const { data, error } = await client.GET("/artifacts/{id}/versions/{version}", {
-        params: { path: { id: artifactId, version } },
+        params: { path: { id: artifactId, version: loadVersion } },
       });
       if (error) throw error;
       return data!;
@@ -159,14 +187,40 @@ function RowChoices({
   const rows = Array.isArray((content.data?.content as { rows?: unknown } | undefined)?.rows)
     ? ((content.data!.content as { rows: Record<string, unknown>[] }).rows)
     : [];
+
+  useEffect(() => {
+    if (content.isLoading || content.isError || rows.length > 0) return;
+    if (latestVersion != null && latestVersion > loadVersion) {
+      setLoadVersion(latestVersion);
+    }
+  }, [content.isError, content.isLoading, latestVersion, loadVersion, rows.length]);
   const order = (view.columns?.length ? view.columns : view.fields.map((f) => f.name)).slice(0, 2);
   const byName = new Map(view.fields.map((f) => [f.name, f]));
 
-  if (content.isLoading) return <p className={styles.detail}>Loading the list…</p>;
-  if (content.isError) return <p className={styles.error}>The list could not be loaded.</p>;
+  useEffect(() => {
+    if (minimum < 1 || rows.length !== 1 || selected.length > 0) return;
+    const key = rows[0][rowKey];
+    if (key == null || key === "") return;
+    onChange([String(key)]);
+  }, [minimum, onChange, rowKey, rows, selected.length]);
+
+  if (content.isLoading) return <p className={styles.detail}>Loading quoted vendors…</p>;
+  if (content.isError) return <p className={styles.error}>Quoted vendors could not be loaded.</p>;
+  if (rows.length === 0) {
+    return (
+      <p className={styles.detail}>
+        No ranked quotes yet. Open the Comparison tab on the right, then reload this job.
+      </p>
+    );
+  }
+
+  const pick = (id: string) => {
+    if (singlePick) onChange([id]);
+    else onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
+  };
 
   return (
-    <div className={styles.choices} role="group" aria-label="Rows">
+    <div className={styles.choices} role="group" aria-label={singlePick ? "Vendors to award" : "Rows"}>
       {rows.map((row) => {
         const key = row[rowKey];
         if (key == null || key === "") return null;
@@ -181,11 +235,10 @@ function RowChoices({
         return (
           <label key={id} className={styles.choice}>
             <input
-              type="checkbox"
+              type={singlePick ? "radio" : "checkbox"}
+              name={singlePick ? `award-${artifactId}` : undefined}
               checked={selected.includes(id)}
-              onChange={() =>
-                onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id])
-              }
+              onChange={() => pick(id)}
             />
             <span>{label || id}</span>
           </label>

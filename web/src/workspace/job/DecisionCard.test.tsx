@@ -110,4 +110,52 @@ describe("DecisionCard", () => {
       expect.objectContaining({ selection: ["s1", "s2", "s3"], artifactVersion: 8 }),
     );
   });
+
+  it("pre-selects the only supplier when one row is available", async () => {
+    vi.mocked(client.GET).mockResolvedValue({
+      data: {
+        artifact_id: "art_cmp",
+        artifact_type: "comparison",
+        version: 1,
+        content: { rows: [{ supplier: "Webknot Technologies", rank: 1 }] },
+        hidden_fields: [],
+        produced_by: { kind: "attempt", id: "a", name: "Worker" },
+        created_at: "2026-10-27T10:00:00Z",
+      },
+      error: undefined,
+      response: new Response(),
+    });
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <DecisionCard
+          pending={{
+            ...pending,
+            title: "Award this order",
+            event: "decision.supplier_selected",
+            detail: "Choose the vendor you are awarding this order to.",
+            select_min: 1,
+            options: [{ value: "confirm", label: "Award this order" }],
+            artifact_ref: { artifact_id: "art_cmp", version: 1 },
+          }}
+          view={{
+            type: "sheet",
+            row_key: "supplier",
+            columns: ["rank", "supplier"],
+            fields: [
+              { name: "rank", label: "Rank", type: "integer" },
+              { name: "supplier", label: "Supplier", type: "string" },
+            ],
+          }}
+          onApprove={onApprove}
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("radio", { name: /Webknot Technologies/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /^Award to this vendor/ }));
+    expect(onApprove).toHaveBeenCalledWith(
+      expect.objectContaining({ selection: ["Webknot Technologies"], artifactVersion: 1 }),
+    );
+  });
 });

@@ -6,6 +6,36 @@ type Turn = components["schemas"]["Turn"];
 
 const TOKEN = /[a-z0-9']+/gi;
 
+/** Keep in sync with backend intake_routing._RFP_STRONG (formal RFP vs Quick Quote). */
+const RFP_STRONG =
+  /\b(rfp|tender|proposal|web portal|rest api|master rfp|formal rfp|sourcing event|website redesign|web redesign|marketing website|public website)\b/i;
+
+const WORKFLOW_TIE_PRIORITY: Record<string, number> = { sourcing_rfp: 2, quick_quote: 1 };
+
+export function isFormalRfpRequest(message: string): boolean {
+  return RFP_STRONG.test(message);
+}
+
+/** Best workflow name for intake routing (mirrors kernel route_intake_message tie-break). */
+export function routeWorkflowName(message: string, workers: Worker[]): string | undefined {
+  let best: { name: string; score: number; pri: number } | undefined;
+  for (const worker of specialistColleagues(workers)) {
+    for (const wf of routableWorkflows(worker)) {
+      const hints = wf.intake_hints ?? [];
+      let score = hintScore(message, hints) + fieldScore(message, wf.title ?? "", wf.description ?? "");
+      if (RFP_STRONG.test(message)) {
+        if (wf.name === "sourcing_rfp") score += 14;
+        else if (wf.name === "quick_quote") score -= 8;
+      }
+      const pri = WORKFLOW_TIE_PRIORITY[wf.name] ?? 0;
+      if (!best || score > best.score || (score === best.score && pri > best.pri)) {
+        best = { name: wf.name, score, pri };
+      }
+    }
+  }
+  return best?.name;
+}
+
 function hintScore(message: string, hints: string[]): number {
   if (!hints.length) return 0;
   const lower = message.toLowerCase();
@@ -67,6 +97,34 @@ export function routingScore(message: string, workers: Worker[]): number {
   return best;
 }
 
+function workerRoutingScore(message: string, worker: Worker): number {
+  let best = 0;
+  for (const wf of routableWorkflows(worker)) {
+    const hints = wf.intake_hints ?? [];
+    best = Math.max(
+      best,
+      hintScore(message, hints) + fieldScore(message, wf.title ?? "", wf.description ?? ""),
+    );
+  }
+  return best;
+}
+
+/** Best-matching specialist seat for a concrete request (for handoff UX copy). */
+export function pickSpecialistWorker(message: string, workers: Worker[]): Worker | undefined {
+  const specialists = specialistColleagues(workers);
+  if (!specialists.length) return undefined;
+  let best: Worker | undefined;
+  let bestScore = 0;
+  for (const worker of specialists) {
+    const score = workerRoutingScore(message, worker);
+    if (score > bestScore) {
+      bestScore = score;
+      best = worker;
+    }
+  }
+  return best ?? specialists[0];
+}
+
 /** True when the message looks like a concrete request worth opening a specialist job. */
 export function shouldOpenSpecialistJob(message: string, workers: Worker[]): boolean {
   return routingScore(message, workers) >= 1;
@@ -95,18 +153,11 @@ export function bestSpecialistIntakeMessage(latestText: string, priorPersonTexts
   return null;
 }
 
-/** Combine recent person lines so the specialist sees coordinator context. */
+/** Single line to seed the specialist job — the intent-classified request only, not coordinator chit-chat. */
 export function buildHandoffIntakeMessage(latestText: string, turns: Turn[], workers: Worker[]): string {
   const prior = personTurnTexts(turns);
   const anchor = bestSpecialistIntakeMessage(latestText, prior, workers);
-  const parts = [...prior, latestText.trim()].filter(Boolean);
-  const unique: string[] = [];
-  for (const p of parts) {
-    if (!unique.includes(p)) unique.push(p);
-  }
-  if (!anchor) return latestText.trim();
-  if (unique.length <= 1) return anchor;
-  return unique.slice(-5).join(" · ");
+  return anchor ?? latestText.trim();
 }
 
 /** Coordinator chat: hand off once we have ever heard a concrete request in this thread. */
@@ -133,15 +184,12 @@ export function coordinationWorkflow(worker: Worker): Workflow | undefined {
   return worker.workflows[0];
 }
 
-/** Coordinator threads have no work artifacts yet (chat-only workflow). */
+/** Front-desk coordinator thread only — not specialist jobs still waiting on their first artifact. */
 export function isCoordinatorJob(snapshot: {
   artifacts: unknown[];
   stages: { state: string }[];
   workflow?: string;
   state?: string;
 }): boolean {
-  if (snapshot.workflow === "workspace_coordination") {
-    return snapshot.state === "chat";
-  }
-  return snapshot.artifacts.length === 0 && snapshot.stages.length <= 1;
+  return snapshot.workflow === "workspace_coordination" && snapshot.state === "chat";
 }

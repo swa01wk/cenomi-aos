@@ -36,7 +36,7 @@ const middleware: Middleware = {
   },
 };
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   if (typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null") {
     return `${window.location.origin}/api`;
   }

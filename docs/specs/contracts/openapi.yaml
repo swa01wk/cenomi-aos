@@ -447,9 +447,22 @@ paths:
       x-screens: [WS-RFQ-Approval, Main]
       description: |
         Buyer approves and sends every rfq_email draft on the job through the mail connector (idempotent per supplier).
-        Completes the rfq_send workflow step when the job is in rfq_sending. Until governed request_action is wired in
-        the worker, this is the human approval path for the POC demo.
+        Completes the rfq_send workflow step when the job is in rfq_sending. While awaiting quotes, send again with
+        `resend: true` to deliver the current draft text (all suppliers or a subset). Until governed request_action is
+        wired in the worker, this is the human approval path for the POC demo.
       parameters: [{$ref: '#/components/parameters/InstanceId'}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resend: {type: boolean, description: When true and the job is awaiting quotes, send again via SMTP.}
+                supplier_ids:
+                  type: array
+                  items: {type: string}
+                  description: Optional supplier ids; omit to include every rfq_email on the job.
       responses:
         '200':
           description: Send receipts and an updated snapshot
@@ -477,6 +490,64 @@ paths:
         '409': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '502': {$ref: '#/components/responses/Problem'}
+  /instances/{id}/shared-attachments:
+    post:
+      tags: [instances]
+      operationId: uploadInstanceSharedAttachment
+      x-milestone: M3
+      x-screens: [WS-RFQ-Approval, Main]
+      description: |
+        Buyer uploads a file once; it is included on every RFQ email when Approve and send runs.
+        Allowed while the job is drafting or sending RFQs (or awaiting quotes for re-send).
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attachment, snapshot]
+                properties:
+                  attachment: {$ref: '#/components/schemas/SharedAttachment'}
+                  snapshot: {$ref: '#/components/schemas/InstanceSnapshot'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /instances/{id}/shared-attachments/{attachment_id}:
+    delete:
+      tags: [instances]
+      operationId: deleteInstanceSharedAttachment
+      x-milestone: M3
+      x-screens: [WS-RFQ-Approval, Main]
+      parameters:
+        - {$ref: '#/components/parameters/InstanceId'}
+        - name: attachment_id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot: {$ref: '#/components/schemas/InstanceSnapshot'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
   /instances/{id}/turns:
     get:
       tags: [instances]
@@ -556,9 +627,12 @@ paths:
       operationId: listQueue
       x-milestone: M2
       x-screens: [WS-Queue]
+      description: |
+        Jobs waiting on this team: unclaimed roles the caller may claim (`queue_item_kind` `claim`) and jobs with an
+        open decision assigned to the caller (`queue_item_kind` `review`, for example master RFP approval).
       parameters: [{name: queue, in: path, required: true, schema: {type: string}, description: 'URL-encoded team path, e.g. procurement%2Fsourcing'}]
       responses:
-        '200': {description: Unclaimed jobs the caller may claim, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/InstanceSummary'}}}}}}}
+        '200': {description: Team queue items, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/InstanceSummary'}}}}}}}
   /pending/{id}/decide:
     post:
       tags: [decisions]
@@ -1271,7 +1345,8 @@ components:
         started_at: {type: string, format: date-time}
         closed_at: {type: [string, 'null'], format: date-time}
         last_activity_at: {type: string, format: date-time}
-        claim_role: {type: string, description: On a queue item, the participant role a claim binds. Absent elsewhere.}
+        claim_role: {type: string, description: On a claim queue item, the participant role a claim binds. Absent on review items.}
+        queue_item_kind: {type: string, enum: [claim, review], description: Claim binds a role; review opens the job for an assigned decision.}
     QueueRejection:
       type: object
       required: [instance_id, decision, note]
@@ -1300,11 +1375,41 @@ components:
         turns: {type: array, items: {$ref: './schemas/ui-event.schema.json#/$defs/Turn'}, description: Latest 50}
         seat_notice: {type: [object, 'null'], properties: {kind: {enum: [paused, killed]}, text: {type: string}}}
         cursor: {type: string, description: Resume the instance stream from here}
+        intake_ready_for_confirm:
+          type: boolean
+          description: >-
+            Intake only. True when request_intake completed and the brief passes full validation, so
+            decision.brief_confirmed may be shown even if assist sent a closing message last.
+        quote_deadline_at:
+          type: string
+          format: date-time
+          description: When the active quote_deadline timer fires (demo reply window), if scheduled.
+        quote_resend_deadlines:
+          type: object
+          additionalProperties: {type: string, format: date-time}
+          description: Per-supplier reply window end times after resend (supplier_id → ISO time).
+        vendor_reply_window_minutes:
+          type: number
+          description: Awaiting quotes only. Reply window from the brief (demo treats the number as minutes).
+        shared_attachments:
+          type: array
+          description: Files the buyer uploaded to include on every RFQ send for this job.
+          items: {$ref: '#/components/schemas/SharedAttachment'}
+    SharedAttachment:
+      type: object
+      required: [attachment_id, filename, size_bytes, uploaded_at]
+      properties:
+        attachment_id: {type: string}
+        filename: {type: string}
+        content_type: {type: string}
+        size_bytes: {type: integer}
+        uploaded_at: {type: string, format: date-time}
     ArtifactSummary:
       type: object
       required: [artifact_id, artifact_type, name, latest_version, status, view]
       properties:
         artifact_id: {type: string}
+        key: {type: string, description: Row key for keyed artifacts (e.g. supplier_id on rfq_email).}
         artifact_type: {type: string}
         name: {type: string}
         latest_version: {type: integer}

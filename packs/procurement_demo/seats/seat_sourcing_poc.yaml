@@ -7,7 +7,20 @@ spec:
   placement: procurement/sourcing
   role: sourcing_agent
   assist_skill: sourcing_assist
-  skills: [request_intake, sourcing_assist, supplier_lookup, rfq_authoring, quote_triage, quote_comparison]
+  skills:
+    [
+      request_intake,
+      sourcing_assist,
+      supplier_lookup,
+      rfq_authoring,
+      quote_triage,
+      quote_comparison,
+      rfp_intake,
+      master_rfp_authoring,
+      rfp_authoring,
+      proposal_triage,
+      rfp_evaluation,
+    ]
   resources: [job_artifacts, erp_supplier, erp_po, mailbox, quotes]
   authority_profile: sourcing_supervised@1
   autonomy_mode: supervised
@@ -16,8 +29,8 @@ spec:
     run_minutes: 10
     actions_per_run: 10
     daily_cost_usd: 20
-    attempt_cost_usd: 1.5
-    attempt_tokens: 60000
-    attempt_steps: 12
-    attempt_actions: 10
+    attempt_cost_usd: 2.25
+    attempt_tokens: 90000
+    attempt_steps: 45
+    attempt_actions: 36
   evals: [refusals, dry_run, inbound_quotes, inbound_trigger]

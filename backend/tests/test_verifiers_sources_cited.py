@@ -44,6 +44,25 @@ class SourcesCitedVerifierTests(unittest.TestCase):
         self.assertEqual(verdict, "PASS")
         self.assertEqual(findings, [])
 
+    def test_empty_rows(self) -> None:
+        verdict, findings = sources_cited.verify(_inp([]))
+        self.assertEqual(verdict, "REWORK")
+        self.assertTrue(any("at least one" in f for f in findings))
+
+    def test_placeholder_row(self) -> None:
+        rows = [
+            {
+                "rank": 1,
+                "supplier": "No approved suppliers found for this category",
+                "supplier_id": "N/A",
+                "score": 0,
+                "sources": ["tp_x"],
+            }
+        ]
+        verdict, findings = sources_cited.verify(_inp(rows, [_receipt("search_suppliers", "tp_x", {"items": []})]))
+        self.assertEqual(verdict, "REWORK")
+        self.assertTrue(any("placeholder" in f for f in findings))
+
     def test_missing_source(self) -> None:
         verdict, findings = sources_cited.verify(_inp([_row("SUP-1", 1, 90.0, [])]))
         self.assertEqual(verdict, "REWORK")

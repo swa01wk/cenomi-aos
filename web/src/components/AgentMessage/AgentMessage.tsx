@@ -19,6 +19,7 @@ export function AgentMessage({
   decisionHref,
   avatar,
   renderPending,
+  highlighted = false,
 }: {
   turn: Turn;
   onOpenArtifact?: (artifactId: string, version: number) => void;
@@ -28,6 +29,7 @@ export function AgentMessage({
   avatar?: ReactNode;
   /** Renders an open decision in place of a pending_ref block. */
   renderPending?: (pendingId: string) => ReactNode;
+  highlighted?: boolean;
 }) {
   const body: ReactNode[] = [];
   let chipRun: ChipBlockData[] = [];
@@ -71,7 +73,9 @@ export function AgentMessage({
           {initials(turn.author.name)}
         </span>
       )}
-      <div className={styles.body}>{body}</div>
+      <div className={[styles.body, highlighted ? styles.bodyQuoted : ""].filter(Boolean).join(" ")}>
+        {body}
+      </div>
     </div>
   );
 }
