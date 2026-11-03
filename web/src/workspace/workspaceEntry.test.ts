@@ -3,8 +3,11 @@ import {
   bestSpecialistIntakeMessage,
   buildHandoffIntakeMessage,
   entryColleague,
+  isCoordinatorJob,
   isEntryColleague,
   isSmallTalk,
+  pickSpecialistWorker,
+  routeWorkflowName,
   routingScore,
   shouldHandOffFromCoordinator,
   shouldOpenSpecialistJob,
@@ -41,6 +44,25 @@ const specialist: Worker = {
 };
 
 describe("workspaceEntry", () => {
+  it("does not treat a new quick quote as coordinator chat", () => {
+    expect(
+      isCoordinatorJob({
+        workflow: "quick_quote",
+        state: "conversation",
+        artifacts: [],
+        stages: [{ state: "conversation" }],
+      }),
+    ).toBe(false);
+    expect(
+      isCoordinatorJob({
+        workflow: "workspace_coordination",
+        state: "chat",
+        artifacts: [],
+        stages: [{ state: "chat" }],
+      }),
+    ).toBe(true);
+  });
+
   it("identifies the entry colleague", () => {
     expect(isEntryColleague(entry)).toBe(true);
     expect(isEntryColleague(specialist)).toBe(false);
@@ -52,6 +74,7 @@ describe("workspaceEntry", () => {
     expect(routingScore("hi", workers)).toBe(0);
     expect(shouldOpenSpecialistJob("hi", workers)).toBe(false);
     expect(shouldOpenSpecialistJob("We need equipment for the site", workers)).toBe(true);
+    expect(pickSpecialistWorker("We need laptops for the site", workers)?.seat).toBe("seat_spec");
   });
 
   it("treats greetings as small talk", () => {
@@ -76,6 +99,46 @@ describe("workspaceEntry", () => {
     expect(bestSpecialistIntakeMessage("no", ["We need 20 laptops for the mall"], workers)).toBe(
       "We need 20 laptops for the mall",
     );
-    expect(buildHandoffIntakeMessage("no", turns, workers)).toContain("20 laptops");
+    expect(buildHandoffIntakeMessage("no", turns, workers)).toBe("We need 20 laptops for the mall");
+  });
+
+  it("handoff sends only the intent line, not the whole coordinator thread", () => {
+    const workers = [entry, specialist];
+    const turns = [
+      {
+        turn_id: "1",
+        seq: 1,
+        at: "2026-10-29T08:00:00Z",
+        author: { kind: "person" as const, id: "p", name: "F" },
+        blocks: [{ kind: "text" as const, text: "Hey, how are you?" }],
+      },
+      {
+        turn_id: "2",
+        seq: 2,
+        at: "2026-10-29T08:01:00Z",
+        author: { kind: "person" as const, id: "p", name: "F" },
+        blocks: [{ kind: "text" as const, text: "hey broooo" }],
+      },
+    ];
+    expect(buildHandoffIntakeMessage("i need 10 macs", turns, workers)).toBe("i need 10 macs");
+  });
+
+  it("routes website RFP wording to sourcing_rfp", () => {
+    const workers: Worker[] = [
+      entry,
+      {
+        ...specialist,
+        workflows: [
+          { name: "quick_quote", title: "Quick Quote", description: "Quotes", intake_hints: ["need", "quote"] },
+          {
+            name: "sourcing_rfp",
+            title: "Sourcing event (full RFP)",
+            description: "Formal RFP",
+            intake_hints: ["rfp", "website", "software"],
+          },
+        ],
+      },
+    ];
+    expect(routeWorkflowName("I need to create an RFP for website redesign", workers)).toBe("sourcing_rfp");
   });
 });

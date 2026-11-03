@@ -8,10 +8,10 @@ function textFromTurn(turn: Turn): string {
     .join("\n");
 }
 
-export function PersonMessage({ turn }: { turn: Turn }) {
+export function PersonMessage({ turn, highlighted = false }: { turn: Turn; highlighted?: boolean }) {
   return (
     <div className={styles.wrap}>
-      <div className={styles.bubble}>
+      <div className={[styles.bubble, highlighted ? styles.bubbleQuoted : ""].filter(Boolean).join(" ")}>
         <p className={styles.text}>{textFromTurn(turn)}</p>
         <div className={styles.meta}>
           {turn.author.name} · {when(turn.at)}

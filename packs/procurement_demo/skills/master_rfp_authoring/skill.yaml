@@ -1,0 +1,16 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: master_rfp_authoring, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [document_draft]
+  instructions: instructions.md
+  ceiling: shareable
+  budget: {tokens: 60000, cost_usd: 1.2, seconds: 400, steps: 12, actions: 4, retries: 2}
+  reads: [job_snapshot, brief, supplier_list]
+  produces: [master_rfp]
+  may_request: [leak_check_diff]
+  verifiers: [leak_check]
+  runs:
+    document_draft:
+      classification_ceiling: shareable
+      budget: {tokens: 60000, cost_usd: 1.20, time_s: 400, steps: 12, actions: 4, retries: 2}

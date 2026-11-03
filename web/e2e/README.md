@@ -22,3 +22,13 @@ cd web && npm run e2e
 Playwright runs stop projects in order (`dependencies`, serial mode, no retries). Do not run these projects in parallel with each other or against a dirty stack.
 
 Later milestones add more stop specs; M5 runs the full chain twice on a clean stack.
+
+## Presenter demos (Quick Quote + full RFP)
+
+Step-by-step scripts and optional long-running specs live in **`e2e/demo/`**. Run with:
+
+```bash
+E2E_DEMO=1 npm run e2e:demo
+```
+
+See **`e2e/demo/README.md`** for manual presenter steps (iPhone → award, IT RFP lifecycle).

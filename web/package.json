@@ -11,6 +11,7 @@
     "gen:api": "openapi-typescript ../docs/specs/contracts/openapi.yaml -o src/api/schema.d.ts",
     "test": "vitest run",
     "e2e": "playwright test",
+    "e2e:demo": "playwright test -c playwright.demo.config.ts",
     "e2e:install": "playwright install chromium"
   },
   "dependencies": {

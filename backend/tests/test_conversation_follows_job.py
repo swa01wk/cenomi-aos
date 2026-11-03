@@ -624,16 +624,16 @@ class ConversationFollowsJobTests(unittest.TestCase):
                         packs_dir=self.packs,
                     )
                     cur = await conn.execute(
-                        "select blocks from work.turns where instance_id = %s and author_kind = 'seat'"
-                        " and blocks::text like '%%decided:%%' order by seq desc limit 1",
+                        "select blocks from work.turns where instance_id = %s and author_kind = 'person'"
+                        " and author_id = 'faisal' order by seq desc limit 1",
                         (inst,),
                     )
                     row = await cur.fetchone()
                     return json.dumps(row[0]) if row else ""
 
         text = asyncio.run(_brief_and_decide())
-        self.assertIn("Faisal decided:", text)
         self.assertIn("Confirm the brief", text)
+        self.assertNotIn("decided:", text)
 
     def test_decision_resolved_progress_when_job_unchanged(self) -> None:
         from aos.kernel import decisions as dec_ops
@@ -675,7 +675,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
                         packs_dir=self.packs,
                     )
                     cur = await conn.execute(
-                        "select blocks from work.turns where instance_id = %s and author_kind = 'seat'"
+                        "select blocks from work.turns where instance_id = %s and author_kind = 'person'"
                         " and blocks::text like '%%still in%%' order by seq desc limit 1",
                         (inst,),
                     )
@@ -684,6 +684,64 @@ class ConversationFollowsJobTests(unittest.TestCase):
 
         text = asyncio.run(_run())
         self.assertIn("still in Shortlisting", text)
+        self.assertIn("Selected suppliers:", text)
+        self.assertIn("Supplier s1", text)
+        self.assertIn("Supplier s2", text)
+
+    def test_heal_legacy_shortlist_turn_on_snapshot_load(self) -> None:
+        from aos.kernel.progress import heal_legacy_selection_decision_turns
+        from tests.test_decisions import _insert_supplier_list
+
+        inst = self._start()
+
+        async def _run() -> str:
+            async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "update work.instances set state = 'rfq_drafting', version = 3 where id = %s",
+                        (inst,),
+                    )
+                    aid = await _insert_supplier_list(conn, inst, sids=("s1", "s2", "s3"))
+                    await conn.execute(
+                        "insert into work.turns (id, instance_id, seq, author_kind, author_id, audience_roles,"
+                        " blocks, client_turn_id)"
+                        " values ('turn_legacy_shortlist', %s, 99, 'person', 'noura', '{buyer}',"
+                        " '[{\"kind\": \"text\", \"text\": \"Confirm the shortlist.\"}]', 'legacy-shortlist')",
+                        (inst,),
+                    )
+                    await conn.execute(
+                        "insert into gov.decision_records ("
+                        " id, org_id, subject_kind, subject_id, event, value, actor, actor_role,"
+                        " artifact_ref, selection, response"
+                        ") values ("
+                        " 'dr_legacy_shortlist', %s, 'instance', %s, 'decision.shortlist_confirmed',"
+                        " 'confirm', 'noura', 'buyer', %s, %s, %s)",
+                        (
+                            ORG_ID,
+                            inst,
+                            json.dumps({"artifact_id": aid, "version": 1}),
+                            json.dumps(["s1", "s2"]),
+                            json.dumps(
+                                {
+                                    "resulting_state": "rfq_drafting",
+                                    "instance_id": inst,
+                                    "event": "decision.shortlist_confirmed",
+                                }
+                            ),
+                        ),
+                    )
+                    await heal_legacy_selection_decision_turns(
+                        conn, org_id=ORG_ID, instance_id=inst
+                    )
+                    cur = await conn.execute(
+                        "select blocks from work.turns where id = 'turn_legacy_shortlist'",
+                    )
+                    row = await cur.fetchone()
+                    return json.dumps(row[0]) if row else ""
+
+        text = asyncio.run(_run())
+        self.assertIn("Selected suppliers:", text)
+        self.assertIn("Supplier s1", text)
 
     def test_verifier_rework_posts_task_progress(self) -> None:
         from aos.kernel import verify

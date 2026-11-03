@@ -39,6 +39,7 @@ def _brief(**overrides) -> dict:
         "specification": "Three-bucket trolley, 120 L, lockable caddy",
         "delivery_date": "2026-11-20",
         "delivery_site": "Mall A loading bay",
+        "vendor_reply_deadline": "1.5 minutes",
         "budget_guidance": 15000,
     }
     content.update(overrides)

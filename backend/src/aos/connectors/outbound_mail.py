@@ -37,10 +37,18 @@ class SendPlan:
     relay_only: bool
     attributes: dict[str, Any]
     emails: list[dict[str, Any]]
+    shared_attachment_names: tuple[str, ...] = ()
+    quote_reply_minutes: float | None = None
+    resend: bool = False
+    supplier_ids: tuple[str, ...] | None = None
 
 
 def _idempotency_key(instance_id: str, supplier_id: str) -> str:
     return f"{instance_id}:rfq_send:{supplier_id}"
+
+
+def _resend_idempotency_key(instance_id: str, supplier_id: str) -> str:
+    return f"{instance_id}:rfq_resend:{supplier_id}:{ids.new_attempt_id()[-12:]}"
 
 
 def _conversation_ref(instance_id: str, supplier_id: str) -> str:
@@ -48,31 +56,80 @@ def _conversation_ref(instance_id: str, supplier_id: str) -> str:
 
 
 def _demo_short_deadline_enabled() -> bool:
-    return os.environ.get("AOS_RFQ_DEMO_SHORT_DEADLINE", "1").strip().lower() in ("1", "true", "yes")
+    from aos.kernel.reply_deadline import demo_short_deadline_enabled
+
+    return demo_short_deadline_enabled()
+
+
+def _polled_smtp_inbox() -> str:
+    """Mailbox IMAP polls (API may set AOS_POLLED_INBOX without SMTP secrets)."""
+    explicit = (os.environ.get("AOS_POLLED_INBOX") or "").strip()
+    if explicit:
+        return explicit
+    return (os.environ.get("SMTP_USERNAME") or os.environ.get("IMAP_USERNAME") or "").strip()
 
 
 def _demo_test_inbox_to(supplier_id: str) -> str | None:
+    polled = _polled_smtp_inbox()
     to_override = os.environ.get("AOS_RFQ_TEST_TO", "").strip()
-    supplier_override = os.environ.get("AOS_RFQ_TEST_SUPPLIER_ID", "SUP-11632").strip()
-    if not to_override or supplier_id != supplier_override:
+    prefer_polled = os.environ.get("AOS_RFQ_TEST_DELIVER_TO_POLLED_INBOX", "1").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if prefer_polled and polled:
+        to_override = polled
+    elif not to_override and polled:
+        to_override = polled
+    if not to_override:
         return None
-    return to_override
+    route_all = os.environ.get("AOS_RFQ_TEST_ROUTE_ALL", "1").strip().lower() in ("1", "true", "yes")
+    supplier_override = os.environ.get("AOS_RFQ_TEST_SUPPLIER_ID", "SUP-11632").strip()
+    if route_all or supplier_id == supplier_override:
+        return to_override
+    return None
 
 
-def _apply_demo_rfq_send_overrides(content: dict[str, Any]) -> None:
+def _demo_imap_copy_inbox() -> str | None:
+    """When RFQs go to a different address, also SMTP a copy to the mailbox IMAP polls."""
+    polled = _polled_smtp_inbox()
+    if not polled:
+        return None
+    primary = os.environ.get("AOS_RFQ_TEST_TO", "").strip() or polled
+    if primary.lower() == polled.lower():
+        return None
+    if os.environ.get("AOS_RFQ_TEST_IMAP_COPY", "1").strip().lower() in ("0", "false", "no"):
+        return None
+    return polled
+
+
+def _apply_demo_rfq_send_overrides(content: dict[str, Any], *, quote_reply_minutes: float | None = None) -> None:
     """POC: route one supplier to a real inbox and shorten the reply deadline in the email body."""
     supplier_id = str(content.get("supplier_id") or "")
     test_to = _demo_test_inbox_to(supplier_id)
     if test_to:
         content["to"] = test_to
+        # Demo: disambiguate threads when every RFQ shares one subject line.
+        subj = str(content.get("subject") or "").strip()
+        sid = supplier_id.strip()
+        if sid and sid not in subj:
+            content["subject"] = f"{subj} [{sid}]"
 
     if not _demo_short_deadline_enabled():
         return
     body = str(content.get("body") or "")
     if not body:
         return
-    by = (clock.now() + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M UTC")
-    replacement = f"Reply deadline: Please send your quotation within 1 minute (by {by})."
+    from aos.kernel.reply_deadline import (
+        DEFAULT_DEMO_REPLY_MINUTES,
+        demo_reply_timer_duration,
+        format_reply_deadline_line,
+    )
+
+    minutes = quote_reply_minutes if quote_reply_minutes is not None else DEFAULT_DEMO_REPLY_MINUTES
+    seconds = int(clock.parse_duration(demo_reply_timer_duration(minutes)).total_seconds())
+    by = (clock.now() + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M UTC")
+    replacement = format_reply_deadline_line(minutes, by=by)
     if re.search(r"(?im)^reply deadline:", body):
         body = re.sub(r"(?im)^reply deadline:.*$", replacement, body, count=1)
     else:
@@ -88,13 +145,22 @@ async def _participant_roles(conn: AsyncConnection, instance_id: str, person_id:
     return [str(r[0]) for r in await cur.fetchall()]
 
 
-async def _rfq_emails(conn: AsyncConnection, instance_id: str) -> list[dict[str, Any]]:
+def _send_profile_for_state(state: str) -> tuple[str, str, str, str] | None:
+    """artifact_type, send_state, awaiting_state, task_template"""
+    if state == "rfq_sending":
+        return ("rfq_email", "rfq_sending", "awaiting_quotes", "rfq_send")
+    if state == "rfp_sending":
+        return ("rfp_invitation", "rfp_sending", "awaiting_proposals", "rfp_send")
+    return None
+
+
+async def _outbound_mail_drafts(conn: AsyncConnection, instance_id: str, *, artifact_type: str) -> list[dict[str, Any]]:
     cur = await conn.execute(
         "select a.id, a.latest_version, v.content from work.artifacts a"
         " join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version"
-        " where a.instance_id = %s and a.artifact_type = 'rfq_email'"
+        " where a.instance_id = %s and a.artifact_type = %s"
         " order by a.id",
-        (instance_id,),
+        (instance_id, artifact_type),
     )
     out: list[dict[str, Any]] = []
     for artifact_id, version, raw in await cur.fetchall():
@@ -107,6 +173,10 @@ async def _rfq_emails(conn: AsyncConnection, instance_id: str) -> list[dict[str,
             }
         )
     return out
+
+
+async def _rfq_emails(conn: AsyncConnection, instance_id: str) -> list[dict[str, Any]]:
+    return await _outbound_mail_drafts(conn, instance_id, artifact_type="rfq_email")
 
 
 async def _invoke_mail(
@@ -143,6 +213,8 @@ async def plan_send_rfqs(
     org_id: str,
     instance_id: str,
     person_id: str,
+    supplier_ids: list[str] | None = None,
+    resend: bool = False,
 ) -> SendPlan:
     roles = await _participant_roles(conn, instance_id, person_id)
     if "buyer" not in roles:
@@ -162,26 +234,82 @@ async def plan_send_rfqs(
         raise OutboundMailError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
     state, status, attributes_raw = inst
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
-    relay_only = str(state) == "awaiting_quotes" and bool(attributes.get("rfq_sent_keys"))
-    if str(state) != "rfq_sending" and not relay_only:
+    state_str = str(state)
+    profile = _send_profile_for_state(state_str)
+    if profile is None and state_str == "awaiting_quotes":
+        profile = ("rfq_email", "rfq_sending", "awaiting_quotes", "rfq_send")
+    elif profile is None and state_str == "awaiting_proposals":
+        profile = ("rfp_invitation", "rfp_sending", "awaiting_proposals", "rfp_send")
+    if profile is None:
         raise OutboundMailError(
             "conflict",
             409,
             "Not ready to send",
-            "RFQs can only be sent while the job is on the RFQ sending step, or re-delivered from Awaiting quotes.",
+            "Outbound mail can only be sent on the sending step, or re-delivered while awaiting replies.",
+        )
+    artifact_type, send_state, awaiting, _task_template = profile
+    relay_only = state_str == awaiting and bool(attributes.get("rfq_sent_keys"))
+    if resend and not relay_only:
+        raise OutboundMailError(
+            "conflict",
+            409,
+            "Not ready to resend",
+            "Resend is only available while the job is waiting for supplier replies.",
+        )
+    if state_str != send_state and not relay_only:
+        raise OutboundMailError(
+            "conflict",
+            409,
+            "Not ready to send",
+            "Outbound mail can only be sent on the sending step, or re-delivered while awaiting replies.",
         )
     if str(status) != "running":
         raise OutboundMailError("conflict", 409, "Job not active", "This job is not running.")
 
-    emails = await _rfq_emails(conn, instance_id)
+    emails = await _outbound_mail_drafts(conn, instance_id, artifact_type=artifact_type)
     if not emails:
         raise OutboundMailError(
             "validation_failed",
             422,
             "No RFQ drafts",
-            "There are no RFQ email drafts to send.",
+            "There are no outbound mail drafts to send.",
         )
-    return SendPlan(relay_only=relay_only, attributes=attributes, emails=emails)
+    from aos.kernel import shared_attachments as shared_att
+
+    shared_names = tuple(await shared_att.filenames_for_instance(conn, instance_id))
+    quote_reply_minutes: float | None = None
+    if _demo_short_deadline_enabled():
+        from aos.kernel.reply_deadline import parse_demo_reply_minutes
+
+        bcur = await conn.execute(
+            "select v.content from work.artifacts a"
+            " join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version"
+            " where a.instance_id = %s and a.artifact_type = 'brief' limit 1",
+            (instance_id,),
+        )
+        brow = await bcur.fetchone()
+        if brow is not None:
+            brief = brow[0] if isinstance(brow[0], dict) else json.loads(brow[0] or "{}")
+            quote_reply_minutes = parse_demo_reply_minutes(brief.get("vendor_reply_deadline"))
+    filter_ids = tuple(s.strip() for s in (supplier_ids or []) if str(s).strip()) or None
+    if filter_ids:
+        emails = [e for e in emails if str(e.get("content", {}).get("supplier_id") or "") in filter_ids]
+        if not emails:
+            raise OutboundMailError(
+                "validation_failed",
+                422,
+                "No matching RFQ",
+                "None of the selected suppliers have an RFQ draft on this job.",
+            )
+    return SendPlan(
+        relay_only=relay_only,
+        attributes=attributes,
+        emails=emails,
+        shared_attachment_names=shared_names,
+        quote_reply_minutes=quote_reply_minutes,
+        resend=bool(resend),
+        supplier_ids=filter_ids,
+    )
 
 
 async def execute_rfqs_mail(
@@ -199,7 +327,7 @@ async def execute_rfqs_mail(
 
     for row in plan.emails:
         content = dict(row["content"])
-        _apply_demo_rfq_send_overrides(content)
+        _apply_demo_rfq_send_overrides(content, quote_reply_minutes=plan.quote_reply_minutes)
         supplier_id = str(content.get("supplier_id") or "")
         to = str(content.get("to") or "").strip()
         subject = str(content.get("subject") or "").strip()
@@ -211,47 +339,35 @@ async def execute_rfqs_mail(
                 "Incomplete RFQ draft",
                 f"RFQ for supplier {supplier_id or '?'} is missing to, subject, or body.",
             )
-        key = _idempotency_key(instance_id, supplier_id)
-        if plan.relay_only:
-            found = await _invoke_mail(
-                gateway,
-                broker,
-                org_id=org_id,
-                instance_id=instance_id,
-                attempt_id=attempt_id,
-                tool="find_message",
-                action="read",
-                args={"idempotency_key": key},
-            )
-            if not found.get("found") or not found.get("message"):
-                raise OutboundMailError(
-                    "conflict",
-                    409,
-                    "Send record missing",
-                    f"No sent record for supplier {supplier_id}; reload the job and try again.",
-                )
-            draft_id = str(found["message"]["id"])
-        else:
-            draft = await _invoke_mail(
-                gateway,
-                broker,
-                org_id=org_id,
-                instance_id=instance_id,
-                attempt_id=attempt_id,
-                tool="draft_message",
-                action="draft",
-                args={
-                    "to": to,
-                    "subject": subject,
-                    "body": body,
-                    "conversation_ref": _conversation_ref(instance_id, supplier_id),
-                    "idempotency_key": key,
-                    "attachments": content.get("attachments") or [],
-                },
-            )
-            draft_id = str(draft.get("draft_id") or "")
-            if not draft_id:
-                raise OutboundMailError("connector_failed", 502, "Could not send email", "Draft was not created.")
+        per_email = content.get("attachments") if isinstance(content.get("attachments"), list) else []
+        merged_attachments: list[str] = []
+        seen: set[str] = set()
+        for name in [*per_email, *plan.shared_attachment_names]:
+            s = str(name).strip()
+            if s and s not in seen:
+                seen.add(s)
+                merged_attachments.append(s)
+        key = _resend_idempotency_key(instance_id, supplier_id) if plan.resend else _idempotency_key(instance_id, supplier_id)
+        draft = await _invoke_mail(
+            gateway,
+            broker,
+            org_id=org_id,
+            instance_id=instance_id,
+            attempt_id=attempt_id,
+            tool="draft_message",
+            action="draft",
+            args={
+                "to": to,
+                "subject": subject,
+                "body": body,
+                "conversation_ref": _conversation_ref(instance_id, supplier_id),
+                "idempotency_key": key,
+                "attachments": merged_attachments,
+            },
+        )
+        draft_id = str(draft.get("draft_id") or "")
+        if not draft_id:
+            raise OutboundMailError("connector_failed", 502, "Could not send email", "Draft was not created.")
         sent = await _invoke_mail(
             gateway,
             broker,
@@ -272,8 +388,10 @@ async def execute_rfqs_mail(
                 "duplicate": bool(sent.get("duplicate")),
             }
         )
+        # Primary send already targets the demo inbox when routing overrides apply; a second
+        # SMTP copy per supplier duplicated every RFQ in the user's mailbox (3 vendors → 6+ emails).
         test_to = _demo_test_inbox_to(supplier_id)
-        if test_to:
+        if test_to and to.strip().lower() != test_to.strip().lower():
             await _deliver_demo_test_inbox(
                 gateway,
                 broker,
@@ -284,6 +402,20 @@ async def execute_rfqs_mail(
                 to=test_to,
                 subject=subject,
                 body=body,
+            )
+        imap_copy = _demo_imap_copy_inbox()
+        if imap_copy and to.strip().lower() != imap_copy.strip().lower():
+            await _deliver_demo_test_inbox(
+                gateway,
+                broker,
+                org_id=org_id,
+                instance_id=instance_id,
+                attempt_id=attempt_id,
+                supplier_id=supplier_id,
+                to=imap_copy,
+                subject=f"[{instance_id}] {subject}",
+                body=body,
+                key_suffix="imap_copy",
             )
     return sent_keys, receipts
 
@@ -299,9 +431,10 @@ async def _deliver_demo_test_inbox(
     to: str,
     subject: str,
     body: str,
+    key_suffix: str = "poc_test",
 ) -> None:
     """Second send with a separate idempotency key so a real SMTP copy reaches the POC inbox."""
-    key = f"{instance_id}:rfq_send:{supplier_id}:poc_test"
+    key = f"{instance_id}:rfq_send:{supplier_id}:{key_suffix}"
     found = await _invoke_mail(
         gateway,
         broker,
@@ -412,10 +545,22 @@ async def _finalize_send_rfqs_once(
     packs_dir: Path,
     digest: str,
 ) -> dict[str, Any]:
+    inst_state = ""
+    st_cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    st_row = await st_cur.fetchone()
+    if st_row is not None:
+        inst_state = str(st_row[0])
+    send_profile = _send_profile_for_state(inst_state) or (
+        "rfq_email",
+        "rfq_sending",
+        "awaiting_quotes",
+        "rfq_send",
+    )
+    _artifact_type, send_state, _awaiting, task_template = send_profile
     tcur = await conn.execute(
-        "select id from work.tasks where instance_id = %s and template = 'rfq_send' and region is null"
+        "select id from work.tasks where instance_id = %s and template = %s and region is null"
         " order by created_at desc limit 1 for update",
-        (instance_id,),
+        (instance_id, task_template),
     )
     task_row = await tcur.fetchone()
     await conn.execute("select id from work.instances where id = %s for update", (instance_id,))
@@ -428,7 +573,7 @@ async def _finalize_send_rfqs_once(
     if inst is None:
         raise OutboundMailError("not_found", 404, "Job not found", f"No instance {instance_id!r}.")
     state, status = str(inst[0]), str(inst[1])
-    if state != "rfq_sending" or status != "running":
+    if state != send_state or status != "running":
         if plan.attributes.get("rfq_sent_keys") == sent_keys:
             return {
                 "sent_count": len(receipts),
@@ -464,6 +609,9 @@ async def _finalize_send_rfqs_once(
             task_id=task_id,
             packs_dir=packs_dir,
         )
+        from aos.kernel import quotes as quote_ops
+
+        await quote_ops.ensure_quote_deadline_from_brief(conn, instance_id)
 
     from aos.kernel.task_retry import void_open_task_retry
 
@@ -480,6 +628,12 @@ async def _finalize_send_rfqs_once(
             for_person_id=str(for_person),
             voided_by=person_id,
         )
+
+    await conn.execute(
+        "update work.artifacts set status = 'final'"
+        " where instance_id = %s and artifact_type = %s and status = 'draft'",
+        (instance_id, _artifact_type),
+    )
 
     return {
         "sent_count": len(receipts),

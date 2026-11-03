@@ -22,6 +22,18 @@ from aos.kernel.settings import REPO, Settings
 from . import _pg
 
 ORG = load_org(REPO / "seed" / "org.yaml")
+
+
+class BriefCategoryInferTests(unittest.TestCase):
+    def test_website_rfp_uses_it_dev(self) -> None:
+        cat = decisions._infer_brief_category_id(
+            {"title": "RFP – Full redesign of public marketing website", "specification": "bilingual CMS and REST API"}
+        )
+        self.assertEqual(cat, "CAT-IT-DEV")
+
+    def test_iphone_uses_it_eud(self) -> None:
+        cat = decisions._infer_brief_category_id({"title": "One iPhone 17 Pro Max 512 GB"})
+        self.assertEqual(cat, "CAT-IT-EUD")
 ORG_ID = ORG.organization.id
 SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
@@ -85,6 +97,18 @@ async def _insert_task_completed(conn, instance_id: str, template: str) -> None:
         ) values (%s, %s, 'task', %s, %s, 'analysis', 'COMPLETED', '{}', 'hash', 3)
         """,
         (tid, instance_id, template, template),
+    )
+
+
+async def _insert_assist(conn, instance_id: str, *, state: str) -> None:
+    tid = ids.new_task_id()
+    await conn.execute(
+        """
+        insert into work.tasks (
+          id, instance_id, kind, template, skill, work_type, state, contract, contract_hash, max_attempts
+        ) values (%s, %s, 'assist', 'assist', 'sourcing_assist', 'conversation', %s, '{}', 'hash', 3)
+        """,
+        (tid, instance_id, state),
     )
 
 
@@ -173,6 +197,7 @@ def _brief_v(n: int) -> dict:
         "specification": "spec",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 
@@ -203,6 +228,91 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
             (inst,),
         )
         self.assertEqual((await cur.fetchone())[0], 1)
+
+    async def test_heal_intake_exception_when_brief_valid(self) -> None:
+        inst = "QQ-D01H"
+        await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
+        failed = ids.new_task_id()
+        await self.conn.execute(
+            """
+            insert into work.tasks (
+              id, instance_id, kind, template, skill, work_type, state, contract, contract_hash, max_attempts
+            ) values (%s, %s, 'task', 'request_intake', 'request_intake', 'analysis', 'EXCEPTION', '{}', 'hash', 3)
+            """,
+            (failed, inst),
+        )
+        await _insert_brief(self.conn, inst, [_brief_v(1)])
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        self.assertEqual(len(opened), 1)
+        cur = await self.conn.execute(
+            "select event from work.pending_items where id = %s",
+            (opened[0],),
+        )
+        self.assertEqual((await cur.fetchone())[0], "decision.brief_confirmed")
+        tcur = await self.conn.execute(
+            "select state from work.tasks where instance_id = %s and template = 'request_intake'",
+            (inst,),
+        )
+        self.assertEqual((await tcur.fetchone())[0], "COMPLETED")
+
+    async def test_brief_confirm_when_older_request_intake_failed(self) -> None:
+        inst = "QQ-D01C"
+        await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
+        failed = ids.new_task_id()
+        await self.conn.execute(
+            """
+            insert into work.tasks (
+              id, instance_id, kind, template, skill, work_type, state, contract, contract_hash, max_attempts
+            ) values (%s, %s, 'task', 'request_intake', 'request_intake', 'analysis', 'EXCEPTION', '{}', 'hash', 3)
+            """,
+            (failed, inst),
+        )
+        await _insert_task_completed(self.conn, inst, "request_intake")
+        await _insert_brief(self.conn, inst, [_brief_v(1)])
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        self.assertEqual(len(opened), 1)
+
+    async def test_brief_confirm_opens_while_assist_running_when_intake_ready(self) -> None:
+        inst = "QQ-D01B"
+        await _insert_instance(self.conn, instance_id=inst, pack_version_id=self.pack_version_id)
+        await _insert_task_completed(self.conn, inst, "request_intake")
+        await _insert_brief(self.conn, inst, [_brief_v(1)])
+        await _insert_assist(self.conn, inst, state="RUNNING")
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        self.assertEqual(len(opened), 1)
+        cur = await self.conn.execute(
+            "select event from work.pending_items where id = %s",
+            (opened[0],),
+        )
+        self.assertEqual((await cur.fetchone())[0], "decision.brief_confirmed")
+
+    async def test_brief_auto_confirmed_when_sourcing_starter_is_confirmer(self) -> None:
+        inst = "RFP-D-AUTO"
+        await self.conn.execute(
+            """
+            insert into work.instances (
+              id, org_id, workflow, pack_version_id, seat, seat_version, title, state, version,
+              attributes, created_by, correlation_id
+            ) values (%s, %s, 'sourcing_rfp', %s, %s, 1, 'Web RFP', 'intake', 1, '{}', 'noura', %s)
+            """,
+            (inst, ORG_ID, self.pack_version_id, SEAT, f"corr_{inst}"),
+        )
+        await self.conn.execute(
+            "insert into work.participants (instance_id, role, person_id, bound_by)"
+            " values (%s, 'buyer', 'noura', 'creation')",
+            (inst,),
+        )
+        await _insert_task_completed(self.conn, inst, "rfp_intake")
+        await _insert_brief(self.conn, inst, [_brief_v(1)])
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        self.assertTrue(any(str(x).startswith("auto:") for x in opened))
+        cur = await self.conn.execute(
+            "select count(*) from work.pending_items where instance_id = %s and event = %s and status = 'open'",
+            (inst, "decision.brief_confirmed"),
+        )
+        self.assertEqual((await cur.fetchone())[0], 0)
+        st = await self.conn.execute("select state from work.instances where id = %s", (inst,))
+        self.assertEqual((await st.fetchone())[0], "shortlisting")
 
     async def test_open_ready_no_shortlist_without_region_or_buyer(self) -> None:
         inst = "QQ-D02"
@@ -631,6 +741,39 @@ class DecisionsApiTests(unittest.TestCase):
         )
         self.assertEqual(r.status_code, 422)
         self.assertEqual(r.json()["code"], "validation_failed")
+
+
+class FormatDecisionPersonTextTests(unittest.TestCase):
+    def test_includes_selected_supplier_names(self) -> None:
+        from aos.kernel.progress import format_decision_person_text
+
+        text = format_decision_person_text(
+            decision_label="Confirm the shortlist",
+            job_moved=True,
+            state_label_if_unchanged="Shortlisting",
+            selection=["s1", "s2"],
+            row_key="supplier_id",
+            bound_content=_supplier_content(("s1", "s2", "s3")),
+        )
+        self.assertIn("Confirm the shortlist.", text)
+        self.assertIn("Selected suppliers:", text)
+        self.assertIn("Supplier s1 (s1)", text)
+        self.assertIn("Supplier s2 (s2)", text)
+
+    def test_award_wording_when_job_moves(self) -> None:
+        from aos.kernel.progress import format_decision_person_text
+
+        text = format_decision_person_text(
+            decision_label="Award this order",
+            job_moved=True,
+            state_label_if_unchanged="Comparison",
+            selection=["Webknot Technologies"],
+            row_key="supplier",
+            bound_content={
+                "rows": [{"supplier": "Webknot Technologies", "rank": 1}],
+            },
+        )
+        self.assertEqual(text, "Awarded this order to Webknot Technologies.")
 
 
 if __name__ == "__main__":

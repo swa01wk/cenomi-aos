@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { TEST_SNAPSHOT_SHELL, TEST_WORKFLOW } from "../testJobFixtures";
-import { jobStepGuide, stageGuideIsLive, stepGuideShowsWaitingDots } from "./stageGuideLogic";
+import {
+  jobStepGuide,
+  quickQuoteRfpMisrouteNotice,
+  stageGuideIsLive,
+  stepGuideShowsWaitingDots,
+} from "./stageGuideLogic";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 
 function snap(partial: Partial<InstanceSnapshot> & Pick<InstanceSnapshot, "state">): InstanceSnapshot {
@@ -62,13 +67,19 @@ describe("jobStepGuide", () => {
     const g = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: false, openPendingForYou: 0 });
     expect(g?.kind).toBe("wait");
     expect(g?.title).toMatch(/Waiting for replies/);
-    expect(g?.detail).toMatch(/digital worker/i);
+    expect(g?.detail).toMatch(/RFQs sent|from your brief|sourcing inbox/i);
   });
 
   it("shows progress while the agent is busy", () => {
     const g = jobStepGuide(snap({ state: "shortlisting" }), { agentBusy: true, openPendingForYou: 0 });
     expect(g?.kind).toBe("progress");
     expect(g?.title).toMatch(/in progress/);
+  });
+
+  it("keeps awaiting-quotes wait guide visible while the agent is busy", () => {
+    const g = jobStepGuide(snap({ state: "awaiting_quotes" }), { agentBusy: true, openPendingForYou: 0 });
+    expect(g?.kind).toBe("wait");
+    expect(g?.title).toMatch(/Waiting for replies/);
   });
 
   it("marks shortlisting stage guide as live while work runs", () => {
@@ -100,6 +111,35 @@ describe("jobStepGuide", () => {
     expect(g && stageGuideIsLive(g, snapshot.state)).toBe(false);
   });
 
+  it("defers ranked-list nudge while the specialist waits on a reply", () => {
+    const snapshot = snap({
+      state: "shortlisting",
+      my_roles: ["requester"],
+      turns: [
+        {
+          turn_id: "t1",
+          seq: 1,
+          at: "2026-10-29T12:00:00Z",
+          author: { kind: "seat", id: "seat_sourcing_poc", name: "Noor" },
+          blocks: [{ kind: "text", text: "Reply with 1 or 2." }],
+        },
+      ],
+      artifacts: [
+        {
+          artifact_id: "art_sl",
+          artifact_type: "type_ranked",
+          name: "Ranked list",
+          latest_version: 1,
+          status: "draft",
+          view: { type: "sheet", row_key: "party_id", columns: [], fields: [] },
+          versions: [],
+        },
+      ],
+    });
+    const g = jobStepGuide(snapshot, { agentBusy: false, openPendingForYou: 0 });
+    expect(g?.title).toMatch(/Waiting on your reply/i);
+  });
+
   it("does not show a footer guide during chat-only workflow states", () => {
     expect(jobStepGuide(snap({ state: "conversation" }), { agentBusy: false, openPendingForYou: 0 })).toBeNull();
     expect(jobStepGuide(snap({ state: "chat" }), { agentBusy: false, openPendingForYou: 0 })).toBeNull();
@@ -122,6 +162,53 @@ describe("jobStepGuide", () => {
     const g = jobStepGuide(snapshot, { agentBusy: false, openPendingForYou: 0 });
     expect(g?.kind).toBe("action");
     expect(g?.title).toMatch(/Review your brief/i);
+  });
+
+  it("warns on Quick Quote jobs titled like an RFP", () => {
+    const n = quickQuoteRfpMisrouteNotice(
+      snap({
+        state: "intake",
+        workflow: "quick_quote",
+        instance_id: "QQ-0006",
+        title: "RFP – Full redesign of public marketing website",
+      }),
+    );
+    expect(n?.kind).toBe("notice");
+    expect(n?.detail).toMatch(/brief/i);
+    expect(n?.detail).toMatch(/RFP-/);
+  });
+
+  it("shows CDO wait guide on sourcing_rfp when master RFP approval is open for Samir", () => {
+    const g = jobStepGuide(
+      snap({
+        state: "master_rfp_drafting",
+        workflow: "sourcing_rfp",
+        instance_id: "RFP-0001",
+        artifacts: [
+          {
+            artifact_id: "m1",
+            artifact_type: "master_rfp",
+            latest_version: 2,
+            view: { type: "document", title: "Master RFP" },
+          },
+        ],
+        pending: [
+          {
+            pending_id: "p1",
+            instance_id: "RFP-0001",
+            kind: "decision",
+            event: "decision.master_rfp_confirmed",
+            title: "Approve master RFP before invitations",
+            for_role: "procurement_approver",
+            status: "open",
+            created_at: "2026-11-03T08:00:00Z",
+          },
+        ],
+      }),
+      { agentBusy: false, openPendingForYou: 0 },
+    );
+    expect(g?.kind).toBe("wait");
+    expect(g?.title).toMatch(/CDO/i);
   });
 
   it("shows waiting dots on progress and open wait guides, not when closed", () => {

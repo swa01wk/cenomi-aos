@@ -232,9 +232,10 @@ class TimerTickTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(status, ("fired", "cancelled"))
             self.assertNotEqual(status, "scheduled")
 
-    async def test_demo_after_only_when_demo_enabled(self) -> None:
+    async def test_quote_deadline_uses_brief_window_not_pack_after(self) -> None:
         wall = datetime(2026, 6, 3, 12, 0, tzinfo=UTC)
         clock.set_frozen_wall(wall)
+        expected = wall + clock.parse_duration("90s")
         async with await psycopg.AsyncConnection.connect(self.url) as conn:
             for inst, demo_on in (("QQ-T04A", False), ("QQ-T04B", True)):
                 async with conn.transaction():
@@ -262,8 +263,6 @@ class TimerTickTests(unittest.IsolatedAsyncioTestCase):
                         (inst,),
                     )
                 ).fetchone()
-                duration = "1m" if demo_on else "5d"
-                expected = wall + clock.parse_duration(duration)
                 self.assertEqual(row[0].replace(microsecond=0), expected.replace(microsecond=0))
 
     async def test_advance_clock_fires_timer_and_moves_job(self) -> None:

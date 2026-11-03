@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { Button } from "../Button/Button";
 import { newClientTurnId } from "../clientTurnId";
 import styles from "./Composer.module.css";
@@ -9,17 +9,29 @@ export function Composer({
   initialText = "",
   onTextChange,
   agentBusy = false,
+  expanded = false,
+  focusToken = 0,
+  placeholder = "Message",
+  inputRef,
 }: {
   onSend: (text: string, clientTurnId: string) => Promise<void>;
   disabledReason?: string;
   initialText?: string;
   onTextChange?: (text: string) => void;
   agentBusy?: boolean;
+  /** Taller input for answering several questions at once. */
+  expanded?: boolean;
+  /** Increment to move focus into the input (e.g. after Reply on a message). */
+  focusToken?: number;
+  placeholder?: string;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
   const clientTurnIdRef = useRef<string | null>(null);
   const lastSentTextRef = useRef("");
+  const localInputRef = useRef<HTMLTextAreaElement>(null);
+  const areaRef = inputRef ?? localInputRef;
 
   useEffect(() => {
     setText(initialText);
@@ -30,6 +42,15 @@ export function Composer({
       clientTurnIdRef.current = null;
     }
   }, [text]);
+
+  useEffect(() => {
+    if (focusToken <= 0) return;
+    const el = areaRef.current;
+    if (!el || disabledReason) return;
+    el.focus();
+    const len = el.value.length;
+    el.setSelectionRange(len, len);
+  }, [focusToken, disabledReason, areaRef]);
 
   const setTextAndNotify = (next: string) => {
     setText(next);
@@ -68,15 +89,16 @@ export function Composer({
   return (
     <div className={styles.root}>
       <textarea
-        className={styles.input}
+        ref={areaRef}
+        className={expanded ? `${styles.input} ${styles.inputExpanded}` : styles.input}
         value={text}
         onChange={(e) => setTextAndNotify(e.target.value)}
         onKeyDown={onKeyDown}
         aria-disabled={blocked ? "true" : undefined}
         readOnly={blocked}
-        rows={1}
+        rows={expanded ? 5 : 1}
         aria-label="Message"
-        placeholder="Message"
+        placeholder={placeholder}
       />
       {agentBusy ? (
         <Button

@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AgentMessage,
   Composer,
@@ -10,19 +10,31 @@ import {
   ToolActivity,
 } from "../../components";
 import type { MessageDelta, ToolActivity as ToolActivityType, Turn } from "../../components/types";
-import { SeatMark } from "../icons";
+import { ReplyIcon, SeatMark } from "../icons";
+import { bulkReplyDraft, questionsInAgentTurn } from "./agentReplyTemplate";
+import { ReplyQuoteBar } from "./ReplyQuoteBar";
+import { turnQuoteExcerpt } from "./turnText";
 import { useWorkflowTitle } from "../useWorkspaceQueries";
 import { JobClosedBanner } from "./JobClosedBanner";
 import { JobProgress } from "./JobProgress";
 import { isJobClosed, jobHeaderBadge, stagesForDisplay } from "./jobLifecycle";
 import { DecisionCard } from "./DecisionCard";
+import { decisionSelectionView, decisionSelectionVersion } from "./decisionArtifactView";
 import { JobStepGuide } from "./JobStepGuide";
 import { orphanOpenDecisions, splitConversationPending } from "./conversationPending";
 import { StaleRetriesPanel } from "./StaleRetriesPanel";
-import { jobStepGuide, stageGuideIsLive } from "./stageGuideLogic";
+import { jobStepGuide, quickQuoteRfpMisrouteNotice, stageGuideIsLive } from "./stageGuideLogic";
 import { AgentWorkStatus } from "./AgentWorkStatus";
 import { assigneeLabel } from "../persona";
 import { isCoordinatorJob, isSmallTalk } from "../workspaceEntry";
+import { BriefSummaryMessage } from "./BriefSummaryMessage";
+import {
+  briefArtifact,
+  holdBriefConfirmDecision,
+  showBriefSummaryInChat,
+  specialistAwaitingReply,
+  specialistChatTurns,
+} from "./conversationDisplay";
 import type { InstanceSnapshot } from "./jobStreamReducer";
 import styles from "./job.module.css";
 
@@ -46,7 +58,9 @@ export function Conversation({
   chatLayout = false,
   documentCount = 0,
   documentsOpen = false,
+  showDocumentsEntry = false,
   onToggleDocuments,
+  handoffBanner,
 }: {
   snapshot: InstanceSnapshot;
   streamingTurnId: string | null;
@@ -74,7 +88,10 @@ export function Conversation({
   chatLayout?: boolean;
   documentCount?: number;
   documentsOpen?: boolean;
+  /** Person chat: show Documents even before the first artifact is saved. */
+  showDocumentsEntry?: boolean;
   onToggleDocuments?: () => void;
+  handoffBanner?: ReactNode;
 }) {
   const workflowTitle = useWorkflowTitle();
   const turnIds = new Set(snapshot.turns.map((t) => t.turn_id));
@@ -86,20 +103,93 @@ export function Conversation({
   const badge = jobHeaderBadge(snapshot.stages, snapshot.state);
   const awaitingHasText = Boolean(awaitingTurnId && deltas.some((d) => d.turn_id === awaitingTurnId));
   const showThinking = Boolean(awaitingTurnId) && !awaitingHasText;
-  const openPendingForYou = snapshot.pending.filter((p) => p.status === "open").length;
+  const openPendingForYou = snapshot.pending.filter(
+    (p) =>
+      p.status === "open" &&
+      !holdBriefConfirmDecision(snapshot, p) &&
+      !(
+        specialistAwaitingReply(snapshot) &&
+        p.kind === "decision" &&
+        !snapshot.intake_ready_for_confirm
+      ),
+  ).length;
   const agentBusy = Boolean(showThinking || streamingTurnId || toolActivity);
   const personTurns = snapshot.turns.filter((t) => t.author.kind === "person").length;
   const isFirstExchange = personTurns <= 1;
   const stepGuide = jobStepGuide(snapshot, { agentBusy, openPendingForYou });
+  const pathNotice = quickQuoteRfpMisrouteNotice(snapshot);
   const coordinatorChat = isCoordinatorJob(snapshot);
   const chatOnlyStage = snapshot.state === "conversation" || snapshot.state === "chat";
   const latestPerson = [...snapshot.turns].reverse().find((t) => t.author.kind === "person");
   const latestText =
     latestPerson?.blocks.flatMap((b) => (b.kind === "text" ? [b.text] : [])).join(" ") ?? "";
-  const casualChat = coordinatorChat || chatOnlyStage || snapshot.state === "intake" || isSmallTalk(latestText);
+  const shortlistForYou = snapshot.pending.some(
+    (p) => p.status === "open" && p.event === "decision.shortlist_confirmed",
+  );
+  const casualChat =
+    !shortlistForYou &&
+    (coordinatorChat || chatOnlyStage || snapshot.state === "intake" || isSmallTalk(latestText));
   const colleague = assigneeLabel(snapshot.assignee);
+  const visibleTurns = specialistChatTurns(snapshot, snapshot.turns);
+  const brief = briefArtifact(snapshot);
+  const briefSummary = showBriefSummaryInChat(snapshot);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const [composerExpanded, setComposerExpanded] = useState(false);
+  const [composerFocusToken, setComposerFocusToken] = useState(0);
+  const [replyHint, setReplyHint] = useState<string | null>(null);
+  const [replyQuote, setReplyQuote] = useState<{
+    turnId: string;
+    authorName: string;
+    excerpt: string;
+  } | null>(null);
+  const canQuoteReply = !closed && !composerDisabledReason && !agentBusy;
+
+  const handleReplyToTurn = useCallback(
+    (turn: Turn) => {
+      const excerpt = turnQuoteExcerpt(turn);
+      if (excerpt) {
+        setReplyQuote({
+          turnId: turn.turn_id,
+          authorName: turn.author.name,
+          excerpt,
+        });
+      }
+      const questions = questionsInAgentTurn(turn);
+      const draft = bulkReplyDraft(questions);
+      if (draft && !initialComposerText?.trim()) {
+        onComposerTextChange?.(draft);
+      }
+      setComposerExpanded(questions.length >= 2);
+      setReplyHint(
+        questions.length >= 2 ? `Answer all ${questions.length} questions in one message.` : null,
+      );
+      setComposerFocusToken((n) => n + 1);
+      stick.current = true;
+      window.requestAnimationFrame(() => {
+        scroller.current
+          ?.querySelector(`[data-turn-id="${turn.turn_id}"]`)
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+    },
+    [initialComposerText, onComposerTextChange],
+  );
+
+  const clearReplyQuote = useCallback(() => {
+    setReplyQuote(null);
+    setReplyHint(null);
+    setComposerExpanded(false);
+  }, []);
+
+  const handleSend = useCallback(
+    async (text: string, clientTurnId: string) => {
+      await onSend(text, clientTurnId);
+      setComposerExpanded(false);
+      setReplyHint(null);
+      setReplyQuote(null);
+    },
+    [onSend],
+  );
 
   useEffect(() => {
     const el = scroller.current;
@@ -111,6 +201,7 @@ export function Conversation({
     <section aria-label="Conversation" className={styles.conversation}>
       {bannerMode === "reconnecting" && <ConnectionBanner mode="reconnecting" />}
       {bannerMode === "synced" && <ConnectionBanner mode="synced" updateCount={syncCount} />}
+      {handoffBanner}
 
       <header className={[styles.convHeader, closed ? styles.convHeader_closed : ""].filter(Boolean).join(" ")}>
         <div className={styles.convHeaderTop}>
@@ -128,9 +219,9 @@ export function Conversation({
               {colleague.title ? <span className={styles.convPeerTitle}>{colleague.title}</span> : null}
             </div>
           </div>
-          {chatLayout && documentCount > 0 && onToggleDocuments ? (
+          {chatLayout && (documentCount > 0 || showDocumentsEntry) && onToggleDocuments ? (
             <button type="button" className={styles.convDocsBtn} onClick={onToggleDocuments}>
-              {documentsOpen ? "Hide" : "Documents"}
+              {documentsOpen ? "Hide" : documentCount > 0 ? "Documents" : "Work panel"}
             </button>
           ) : null}
         </div>
@@ -148,10 +239,8 @@ export function Conversation({
               )}
             </div>
           </>
-        ) : (
-          <span className={styles.convMeta}>{snapshot.title}</span>
-        )}
-        {closed ? <JobClosedBanner instanceId={snapshot.instance_id} /> : null}
+        ) : null}
+        {closed ? <JobClosedBanner snapshot={snapshot} /> : null}
         {!chatLayout ? <JobProgress stages={displayStages} allComplete={closed} /> : null}
       </header>
 
@@ -169,7 +258,15 @@ export function Conversation({
             Show earlier messages
           </button>
         )}
-        {snapshot.turns.map((turn) => (
+        {briefSummary && brief ? (
+          <BriefSummaryMessage
+            artifactId={brief.artifact_id}
+            version={brief.latest_version}
+            view={brief.view}
+            specialistName={colleague.name}
+          />
+        ) : null}
+        {visibleTurns.map((turn) => (
           <TurnView
             key={turn.turn_id}
             turn={turn}
@@ -185,8 +282,21 @@ export function Conversation({
               const pending = snapshot.pending.find((item) => item.pending_id === pendingId && item.status === "open");
               if (!pending || pending.kind !== "decision") return null;
               const artifact = snapshot.artifacts.find((item) => item.artifact_id === pending.artifact_ref?.artifact_id);
-              return <DecisionCard pending={pending} view={artifact?.view} onApprove={onDecide} />;
+              const view = decisionSelectionView(pending, artifact);
+              const selectionVersion = decisionSelectionVersion(pending, artifact);
+              return (
+                <DecisionCard
+                  pending={pending}
+                  view={view}
+                  selectionVersion={selectionVersion}
+                  latestArtifactVersion={artifact?.latest_version}
+                  onApprove={onDecide}
+                />
+              );
             }}
+            quotedForReply={replyQuote?.turnId === turn.turn_id}
+            showReply={canQuoteReply}
+            onReply={() => handleReplyToTurn(turn)}
           />
         ))}
         {streamingOnly && (
@@ -202,7 +312,7 @@ export function Conversation({
                 />
               )
             ) : (
-              <StreamingText turnId={streamingTurnId} deltas={deltas} showCaret />
+              <StreamingText turnId={streamingTurnId!} deltas={deltas} showCaret />
             )}
             {toolActivity && <ToolActivity activity={toolActivity} />}
           </AgentStream>
@@ -217,11 +327,15 @@ export function Conversation({
           <div className={styles.pendingInThread}>
             {primaryPending.map((pending) => {
               const artifact = snapshot.artifacts.find((a) => a.artifact_id === pending.artifact_ref?.artifact_id);
+              const view = decisionSelectionView(pending, artifact);
+              const selectionVersion = decisionSelectionVersion(pending, artifact);
               return (
                 <DecisionCard
                   key={pending.pending_id}
                   pending={pending}
-                  view={artifact?.view}
+                  view={view}
+                  selectionVersion={selectionVersion}
+                  latestArtifactVersion={artifact?.latest_version}
                   onApprove={onDecide}
                   variant={pending.event === "task.retry" ? "retry" : "default"}
                 />
@@ -240,6 +354,10 @@ export function Conversation({
         />
       )}
 
+      {pathNotice && !closed ? (
+        <JobStepGuide guide={pathNotice} live={false} workflowState={snapshot.state} />
+      ) : null}
+
       {stepGuide && !casualChat && !seatNotice && !closed && primaryPending.length === 0 ? (
         <JobStepGuide
           guide={stepGuide}
@@ -251,14 +369,33 @@ export function Conversation({
       {closed ? (
         <p className={styles.closedFooter}>This conversation is read-only. Start a new job from the sidebar to begin again.</p>
       ) : (
-        <div className={styles.composerWrap}>
-          <Composer
-            onSend={onSend}
-            disabledReason={composerDisabledReason}
-            initialText={initialComposerText}
-            onTextChange={onComposerTextChange}
-            agentBusy={agentBusy}
-          />
+        <div className={[styles.composerWrap, replyQuote ? styles.composerWrapQuoted : ""].filter(Boolean).join(" ")}>
+          {replyQuote ? (
+            <ReplyQuoteBar
+              authorName={replyQuote.authorName}
+              excerpt={replyQuote.excerpt}
+              onDismiss={clearReplyQuote}
+            />
+          ) : null}
+          {replyHint ? <p className={styles.composerReplyHint}>{replyHint}</p> : null}
+          <div className={replyQuote ? styles.composerDockQuoted : undefined}>
+            <Composer
+              onSend={handleSend}
+              disabledReason={composerDisabledReason}
+              initialText={initialComposerText}
+              onTextChange={onComposerTextChange}
+              agentBusy={agentBusy}
+              expanded={composerExpanded}
+              focusToken={composerFocusToken}
+              placeholder={
+                replyQuote
+                  ? "Write a reply…"
+                  : composerExpanded
+                    ? "Answer each numbered line, then send once"
+                    : "Message"
+              }
+            />
+          </div>
         </div>
       )}
     </section>
@@ -285,6 +422,9 @@ function TurnView({
   coordinatorChat,
   onOpenArtifact,
   renderPending,
+  showReply,
+  onReply,
+  quotedForReply,
 }: {
   turn: Turn;
   streamingTurnId: string | null;
@@ -296,14 +436,34 @@ function TurnView({
   coordinatorChat: boolean;
   onOpenArtifact: (artifactId: string) => void;
   renderPending?: (pendingId: string) => ReactNode;
+  showReply?: boolean;
+  onReply?: () => void;
+  quotedForReply?: boolean;
 }) {
   const isStreaming = turn.turn_id === streamingTurnId;
+  const hasInlineDecision = turn.blocks.some((b) => b.kind === "pending_ref");
+  const turnRowClass = [
+    styles.turnRow,
+    turn.author.kind === "person" ? styles.turnRowPerson : styles.turnRowAgent,
+    quotedForReply ? styles.turnRowQuoted : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   if (turn.author.kind === "person") {
     // The kernel streams a reply against the turn it answers (the person's message); the reply turn itself only
     // exists once it completes. Show the live text right under the message being answered.
     return (
       <>
-        <PersonMessage turn={turn} />
+        <div className={turnRowClass} data-turn-id={turn.turn_id}>
+          <PersonMessage turn={turn} highlighted={quotedForReply} />
+          {showReply && onReply ? (
+            <button type="button" className={styles.turnReplyBtn} onClick={onReply} aria-label="Quote reply">
+              <ReplyIcon size={14} />
+              Reply
+            </button>
+          ) : null}
+        </div>
         {(isStreaming || turn.turn_id === awaitingTurnId) && (
           <AgentStream>
             {turn.turn_id === awaitingTurnId && !isStreaming ? (
@@ -325,14 +485,24 @@ function TurnView({
       </>
     );
   }
+  const showReplyControl = Boolean(showReply && onReply && !hasInlineDecision);
   return (
-    <article className={styles.agentBlock} aria-label={`Reply from ${turn.author.name}`}>
-      <AgentMessage
+    <article className={styles.agentBlock} data-turn-id={turn.turn_id} aria-label={`Reply from ${turn.author.name}`}>
+      <div className={turnRowClass}>
+        {showReplyControl ? (
+          <button type="button" className={styles.turnReplyBtn} onClick={onReply} aria-label="Quote reply">
+            <ReplyIcon size={14} />
+            Reply
+          </button>
+        ) : null}
+        <AgentMessage
         turn={turn}
         avatar={<SeatMark small />}
+        highlighted={quotedForReply}
         onOpenArtifact={(id) => onOpenArtifact(id)}
         renderPending={renderPending}
-      />
+        />
+      </div>
       {isStreaming && (
         <>
           <StreamingText turnId={turn.turn_id} deltas={deltas} showCaret />

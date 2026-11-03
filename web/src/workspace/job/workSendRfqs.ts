@@ -7,10 +7,11 @@ export function hasOpenTaskRetry(snapshot: InstanceSnapshot): boolean {
 
 export function showSendRfqsBar(snapshot: InstanceSnapshot): boolean {
   if (!snapshot.my_roles.includes("buyer")) return false;
+  if (snapshot.state !== "rfq_sending" && snapshot.state !== "rfp_sending") return false;
   const drafts = messageComposerArtifacts(snapshot.artifacts);
   if (drafts.length === 0) return false;
-  if (hasOpenTaskRetry(snapshot)) return false;
-  return snapshot.state === "rfq_sending";
+  // A stale retry card must not block panel send; POST send-rfqs completes the step and clears retry.
+  return true;
 }
 
 export function sendRfqsCopy(count: number): string {

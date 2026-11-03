@@ -23,6 +23,26 @@ def score_breakdown(past_pos: Any, on_time_pct: Any) -> dict[str, int]:
     }
 
 
+def heal_supplier_list_content(content: dict[str, Any]) -> dict[str, Any]:
+    """Recompute rubric fields when the worker saved score 0 but history columns are present."""
+    rows = content.get("rows")
+    if not isinstance(rows, list):
+        return content
+    healed: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            healed.append(row)
+            continue
+        patch = score_breakdown(row.get("past_pos"), row.get("on_time_pct"))
+        new_row = {**row, **patch}
+        healed.append(new_row)
+    healed.sort(key=lambda r: (-float(r.get("score") or 0), str(r.get("supplier") or "")))
+    for i, row in enumerate(healed, start=1):
+        if isinstance(row, dict):
+            row["rank"] = i
+    return {**content, "rows": healed}
+
+
 def check_row_scoring(row: dict[str, Any], *, row_label: str) -> list[str]:
     findings: list[str] = []
     score = row.get("score")

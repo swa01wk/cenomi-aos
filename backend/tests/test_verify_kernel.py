@@ -185,6 +185,7 @@ class VerifyKernelTests(unittest.IsolatedAsyncioTestCase):
             "specification": "s",
             "delivery_date": "2030-01-01",
             "delivery_site": "Riyadh",
+            "vendor_reply_deadline": "1.5 minutes",
         }
         out_ref = await _brief_output(self.conn, instance_id=inst, attempt_id=attempt_id, content=brief)
         await self.conn.execute(
@@ -342,6 +343,7 @@ class VerifyKernelTests(unittest.IsolatedAsyncioTestCase):
             "specification": "s",
             "delivery_date": "2030-01-01",
             "delivery_site": "Riyadh",
+            "vendor_reply_deadline": "1.5 minutes",
         }
         out_ref = await _brief_output(self.conn, instance_id=inst, attempt_id=attempt_id, content=brief)
         await self.conn.execute(

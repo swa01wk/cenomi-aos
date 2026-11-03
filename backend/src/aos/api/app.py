@@ -50,9 +50,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             timeout_s=settings.gateway_timeout_seconds,
         )
         clock.configure(demo_enabled=settings.demo)
-        if settings.demo:
-            async with pool.connection() as conn:
+        async with pool.connection() as conn:
+            if settings.demo:
                 await demo.load_demo_clock(conn, org.organization.id)
+            if settings.sync_pack_on_start:
+                from ..kernel.pack_publish import ensure_all_packs_published
+
+                async with conn.transaction():
+                    await ensure_all_packs_published(
+                        conn,
+                        org=org,
+                        packs_dir=settings.packs_dir,
+                        actor="startup",
+                    )
 
         app.state.kernel = Kernel(
             settings=settings,

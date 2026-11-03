@@ -21,6 +21,13 @@ spec:
       classification: shareable
       description: Only a date the requester gave; never a guess.
     delivery_site: {type: string, required: true, classification: shareable}
+    vendor_reply_deadline:
+      type: string
+      required: true
+      classification: shareable
+      description: >-
+        How long suppliers have to send quotes, in the requester's words (e.g. "2 days" or "1.5 minutes").
+        In demo/testing runs the platform treats the number as minutes regardless of unit words.
     quality_signoff:
       type: string
       classification: shareable

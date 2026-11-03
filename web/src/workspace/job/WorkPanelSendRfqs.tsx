@@ -9,9 +9,11 @@ import styles from "./job.module.css";
 export function WorkPanelSendRfqs({
   snapshot,
   onSend,
+  compact = false,
 }: {
   snapshot: InstanceSnapshot;
   onSend: () => Promise<void>;
+  compact?: boolean;
 }) {
   const drafts = useMemo(() => messageComposerArtifacts(snapshot.artifacts), [snapshot.artifacts]);
   const visible = showSendRfqsBar(snapshot);
@@ -40,9 +42,20 @@ export function WorkPanelSendRfqs({
   };
 
   return (
-    <div className={styles.workSendRfqs} role="region" aria-label="Send outbound messages">
-      <p className={styles.workSendRfqsText}>{sendRfqsCopy(drafts.length)}</p>
-      <Button type="button" variant="primary" size="workspace" disabledReason={busy ? "Sending" : undefined} onClick={() => void send()}>
+    <div
+      className={[styles.workSendRfqs, compact ? styles.workSendRfqsCompact : ""].filter(Boolean).join(" ")}
+      role="region"
+      aria-label="Send outbound messages"
+    >
+      {!compact ? <p className={styles.workSendRfqsText}>{sendRfqsCopy(drafts.length)}</p> : null}
+      <Button
+        type="button"
+        variant="primary"
+        size="workspace"
+        className={compact ? styles.workSendRfqsPrimaryBtn : undefined}
+        disabledReason={busy ? "Sending" : undefined}
+        onClick={() => void send()}
+      >
         {busy ? "Sending…" : "Approve and send"}
       </Button>
       {error ? <p className={styles.workSendRfqsError}>{error}</p> : null}

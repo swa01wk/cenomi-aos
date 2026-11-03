@@ -1,0 +1,126 @@
+apiVersion: aos/v1
+kind: WorkflowDefinition
+metadata: {name: sourcing_rfp, version: 1, owner: head_of_procurement}
+spec:
+  title: Sourcing event (full RFP)
+  id_prefix: RFP
+  description: >-
+    Formal RFP for services or projects (for example a web service build): master RFP, invitations,
+    proposals, evaluation and award.
+  intake_hints: [rfp, proposal, tender, web service, website, software, development, build, api, portal]
+  start_on: seat_ui.new_job
+  start_roles: [buyer]
+  seat_role: sourcing_agent
+  initial: conversation
+  participants:
+    buyer: {bind: at_creation, org_roles: [sourcing_user]}
+    procurement_approver: {bind: by_rule, rule: team_owner(procurement/procurement)}
+  attributes:
+    brief_version: int
+    shortlist_count: int
+    proposal_count: int
+    invited_count: int
+    po_amount: {type: decimal, classification: restricted}
+    detail_signal: int
+  events:
+    detail_ready:
+      on_attributes: [detail_signal]
+      when: "attr.detail_signal > 0"
+      once: true
+    intent_identified:
+      on_artifact: brief
+      when: "size(artifact.category) > 0"
+      once: true
+    all_proposals_received:
+      on_attributes: [proposal_count, invited_count]
+      when: "attr.invited_count > 0 && attr.proposal_count >= attr.invited_count"
+      once: true
+  states:
+    conversation:
+      label: Chat
+      assist: sourcing_assist
+    intake:
+      label: Intake
+      assist: sourcing_assist
+      view: brief
+      tasks:
+        - {template: rfp_intake, skill: rfp_intake, work_type: analysis, verifier: brief_schema, on_behalf_of: buyer}
+    shortlisting:
+      label: Shortlisting
+      view: supplier_list
+    master_rfp_drafting:
+      label: Master RFP
+      view: master_rfp
+      tasks:
+        - {template: master_rfp_draft, skill: master_rfp_authoring, work_type: document_draft, verifier: leak_check, on_behalf_of: buyer}
+    rfp_invitation_drafting:
+      label: RFP invitations
+      view: rfp_invitation
+      tasks:
+        - {template: rfp_invitation_draft, skill: rfp_authoring, work_type: document_draft, verifier: leak_check, on_behalf_of: buyer}
+    rfp_sending:
+      label: Send RFP
+      view: rfp_invitation
+      tasks:
+        - template: rfp_send
+          skill: rfp_authoring
+          work_type: outbound_communication
+          verifier: recipient_check
+          on_behalf_of: buyer
+          budget: {tokens: 20000, cost_usd: 0.5, seconds: 300, steps: 24, actions: 18, retries: 2}
+    awaiting_proposals:
+      label: Awaiting proposals
+      view: proposal
+      on_event:
+        mail.message_received: {template: proposal_triage, skill: proposal_triage, work_type: analysis, on_behalf_of: buyer}
+    comparison:
+      label: Evaluation
+      view: rfp_evaluation
+      tasks:
+        - template: rfp_evaluation
+          skill: rfp_evaluation
+          work_type: analysis
+          verifier: score_recompute
+          on_behalf_of: buyer
+          budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
+    ordering:
+      label: Ordering
+      view: po_payload
+      tasks:
+        - template: rfp_po_create
+          skill: rfp_evaluation
+          work_type: record_update
+          verifier: payload_match
+          on_behalf_of: buyer
+          budget: {tokens: 80000, cost_usd: 1.5, seconds: 600, steps: 24, actions: 14, retries: 3}
+    closed:
+      label: Closed
+      final: true
+  parallel:
+    - on: event.intent_identified
+      region: discovery
+      start: {template: supplier_lookup, skill: supplier_lookup, work_type: analysis, verifier: sources_cited, on_behalf_of: buyer}
+      join_at: shortlisting
+      join_guard: same(brief_version)
+  transitions:
+    - {from: conversation, to: intake, on: event.detail_ready}
+    - {from: intake, to: shortlisting, on: decision.brief_confirmed, by: buyer, sets: {brief_version: artifact_version}}
+    - {from: shortlisting, to: master_rfp_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
+    - {from: master_rfp_drafting, to: rfp_invitation_drafting, on: decision.master_rfp_confirmed, by: procurement_approver}
+    - {from: rfp_invitation_drafting, to: rfp_sending, on: task.completed.rfp_invitation_draft}
+    - {from: rfp_sending, to: awaiting_proposals, on: task.completed.rfp_send, effects: [{start_timer: quote_deadline}]}
+    - {from: awaiting_proposals, to: comparison, on: [timer.quotes_closed, event.all_proposals_received], guard: "attr.proposal_count >= 1"}
+    - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: rfp_evaluation}]}
+    - {from: ordering, to: closed, on: task.completed.rfp_po_create, effects: [{handover: buyer}, {outcome_record: true}, {cancel_timers: true}]}
+  timers:
+    quote_deadline: {after: 5d, demo_after: 90s, emits: quotes_closed}
+  decisions:
+    brief_confirmed:
+      {label: Confirm the brief, state: intake, for: buyer, sets: {brief_version: artifact_version}}
+    shortlist_confirmed:
+      {label: Confirm the shortlist, state: shortlisting, for: buyer, selection: true,
+       sets: {shortlist_count: selection_count}}
+    master_rfp_confirmed:
+      {label: Review and approve master RFP, state: master_rfp_drafting, for: procurement_approver}
+    supplier_selected:
+      {label: Award this RFP, state: comparison, for: buyer, selection: true}

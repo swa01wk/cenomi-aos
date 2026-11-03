@@ -296,10 +296,15 @@ def project(
     latest_version: int | None = None,
 ) -> dict[str, Any]:
     """Drop fields the viewer may not see; list removed schema field names in ``hidden_fields``."""
+    content = version.content
+    if version.artifact_type == "supplier_list" and isinstance(content, dict):
+        from aos.verifiers.supplier_scoring import heal_supplier_list_content
+
+        content = heal_supplier_list_content(content)
     all_type_fields = set(type_spec.fields.keys())
     allowed = _apply_ceiling(_fields_for_roles(type_spec, viewer_roles), type_spec, classification_ceiling)
-    projected_content = _filter_content(version.content, row_based=type_spec.row_based, allowed=allowed)
-    present = _schema_field_names_in_content(version.content, row_based=type_spec.row_based, spec=type_spec)
+    projected_content = _filter_content(content, row_based=type_spec.row_based, allowed=allowed)
+    present = _schema_field_names_in_content(content, row_based=type_spec.row_based, spec=type_spec)
     projected_names = _schema_field_names_in_content(projected_content, row_based=type_spec.row_based, spec=type_spec)
     hidden_fields = sorted(present - projected_names)
     redacting = allowed != all_type_fields
@@ -555,25 +560,26 @@ async def summaries_for_instance(
     defs: dict[str, dict[str, dict]],
 ) -> list[dict[str, Any]]:
     cur = await conn.execute(
-        "select id, artifact_type, name, status, latest_version from work.artifacts"
+        "select id, artifact_type, name, status, latest_version, key from work.artifacts"
         " where instance_id = %s order by artifact_type, key",
         (instance_id,),
     )
     out: list[dict[str, Any]] = []
-    for aid, artifact_type, name, status, latest_version in await cur.fetchall():
+    for aid, artifact_type, name, status, latest_version, art_key in await cur.fetchall():
         at = parse_artifact_type(defs, artifact_type)
-        out.append(
-            _summary_from_row(
-                org,
-                artifact_id=aid,
-                artifact_type=artifact_type,
-                name=name,
-                status=status,
-                latest_version=int(latest_version),
-                type_spec=at.spec,
-                viewer_roles=viewer_roles,
-            )
+        row_summary = _summary_from_row(
+            org,
+            artifact_id=aid,
+            artifact_type=artifact_type,
+            name=name,
+            status=status,
+            latest_version=int(latest_version),
+            type_spec=at.spec,
+            viewer_roles=viewer_roles,
         )
+        if art_key:
+            row_summary["key"] = str(art_key)
+        out.append(row_summary)
     return out
 
 
@@ -906,6 +912,29 @@ async def save_draft_from_attempt(
         packs_dir=packs_dir,
         cause=produced_id,
     )
+    if artifact_type in ("quote", "proposal"):
+        from . import quotes as quote_ops
+
+        if artifact_type == "quote":
+            await quote_ops.sync_quote_count_attribute(conn, gate.instance_id)
+            await workflow_events.evaluate_attribute_triggers(
+                conn,
+                org,
+                gate.instance_id,
+                changed={"quote_count"},
+                packs_dir=packs_dir,
+                cause=produced_id,
+            )
+        else:
+            await quote_ops.sync_proposal_count_attribute(conn, gate.instance_id)
+            await workflow_events.evaluate_attribute_triggers(
+                conn,
+                org,
+                gate.instance_id,
+                changed={"proposal_count"},
+                packs_dir=packs_dir,
+                cause=produced_id,
+            )
     await decision_ops.open_ready_decisions(conn, gate.instance_id, org=org, packs_dir=packs_dir)
     audience_roles = artifact_type_audience_roles(at.spec)
     await append_outbox_many(
@@ -975,13 +1004,32 @@ async def create_artifact_version(
     _aid, instance_id, artifact_type, name, status, latest_version = meta
 
     inst_cur = await conn.execute(
-        "select pack_version_id, correlation_id, seat from work.instances where id = %s for update",
+        "select pack_version_id, correlation_id, seat, state from work.instances where id = %s for update",
         (instance_id,),
     )
     inst_row = await inst_cur.fetchone()
     if inst_row is None:
         raise ArtifactError("not_found", 404, "Job not found", "Artifact belongs to a missing job.")
-    pack_version_id, correlation_id, seat_name = str(inst_row[0]), inst_row[1], inst_row[2]
+    pack_version_id, correlation_id, seat_name, instance_state = (
+        str(inst_row[0]),
+        inst_row[1],
+        inst_row[2],
+        str(inst_row[3]),
+    )
+    if artifact_type == "rfq_email" and instance_state not in ("rfq_drafting", "rfq_sending"):
+        raise ArtifactError(
+            "conflict",
+            409,
+            "Draft is locked",
+            "RFQs were already sent; this email cannot be edited.",
+        )
+    if artifact_type == "rfp_invitation" and instance_state not in ("rfp_invitation_drafting", "rfp_sending"):
+        raise ArtifactError(
+            "conflict",
+            409,
+            "Draft is locked",
+            "RFP invitations were already sent; this email cannot be edited.",
+        )
 
     await conn.execute("select id from work.artifacts where id = %s for update", (artifact_id,))
 

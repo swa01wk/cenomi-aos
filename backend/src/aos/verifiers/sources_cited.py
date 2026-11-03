@@ -52,6 +52,8 @@ def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
     rows = content.get("rows")
     if not isinstance(rows, list):
         return "REWORK", ["supplier_list: rows must be an array"]
+    if not rows:
+        return "REWORK", ["supplier_list: at least one ranked row is required"]
 
     artifact_types = inp.get("artifact_types") or {}
     sl_spec = artifact_types.get("supplier_list") or {}
@@ -69,6 +71,11 @@ def verify(inp: dict[str, Any]) -> tuple[Verdict, list[str]]:
             continue
         key_val = row.get(row_key)
         row_label = str(key_val) if key_val is not None else "?"
+        sid_check = str(key_val or "").strip().upper()
+        sup_name = str(row.get("supplier") or "").lower()
+        if sid_check in ("N/A", "NA", "NONE", "?") or "no approved suppliers" in sup_name:
+            findings.append(f"{row_key} {row_label}: placeholder row is not a ranked supplier")
+            continue
         sources = row.get("sources")
         if not isinstance(sources, list) or not sources:
             findings.append(f"{row_key} {row_label}: no sources cited")

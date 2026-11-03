@@ -14,7 +14,7 @@ export function WorkPanelStageGuide({
 }) {
   return (
     <div className={[styles.workPanelStageGuide, live ? styles.workPanelStageGuideLive : ""].filter(Boolean).join(" ")}>
-      <JobStepGuide guide={guide} live={live} workflowState={workflowState} />
+      <JobStepGuide guide={guide} live={live} workflowState={workflowState} compact />
     </div>
   );
 }

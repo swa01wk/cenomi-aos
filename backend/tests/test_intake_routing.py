@@ -57,6 +57,68 @@ class IntakeRoutingTests(unittest.TestCase):
         seat, wf = route_intake_message("We need equipment for the site", workers)
         self.assertEqual((seat, wf), ("seat_spec", "qq"))
 
+    def test_rfp_hints_beat_generic_equipment(self) -> None:
+        workers = [
+            {
+                "seat": "seat_sourcing_poc",
+                "workflows": [
+                    {"name": "quick_quote", "intake_hints": ["equipment", "quote", "laptop"]},
+                    {
+                        "name": "sourcing_rfp",
+                        "title": "Sourcing event (full RFP)",
+                        "intake_hints": ["rfp", "web service", "website", "software"],
+                    },
+                ],
+            },
+        ]
+        seat, wf = route_intake_message(
+            "We need a vendor to build a customer web service and API for our portal",
+            workers,
+        )
+        self.assertEqual(seat, "seat_sourcing_poc")
+        self.assertEqual(wf, "sourcing_rfp")
+
+    def test_web_portal_message_prefers_sourcing_rfp_over_quick_quote_service_hint(self) -> None:
+        workers = [
+            {
+                "seat": "seat_sourcing_poc",
+                "workflows": [
+                    {"name": "quick_quote", "intake_hints": ["equipment", "quote", "service", "need"]},
+                    {
+                        "name": "sourcing_rfp",
+                        "title": "Sourcing event (full RFP)",
+                        "intake_hints": ["rfp", "web service", "portal", "api"],
+                    },
+                ],
+            },
+        ]
+        seat, wf = route_intake_message(
+            "Customer-facing web portal and REST API for mall tenants and operations",
+            workers,
+        )
+        self.assertEqual(wf, "sourcing_rfp")
+
+    def test_website_rfp_phrasing_routes_to_sourcing_rfp(self) -> None:
+        workers = [
+            {
+                "seat": "seat_sourcing_poc",
+                "workflows": [
+                    {"name": "quick_quote", "intake_hints": ["need", "service", "buy", "quote"]},
+                    {
+                        "name": "sourcing_rfp",
+                        "title": "Sourcing event (full RFP)",
+                        "intake_hints": ["rfp", "website", "software", "development"],
+                    },
+                ],
+            },
+        ]
+        seat, wf = route_intake_message(
+            "I need to create an RFP for website redesign",
+            workers,
+        )
+        self.assertEqual(seat, "seat_sourcing_poc")
+        self.assertEqual(wf, "sourcing_rfp")
+
     def test_defaults_to_first_when_no_hints_match(self) -> None:
         workers = [
             {

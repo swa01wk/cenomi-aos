@@ -6,6 +6,12 @@ import re
 from typing import Any
 
 _TOKEN = re.compile(r"[a-z0-9']+")
+_RFP_STRONG = re.compile(
+    r"\b(rfp|tender|proposal|web portal|rest api|master rfp|formal rfp|sourcing event|"
+    r"website redesign|web redesign|marketing website|public website)\b",
+    re.IGNORECASE,
+)
+_WORKFLOW_TIE_PRIORITY = {"sourcing_rfp": 2, "quick_quote": 1}
 
 
 def _hint_score(message: str, hints: list[str]) -> int:
@@ -52,8 +58,15 @@ def route_intake_message(message: str, workers: list[dict[str, Any]]) -> tuple[s
                 continue
             score = _hint_score(message, hints if isinstance(hints, list) else [])
             score += _text_field_score(message, str(wf.get("title") or ""), str(wf.get("description") or ""))
+            if _RFP_STRONG.search(message):
+                if wname == "sourcing_rfp":
+                    score += 14
+                elif wname == "quick_quote":
+                    score -= 8
             key = (seat, wname)
-            if score > best_score or (score == best_score and best is not None and key < best):
+            pri = _WORKFLOW_TIE_PRIORITY.get(wname, 0)
+            best_pri = _WORKFLOW_TIE_PRIORITY.get(best[1], 0) if best else -1
+            if score > best_score or (score == best_score and pri > best_pri):
                 best_score = score
                 best = key
             elif best is None:

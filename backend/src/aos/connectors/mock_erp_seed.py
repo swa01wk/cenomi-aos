@@ -296,6 +296,14 @@ CATEGORIES: list[tuple[str, str, str, list[tuple[str, str, str, int]]]] = [
       ("SWL-2802", "Adobe Creative Cloud All Apps, per user per year", "EA", 3300),
       ("SWL-2803", "Endpoint protection, per device per year", "EA", 120),
       ("SWL-2804", "Apple device management (MDM), per device per year", "EA", 160)]),
+    ("CAT-IT-DEV", "Custom software and web/API development",
+     "Design and build of customer portals, REST/GraphQL APIs, integrations, mobile-friendly web apps, SSO, "
+     "and mall/tenant-facing digital services — fixed-price or T&M SOW.",
+     [("DEV-2851", "Discovery and solution design workshop", "EA", 45000),
+      ("DEV-2852", "Customer web portal MVP, fixed price", "EA", 320000),
+      ("DEV-2853", "REST API layer with OpenAPI documentation", "EA", 185000),
+      ("DEV-2854", "SSO integration (SAML/OIDC), per environment", "EA", 65000),
+      ("DEV-2855", "Annual application support and SLA, tier 2/3", "YR", 120000)]),
     ("CAT-IT-AV", "Audio-visual and public address",
      "PA systems, background music, ceiling speakers, amplifiers, microphones, meeting room AV and projectors.",
      [("AVS-2901", "Ceiling speaker, 6.5-inch", "EA", 260),
@@ -398,6 +406,9 @@ DEMO_SUPPLIERS = [
     ("SUP-10611", "Riyadh Facility Mart", "orders@rfm.example", "Riyadh", "Net 30",
      ["CAT-JAN-EQ", "CAT-WST-MGT", "CAT-FURN"]),
 ]
+
+# Reserved in _supplier_numbers(); seeded via ensure_webknot_demo_supplier (AOS_RFQ_TEST_SUPPLIER_ID).
+WEBKNOT_DEMO_SUPPLIER_ID = "SUP-11632"
 # (supplier, po, on_time) — past janitorial orders that drive the ranking signals.
 DEMO_HISTORY = [
     ("SUP-10482", "PO-771204", 1), ("SUP-10482", "PO-772015", 1), ("SUP-10482", "PO-773301", 1),
@@ -445,14 +456,14 @@ SUPPLIERS = [
     ("Al Masar Plumbing Supplies", "sales@almasar.example", "Riyadh", "Net 30", ["CAT-PLMB"]),
     ("Aqua Flow Trading", "info@aquaflow.example", "Dammam", "Net 30", ["CAT-PLMB"]),
     ("Rawabi Digital Services", "rfq@rawabi-digital.example", "Riyadh", "Net 45",
-     ["CAT-IT-MSV", "CAT-IT-EUD", "CAT-IT-MON", "CAT-IT-PER", "CAT-IT-NET", "CAT-IT-SW"]),
+     ["CAT-IT-DEV", "CAT-IT-MSV", "CAT-IT-EUD", "CAT-IT-MON", "CAT-IT-PER", "CAT-IT-NET", "CAT-IT-SW"]),
     ("Tech Valley Computers", "b2b@techvalley.example", "Riyadh", "Net 30",
      ["CAT-IT-EUD", "CAT-IT-MON", "CAT-IT-PER"]),
     ("iStore Arabia Business", "business@istore-arabia.example", "Jeddah", "Net 30",
      ["CAT-IT-EUD", "CAT-IT-MON", "CAT-IT-PER"]),
     ("Elite IT Trading", "sales@eliteit.example", "Riyadh", "Net 45", ["CAT-IT-EUD", "CAT-IT-MON"]),
     ("Bayan Computer Systems", "rfq@bayan-cs.example", "Dammam", "Net 30",
-     ["CAT-IT-EUD", "CAT-IT-PER", "CAT-IT-PRN"]),
+     ["CAT-IT-DEV", "CAT-IT-EUD", "CAT-IT-PER", "CAT-IT-PRN"]),
     ("Display Hub Trading", "sales@displayhub.example", "Riyadh", "Net 30", ["CAT-IT-MON", "CAT-IT-SIG"]),
     ("Keyline Accessories", "orders@keyline.example", "Jeddah", "Net 15", ["CAT-IT-PER"]),
     ("NetCore Arabia", "presales@netcore.example", "Riyadh", "Net 45", ["CAT-IT-NET"]),
@@ -465,9 +476,12 @@ SUPPLIERS = [
     ("Print Pro Office Systems", "sales@printpro.example", "Riyadh", "Net 30", ["CAT-IT-PRN"]),
     ("Al Qalam Office Equipment", "orders@alqalam.example", "Jeddah", "Net 30", ["CAT-IT-PRN", "CAT-OFF"]),
     ("Sahab Cloud and Managed Services", "sales@sahab-cloud.example", "Riyadh", "Net 45",
-     ["CAT-IT-MSV", "CAT-IT-SW"]),
+     ["CAT-IT-DEV", "CAT-IT-MSV", "CAT-IT-SW"]),
     ("CyberNest Security Operations", "soc@cybernest.example", "Riyadh", "Net 30", ["CAT-IT-MSV"]),
-    ("Tamkeen IT Outsourcing", "bids@tamkeen-it.example", "Dammam", "Net 60", ["CAT-IT-MSV"]),
+    ("Tamkeen IT Outsourcing", "bids@tamkeen-it.example", "Dammam", "Net 60", ["CAT-IT-DEV", "CAT-IT-MSV"]),
+    ("Gulf Application Studio", "bids@gulfappstudio.example", "Riyadh", "Net 45", ["CAT-IT-DEV", "CAT-IT-MSV"]),
+    ("Peninsula Software Labs", "rfq@peninsula-labs.example", "Jeddah", "Net 30", ["CAT-IT-DEV"]),
+    ("CodeForge Arabia", "projects@codeforge.example", "Dammam", "Net 45", ["CAT-IT-DEV", "CAT-IT-SW"]),
     ("LicenseHub Arabia", "renewals@licensehub.example", "Riyadh", "Net 30", ["CAT-IT-SW"]),
     ("SoundWave AV Integration", "projects@soundwave.example", "Riyadh", "Net 45", ["CAT-IT-AV"]),
     ("Majlis Audio Visual", "sales@majlis-av.example", "Jeddah", "Net 30", ["CAT-IT-AV", "CAT-DECOR"]),
@@ -548,17 +562,172 @@ SUPPLIER_NUMBER_STEP = 17
 
 
 def _supplier_numbers() -> list[str]:
-    return [f"SUP-{FIRST_SUPPLIER_NUMBER + SUPPLIER_NUMBER_STEP * i}"
-            for i in range(len(SUPPLIERS) + len(INACTIVE_SUPPLIERS))]
+    need = len(SUPPLIERS) + len(INACTIVE_SUPPLIERS)
+    out: list[str] = []
+    i = 0
+    while len(out) < need:
+        num = FIRST_SUPPLIER_NUMBER + SUPPLIER_NUMBER_STEP * i
+        i += 1
+        candidate = f"SUP-{num}"
+        if candidate == WEBKNOT_DEMO_SUPPLIER_ID:
+            continue
+        out.append(candidate)
+    return out
 
 
 def _vat(n: int) -> str:
     return f"3{(100000000000 + n * 7919) % 10**13:013d}3"
 
 
+IT_DEV_CATEGORY = "CAT-IT-DEV"
+IT_DEV_VENDORS = (
+    "Rawabi Digital Services",
+    "Webknot Technologies",
+    "Sahab Cloud and Managed Services",
+    "Tamkeen IT Outsourcing",
+    "Bayan Computer Systems",
+    "Gulf Application Studio",
+    "Peninsula Software Labs",
+    "CodeForge Arabia",
+    "Hikma Systems Integration",
+)
+
+
+def _ensure_category_asl(store: Store, *, vendor_id: int, category_id: int) -> None:
+    site = store.one("select VENDOR_SITE_ID from POZ_SUPPLIER_SITES_ALL_M where VENDOR_ID = ? limit 1", (vendor_id,))
+    if not site:
+        return
+    site_id = int(site["VENDOR_SITE_ID"])
+    existing = store.one(
+        "select 1 from PO_APPROVED_SUPPLIER_LIST where VENDOR_ID = ? and CATEGORY_ID = ?",
+        (vendor_id, category_id),
+    )
+    if existing:
+        return
+    store.x(
+        "insert into PO_APPROVED_SUPPLIER_LIST(PRC_BU_ID, VENDOR_ID, VENDOR_SITE_ID, CATEGORY_ID, ASL_STATUS)"
+        " values (?, ?, ?, ?, 'Approved')",
+        (PRC_BU, vendor_id, site_id, category_id),
+    )
+
+
+def ensure_it_dev_rfp_catalog(store: Store) -> None:
+    """Idempotent: web/API RFP category and approved suppliers (existing ERP DBs)."""
+    if not store.one("select 1 as x from EGP_CATEGORIES_B limit 1"):
+        return
+    row = store.one("select CATEGORY_ID from EGP_CATEGORIES_B where CATEGORY_CODE = ?", (IT_DEV_CATEGORY,))
+    if row:
+        cid = int(row["CATEGORY_ID"])
+    else:
+        spec = next((c for c in CATEGORIES if c[0] == IT_DEV_CATEGORY), None)
+        if spec is None:
+            return
+        _code, name, description, cat_items = spec
+        cid = store.x(
+            "insert into EGP_CATEGORIES_B(CATEGORY_CODE, CATEGORY_SET_ID, START_DATE_ACTIVE)"
+            " values (?, ?, '2020-01-01')",
+            (_code, PURCHASING_CATEGORY_SET),
+        )
+        store.x(
+            "insert into EGP_CATEGORIES_TL(CATEGORY_ID, CATEGORY_NAME, DESCRIPTION) values (?, ?, ?)",
+            (cid, name, description),
+        )
+        for number, desc, uom, price in cat_items:
+            item_type = "Service" if uom in ("MTH", "YR") or "service" in desc.lower() else "Goods"
+            iid = store.x(
+                "insert into EGP_SYSTEM_ITEMS_B(ORGANIZATION_ID, ITEM_NUMBER, DESCRIPTION,"
+                " PRIMARY_UOM_CODE, ITEM_TYPE, LIST_PRICE_PER_UNIT) values (?, ?, ?, ?, ?, ?)",
+                (INVENTORY_ORG, number, desc, uom, item_type, str(price)),
+            )
+            store.x(
+                "insert into EGP_ITEM_CATEGORIES values (?, ?, ?, ?)",
+                (iid, INVENTORY_ORG, PURCHASING_CATEGORY_SET, cid),
+            )
+    for vendor_name in IT_DEV_VENDORS:
+        vrow = store.one("select VENDOR_ID from POZ_SUPPLIERS where VENDOR_NAME = ?", (vendor_name,))
+        if vrow is None:
+            continue
+        _ensure_category_asl(store, vendor_id=int(vrow["VENDOR_ID"]), category_id=cid)
+
+
+def ensure_webknot_demo_supplier(store: Store) -> None:
+    """Idempotent: keep SUP-11632 on the demo inbox for live RFQ sends."""
+    if not store.one("select 1 as x from EGP_CATEGORIES_B limit 1"):
+        return
+    ensure_it_dev_rfp_catalog(store)
+    cat = store.one("select CATEGORY_ID from EGP_CATEGORIES_B where CATEGORY_CODE = ?", ("CAT-IT-EUD",))
+    dev = store.one("select CATEGORY_ID from EGP_CATEGORIES_B where CATEGORY_CODE = ?", (IT_DEV_CATEGORY,))
+    if not cat:
+        return
+    cid = int(cat["CATEGORY_ID"])
+    existing = store.one("select VENDOR_ID from POZ_SUPPLIERS where SEGMENT1 = ?", (WEBKNOT_DEMO_SUPPLIER_ID,))
+    if existing:
+        vid = int(existing["VENDOR_ID"])
+        store.x("update POZ_SUPPLIERS set VENDOR_NAME = ? where VENDOR_ID = ?", ("Webknot Technologies", vid))
+        store.x(
+            "update POZ_SUPPLIER_SITES_ALL_M set EMAIL_ADDRESS = ? where VENDOR_ID = ? and VENDOR_SITE_CODE = ?",
+            ("saad.bn@webknot.com", vid, "RUH-HQ"),
+        )
+        store.x(
+            "update HZ_PARTIES set PARTY_NAME = ?, EMAIL_ADDRESS = ?"
+            " where PARTY_ID = (select PARTY_ID from POZ_SUPPLIERS where VENDOR_ID = ?)",
+            ("Webknot Technologies", "saad.bn@webknot.com", vid),
+        )
+        asl = store.one(
+            "select ASL_ID from PO_APPROVED_SUPPLIER_LIST where VENDOR_ID = ? and CATEGORY_ID = ?",
+            (vid, cid),
+        )
+        if not asl:
+            site = store.one(
+                "select VENDOR_SITE_ID from POZ_SUPPLIER_SITES_ALL_M where VENDOR_ID = ? limit 1", (vid,)
+            )
+            site_id = int(site["VENDOR_SITE_ID"]) if site else store.x(
+                "insert into POZ_SUPPLIER_SITES_ALL_M(VENDOR_ID, VENDOR_SITE_CODE, PRC_BU_ID, ADDRESS_LINE1, CITY,"
+                " COUNTRY, PHONE, EMAIL_ADDRESS, TERMS_ID) values (?, ?, ?, ?, ?, 'SA', ?, ?, ?)",
+                (vid, "RUH-HQ", PRC_BU, "King Fahd Road, Al Olaya", "Riyadh", "+966 11 400 1163",
+                 "saad.bn@webknot.com", int(store.one("select TERM_ID from AP_TERMS_TL where NAME = 'Net 30'")["TERM_ID"])),
+            )
+            store.x(
+                "insert into PO_APPROVED_SUPPLIER_LIST(PRC_BU_ID, VENDOR_ID, VENDOR_SITE_ID, CATEGORY_ID, ASL_STATUS)"
+                " values (?, ?, ?, ?, 'Approved')",
+                (PRC_BU, vid, site_id, cid),
+            )
+        if dev:
+            _ensure_category_asl(store, vendor_id=vid, category_id=int(dev["CATEGORY_ID"]))
+        return
+    terms = store.one("select TERM_ID from AP_TERMS_TL where NAME = ?", ("Net 30",))
+    term_id = int(terms["TERM_ID"]) if terms else store.x("insert into AP_TERMS_TL(NAME, DESCRIPTION) values (?, ?)",
+                                                             ("Net 30", "Payment due 30 days after invoice date"))
+    party = store.x(
+        "insert into HZ_PARTIES(PARTY_NUMBER, PARTY_NAME, PARTY_TYPE, ADDRESS1, CITY, COUNTRY,"
+        " PRIMARY_PHONE_NUMBER, EMAIL_ADDRESS, URL)"
+        " values (?, ?, 'ORGANIZATION', ?, ?, 'SA', ?, ?, ?)",
+        ("HZ-WEBKNOT", "Webknot Technologies", "King Fahd Road, Al Olaya", "Riyadh",
+         "+966 11 400 1163", "saad.bn@webknot.com", "https://www.webknot.com"),
+    )
+    vid = store.x(
+        "insert into POZ_SUPPLIERS(PARTY_ID, SEGMENT1, VENDOR_NAME, VENDOR_TYPE_LOOKUP_CODE,"
+        " ENABLED_FLAG, START_DATE_ACTIVE, CREATION_DATE) values (?, ?, ?, 'VENDOR', 'Y', '2020-01-01', ?)",
+        (party, WEBKNOT_DEMO_SUPPLIER_ID, "Webknot Technologies", "2020-01-01"),
+    )
+    site = store.x(
+        "insert into POZ_SUPPLIER_SITES_ALL_M(VENDOR_ID, VENDOR_SITE_CODE, PRC_BU_ID, ADDRESS_LINE1, CITY, COUNTRY,"
+        " PHONE, EMAIL_ADDRESS, TERMS_ID) values (?, ?, ?, ?, ?, 'SA', ?, ?, ?)",
+        (vid, "RUH-HQ", PRC_BU, "King Fahd Road, Al Olaya", "Riyadh", "+966 11 400 1163", "saad.bn@webknot.com", term_id),
+    )
+    store.x(
+        "insert into PO_APPROVED_SUPPLIER_LIST(PRC_BU_ID, VENDOR_ID, VENDOR_SITE_ID, CATEGORY_ID, ASL_STATUS)"
+        " values (?, ?, ?, ?, 'Approved')",
+        (PRC_BU, vid, site, cid),
+    )
+    if dev:
+        _ensure_category_asl(store, vendor_id=vid, category_id=int(dev["CATEGORY_ID"]))
+
+
 def seed(store: Store) -> None:
     """Fill the Fusion tables once. A database that already has categories is left alone."""
     if store.one("select 1 as x from EGP_CATEGORIES_B limit 1"):
+        ensure_webknot_demo_supplier(store)
         return
     rng = random.Random(20251027)
     store.x("begin")
@@ -574,6 +743,7 @@ def seed(store: Store) -> None:
         _seed_demo_history(store, vendors, categories, items)
         _seed_background_history(store, rng, vendors, categories, items)
         _seed_rawabi_agreement(store, vendors, items, terms)
+        ensure_webknot_demo_supplier(store)
         store.x("commit")
     except BaseException:
         store.x("rollback")

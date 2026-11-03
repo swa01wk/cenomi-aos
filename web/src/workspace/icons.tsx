@@ -43,6 +43,15 @@ export function MessageIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+export function ReplyIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M9 17l-4-4 4-4" />
+      <path d="M5 13h9a4 4 0 0 0 0-8H9" />
+    </Icon>
+  );
+}
+
 export function QueueIcon({ size = 18 }: { size?: number }) {
   return (
     <Icon size={size}>

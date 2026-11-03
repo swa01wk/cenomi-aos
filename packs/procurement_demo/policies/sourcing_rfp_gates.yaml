@@ -1,0 +1,28 @@
+apiVersion: aos/v1
+kind: Policy
+metadata: {name: sourcing_rfp_gates, version: 1, owner: risk}
+spec:
+  type: gate_rules
+  workflow: sourcing_rfp
+  rules:
+    - id: rfp_send
+      action: mailbox.send
+      effect: REQUIRE_APPROVAL
+      approval:
+        chain:
+          - {approver: participant:buyer, kind: content}
+        due: 1d
+      conditions:
+        - workflow.reached("rfp_invitation_drafting")
+        - artifact.verification.leak_check == "PASS"
+    - id: rfp_po_create
+      action: erp_po.create
+      effect: REQUIRE_APPROVAL
+      approval:
+        chain:
+          - {approver: participant:buyer, kind: content}
+          - {approver: participant:procurement_approver}
+        segregation: [distinct_approvers]
+        due: 1d
+      conditions:
+        - workflow.state == "ordering"
