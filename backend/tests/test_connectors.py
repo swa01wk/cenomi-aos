@@ -227,6 +227,11 @@ class MockErpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({s["VENDOR_SITE_CODE"] for s in sites}, {"RUH-HQ", "JED-BR", "DMM-BR"})
         self.assertIn("Key Account Manager", {c["JOB_TITLE"] for c in contacts})
         self.assertEqual(agreement["SEGMENT1"], "BPA-2025-0014")
+        webknot = next((s for s in laptops if s["id"] == "SUP-11632"), None)
+        self.assertIsNotNone(webknot, "demo RFQ supplier must appear under CAT-IT-EUD")
+        assert webknot is not None
+        self.assertEqual(webknot["name"], "Webknot Technologies")
+        self.assertEqual(webknot["email"], "saad.bn@webknot.com")
 
     async def test_created_po_lands_in_fusion_tables(self) -> None:
         async with Client(self.server) as c:
@@ -267,7 +272,7 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.broker = CredentialBroker(SECRETS)
         self.cfg = ConnectorConfig(name="mock_mail", secret=SECRETS["mock_mail"])
-        self.server, self.store = mock_mail.build_server(self.cfg, inbound_secret="inbound-test")
+        self.server, self.store, _notify = mock_mail.build_server(self.cfg, inbound_secret="inbound-test")
 
     def tok(self, action: str, tool: str) -> str:
         return self.broker.mint(Grant("mock_mail", "mailbox", action, "act", "org_demo", tool, "att_test"))
@@ -362,7 +367,7 @@ class PackInputSchemaTests(unittest.IsolatedAsyncioTestCase):
             if connector == "mock_erp":
                 server, _ = mock_erp.build_server(cfg)
             else:
-                server, _ = mock_mail.build_server(cfg, inbound_secret="inbound-test")
+                server, _, _ = mock_mail.build_server(cfg, inbound_secret="inbound-test")
             async with Client(server) as c:
                 listed = {t.name: t for t in (await c.list_tools()).tools}
             for tname, spec in doc["spec"]["tools"].items():

@@ -217,6 +217,7 @@ class ContextEnvelopeTests(unittest.TestCase):
             "specification": "Spec",
             "delivery_date": "2026-11-20",
             "delivery_site": "Mall A",
+        "vendor_reply_deadline": "1.5 minutes",
             "budget_guidance": "SAR 50000",
         }
         full_hash = hashlib.sha256(_canonical_json(content)).hexdigest()

@@ -77,7 +77,12 @@ To create a local database by hand, run the files in `backend/migrations/` in or
 against an empty database named `aos`. The API seeds the organization on start.
 
 Environment: `AOS_DATABASE_URL`, `AOS_SESSION_SECRET`, `AOS_ORG_FILE`, `AOS_PACKS_DIR`,
-`AOS_SEED_ON_START`, `AOS_CORS_ORIGINS`, `AOS_WEB_DIST` (serve a built web app from the API origin).
+`AOS_SEED_ON_START`, `AOS_SYNC_PACK_ON_START` (default on in Compose: sync `packs/` into Postgres,
+publish, and repoint seats on API startup — avoids “Pack content changed” 409 after local pack edits),
+`AOS_CORS_ORIGINS`, `AOS_WEB_DIST` (serve a built web app from the API origin).
+
+After editing a pack without bumping `metadata.version`, run `make sync-pack-docker` (or restart the API
+with sync on start; the kernel auto-bumps the version when a published number is already taken).
 
 Worker (Compose defaults to `AOS_RUNTIME=fake`): `AOS_WORKER_TOKEN`, `AOS_RUNTIME=fake|langgraph`,
 `AOS_CHECKPOINT_DATABASE_URL` (aos_worker role, `lg_checkpoints`), optional `AOS_FAKE_SCRIPT`

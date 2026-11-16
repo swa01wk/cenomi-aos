@@ -53,4 +53,16 @@ spec:
           reference: {type: string}
         additionalProperties: false
     create_po: {resource: erp_po, action: create, class: committed_effect, reconcile_with: find_po}
+    find_pr:
+      description: Find a purchase requisition by its reference.
+      resource: erp_pr
+      action: read
+      class: read
+      input_schema:
+        type: object
+        required: [reference]
+        properties:
+          reference: {type: string}
+        additionalProperties: false
+    create_pr: {resource: erp_pr, action: create, class: committed_effect, reconcile_with: find_pr}
   governance: {require_policy_evaluation: true, allow_direct_runtime_credentials: false}

@@ -1,0 +1,29 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: rfp_evaluation, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [analysis, record_update]
+  instructions: instructions.md
+  ceiling: restricted
+  budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
+  reads: [job_snapshot, proposal, master_rfp]
+  produces:
+    [
+      rfp_module_matrix,
+      rfp_module_scores,
+      rfp_eval_commercial,
+      rfp_eval_technical,
+      rfp_evaluation,
+      technical_criterion_scores,
+      commercial_criterion_scores,
+      eval_scoring_policy,
+    ]
+  may_request: [price_calculator, create_pr, find_pr]
+  verifiers: [score_recompute]
+  runs:
+    analysis:
+      classification_ceiling: restricted
+      budget: {tokens: 80000, cost_usd: 1.50, time_s: 300, steps: 24, actions: 14, retries: 2}
+    record_update:
+      classification_ceiling: restricted
+      budget: {tokens: 80000, cost_usd: 1.50, time_s: 600, steps: 24, actions: 14, retries: 3}

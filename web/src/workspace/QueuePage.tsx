@@ -1,12 +1,23 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "../app/session";
 import { client } from "../api/client";
 import { ApiProblemError, type Problem } from "../api/problems";
 import { Button, ConflictNotice, EmptyState, ProblemNotice, StatusPill } from "../components";
 import { teamLabel } from "../lib/ui";
+import { jobDetailPath } from "./jobPaths";
 import { invalidateWorkspaceLists, useQueue, useWorkflowTitle } from "./useWorkspaceQueries";
+
+type QueueJob = {
+  instance_id: string;
+  title: string;
+  state_label: string;
+  version: number;
+  claim_role?: string;
+  queue_item_kind?: "claim" | "review";
+  waiting_on?: { kind?: string; label?: string; person_id?: string | null };
+};
 
 export default function QueuePage() {
   const { me } = useSession();
@@ -14,6 +25,7 @@ export default function QueuePage() {
   const workflowTitle = useWorkflowTitle();
   const [conflict, setConflict] = useState<Problem | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
+  const hasReview = jobs.data?.some((j) => j.queue_item_kind === "review" || !j.claim_role);
 
   return (
     <>
@@ -22,7 +34,9 @@ export default function QueuePage() {
           <h1>Team queue</h1>
           <span className="sub">
             {me ? `${teamLabel(me.team)}. ` : ""}
-            Approve to take a job, or reject it. Your comment is posted on the job.
+            {hasReview
+              ? "Open review items to read the master RFP, edit if needed, then approve in the job thread."
+              : "Approve to take a job, or reject it. Your comment is posted on the job."}
           </span>
         </div>
       </header>
@@ -57,36 +71,66 @@ export default function QueuePage() {
         />
       )}
       {!jobs.isLoading && !jobs.isError && !jobs.data?.length && (
-        <EmptyState title="No jobs are waiting" nextStep="When a job needs someone from your team, it appears here." />
+        <EmptyState
+          title="No jobs are waiting"
+          nextStep="Unclaimed buyer work and executive RFP reviews appear here when they need someone from your team."
+        />
       )}
       <ul className="ws-job-list" aria-label="Team queue">
-        {jobs.data?.map((job) => (
-          <QueueCard
-            key={job.instance_id}
-            job={job}
-            workflowTitle={workflowTitle(job.workflow)}
-            onConflict={setConflict}
-            onProblem={setProblem}
-          />
-        ))}
+        {jobs.data?.map((job) =>
+          job.queue_item_kind === "review" || !job.claim_role ? (
+            <ReviewQueueCard key={job.instance_id} job={job as QueueJob} workflowTitle={workflowTitle(job.workflow)} />
+          ) : (
+            <ClaimQueueCard
+              key={job.instance_id}
+              job={job as QueueJob}
+              workflowTitle={workflowTitle(job.workflow)}
+              onConflict={setConflict}
+              onProblem={setProblem}
+            />
+          ),
+        )}
       </ul>
     </>
   );
 }
 
-function QueueCard({
+function ReviewQueueCard({
+  job,
+  workflowTitle,
+}: {
+  job: QueueJob;
+  workflowTitle: string;
+}) {
+  const actionLabel = job.waiting_on?.label?.trim() || "Review required";
+  return (
+    <li className="ws-job-card">
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {workflowTitle} · {job.instance_id}
+        </span>
+        <h2 style={{ margin: "6px 0", fontSize: 17 }}>{job.title}</h2>
+        <StatusPill state={job.state_label} />
+        <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+          {actionLabel}
+        </p>
+      </div>
+      <div className="ws-queue-actions">
+        <Link to={jobDetailPath(job.instance_id)} className="btn btn-primary">
+          Open and review
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+function ClaimQueueCard({
   job,
   workflowTitle,
   onConflict,
   onProblem,
 }: {
-  job: {
-    instance_id: string;
-    title: string;
-    state_label: string;
-    version: number;
-    claim_role?: string;
-  };
+  job: QueueJob;
   workflowTitle: string;
   onConflict: (problem: Problem) => void;
   onProblem: (problem: Problem | null) => void;
@@ -110,7 +154,7 @@ function QueueCard({
       if (error) throw error;
       invalidateWorkspaceLists(queryClient);
       if (data && "decision" in data && data.decision === "rejected") return;
-      void navigate(`/workspace/jobs/${job.instance_id}`);
+      void navigate(jobDetailPath(job.instance_id));
     } catch (e) {
       if (e instanceof ApiProblemError) {
         if (e.problem.code === "already_claimed" || e.problem.code === "stale_version") onConflict(e.problem);

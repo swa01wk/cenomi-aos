@@ -3,7 +3,7 @@ import type { InstanceSnapshot } from "./jobStreamReducer";
 type ArtifactSummary = InstanceSnapshot["artifacts"][number];
 
 export function messageComposerArtifacts(artifacts: ArtifactSummary[]): ArtifactSummary[] {
-  return artifacts.filter((a) => a.view.type === "message_composer");
+  return artifacts.filter((a) => a.view?.type === "message_composer");
 }
 
 export function composerHintStorageKey(instanceId: string, artifacts: ArtifactSummary[]): string {
@@ -31,12 +31,9 @@ export function dismissComposerHint(key: string): void {
 }
 
 export function composerHintCopy(count: number, stageLabel: string | undefined, instanceState?: string): string {
-  const noun = count === 1 ? "A draft outbound message is" : `${count} draft outbound messages are`;
-  const action = count === 1 ? "Open the highlighted tab to review it" : "Open the highlighted tabs to review them";
-  const stage = stageLabel ? ` (${stageLabel})` : "";
+  const n = count === 1 ? "1 draft ready" : `${count} drafts ready`;
+  const stage = stageLabel ? ` · ${stageLabel}` : "";
   const send =
-    instanceState === "rfq_sending"
-      ? " When you are satisfied, use Approve and send below."
-      : " Review before sending.";
-  return `${noun} ready${stage}. ${action}.${send}`;
+    instanceState === "rfq_sending" ? " Approve and send when ready." : " Review before sending.";
+  return `${n}${stage}.${send}`;
 }

@@ -1,0 +1,23 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: quote_line_scores, version: 1, owner: head_of_procurement}
+spec:
+  description: Per line item and supplier — variance vs fair benchmark and line score.
+  fields:
+    line_supplier_id: {type: string, required: true}
+    line_id: {type: string, required: true}
+    line_name: {type: string, required: true}
+    supplier: {type: string, required: true}
+    quoted_amount: {type: money, required: true, classification: restricted}
+    fair_benchmark: {type: money, required: true, classification: restricted}
+    variance_pct: {type: number, required: true}
+    line_score: {type: number, required: true}
+  row_based: true
+  row_key: line_supplier_id
+  view:
+    type: sheet
+    columns: [line_id, line_name, supplier, quoted_amount, fair_benchmark, variance_pct, line_score]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [line_id, line_name, supplier, variance_pct, line_score]

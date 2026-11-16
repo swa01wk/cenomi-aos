@@ -173,6 +173,77 @@ async def _start_parallel_region(
         )
 
 
+async def ensure_parallel_region_started(
+    conn: AsyncConnection,
+    org: "OrgModel",
+    instance_id: str,
+    *,
+    region_on: str,
+    packs_dir: Path,
+) -> bool:
+    """Start a pack parallel region if missing (heal path). Does not raise the domain event."""
+    (
+        org_id,
+        workflow_name,
+        _pack_version_id,
+        seat_name,
+        seat_version,
+        inst_status,
+        _version,
+        _correlation_id,
+        _attributes,
+        _raised_events,
+        definition,
+        defs,
+        pack_name,
+        pack_ver,
+        pack_digest,
+        _graph_revision,
+        seat_doc,
+    ) = await _load_instance_workflow(conn, instance_id)
+    if inst_status != "running":
+        return False
+    region_names = [r.region for r in definition.spec.parallel if r.on == region_on]
+    if not region_names:
+        return False
+    for name in region_names:
+        cur = await conn.execute(
+            "select 1 from work.regions where instance_id = %s and name = %s",
+            (instance_id, name),
+        )
+        if await cur.fetchone() is not None:
+            return False
+    participants = await workflow._participants(conn, instance_id)
+    seat_limits = (seat_doc.get("spec") or {}).get("limits") or {}
+    await _start_parallel_region(
+        conn,
+        packs_dir=packs_dir,
+        org_id=org_id,
+        instance_id=instance_id,
+        seat_name=seat_name,
+        seat_version=seat_version,
+        workflow_name=workflow_name,
+        pack_name=pack_name,
+        pack_version=pack_ver,
+        pack_digest=pack_digest,
+        defs=defs,
+        seat_doc=seat_doc,
+        seat_limits=seat_limits,
+        participants=participants,
+        region_on=region_on,
+        definition=definition,
+        org=org,
+    )
+    for name in region_names:
+        cur = await conn.execute(
+            "select 1 from work.regions where instance_id = %s and name = %s",
+            (instance_id, name),
+        )
+        if await cur.fetchone() is not None:
+            return True
+    return False
+
+
 async def raise_event(
     conn: AsyncConnection,
     org: OrgModel,

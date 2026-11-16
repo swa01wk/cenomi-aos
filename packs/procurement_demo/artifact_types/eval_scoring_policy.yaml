@@ -1,0 +1,19 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: eval_scoring_policy, version: 1, owner: head_of_procurement}
+spec:
+  description: Published scoring policy — envelope weights, minimum technical score and formulas.
+  fields:
+    technical_weight: {type: number, required: true}
+    commercial_weight: {type: number, required: true}
+    min_technical_score: {type: number, required: true}
+    scale_0_5: {type: text, required: true, classification: shareable}
+    technical_formula: {type: text, required: true, classification: shareable}
+    commercial_formula: {type: text, required: true, classification: shareable}
+    combined_formula: {type: text, required: true, classification: shareable}
+  view: {type: document}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: all
+    requester: [technical_weight, commercial_weight, min_technical_score, scale_0_5, technical_formula, commercial_formula, combined_formula]

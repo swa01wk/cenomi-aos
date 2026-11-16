@@ -179,7 +179,7 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
                     ("task.completed.rfq_send", None, {"shortlist_count": 3}),
                     ("timer.quotes_closed", None, {"shortlist_count": 3, "quote_count": 2}),
                     ("decision.supplier_selected", "buyer", {"shortlist_count": 3, "quote_count": 2}),
-                    ("task.completed.po_create", None, {"shortlist_count": 3, "quote_count": 2}),
+                    ("task.completed.pr_create", None, {"shortlist_count": 3, "quote_count": 2}),
                 ]
                 attrs = {"shortlist_count": 3}
                 for event, role, attr_patch in steps:
@@ -214,7 +214,7 @@ class WorkflowApplyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self._transition_count(inst), 7)
         self.assertEqual(
             await self._task_templates(inst),
-            ["po_create", "quote_comparison", "rfq_draft", "rfq_send"],
+            ["pr_create", "quote_comparison", "rfq_draft", "rfq_send"],
         )
         row = await self._instance_row(inst)
         self.assertEqual(row["state"], "closed")

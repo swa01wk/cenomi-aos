@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from .intake_routing import _hint_score
+
+if TYPE_CHECKING:
+    from psycopg import AsyncConnection
 
 _SEGMENT = re.compile(r"\s*[·\n]+\s*")
 _SMALL = frozenset(
@@ -70,3 +74,19 @@ def derive_job_title(message: str, *, hints: list[str] | None = None) -> str:
         if _segment_score(text, hint_list) >= 0 and len(text.split()) >= 3:
             return _truncate(text)
     return _truncate(parts[0] if parts else raw)
+
+
+async def display_instance_title(conn: AsyncConnection, instance_id: str, stored: str) -> str:
+    """Brief name when available, else a cleaned title from the stored starter text."""
+    cur = await conn.execute(
+        "select name from work.artifacts where instance_id = %s and artifact_type = 'brief'"
+        " and latest_version >= 1 order by latest_version desc limit 1",
+        (instance_id,),
+    )
+    row = await cur.fetchone()
+    if row is not None:
+        name = str(row[0] or "").strip()
+        if name and name.lower() not in ("brief", "request brief"):
+            return name
+    cleaned = derive_job_title(stored)
+    return cleaned or stored

@@ -33,6 +33,25 @@
   background: var(--surface-1);
 }
 
+.quoteStackSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.quoteStackSection:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.quoteStackHeading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .replyPreviewLabel {
   font-size: 12px;
   font-weight: 600;
@@ -52,6 +71,12 @@
 }
 
 /* document */
+.docToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .docGrid {
   margin: 0;
   display: grid;
@@ -97,6 +122,38 @@
   color: var(--ink-3);
 }
 
+.docTextarea,
+.docInput {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-1);
+  border: 1px solid var(--line-input, var(--line));
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.docTextarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.docEditActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.docEditError {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger, #b42318);
+}
+
 .docList {
   margin: 0;
   padding-left: 18px;
@@ -138,6 +195,144 @@
   overflow-wrap: anywhere;
 }
 
+.fieldBlock {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.fieldBlock:last-child {
+  border-bottom: 0;
+}
+
+.replyTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.replyTimelineItem {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, var(--panel));
+}
+
+.replyTimelineHeading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.evalSheetWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.specStageCallout {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+}
+
+.specStageCalloutTitle {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.specStageCalloutDetail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.evalRubricMissing {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.evalRubricCode {
+  font-size: 12px;
+}
+
+.evalRubricSection {
+  margin-top: 0;
+}
+
+.evalRubricToggle {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, var(--panel));
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.evalRubricPanel {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.evalRubricBlock + .evalRubricBlock {
+  margin-top: 16px;
+}
+
+.evalRubricHeading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.evalDeriveList {
+  margin: 8px 0 0;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.draftAnswerNote {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-input, var(--line));
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+.orderLines {
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: disc;
+  font-weight: 500;
+}
+
+.orderLines li + li {
+  margin-top: 6px;
+}
+
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -147,4 +342,91 @@
   .docGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.composerView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.composerEditHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.composerField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.composerLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.composerInput {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-input, var(--line));
+  background: var(--panel);
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.composerInput:read-only {
+  background: var(--surface-1);
+  color: var(--ink-2);
+}
+
+.composerTextarea {
+  width: 100%;
+  min-height: min(48vh, 420px);
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-input, var(--line));
+  background: var(--panel);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.composerTextarea:read-only {
+  background: var(--surface-1);
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.composerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.composerSaved {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.composerError {
+  font-size: 13px;
+  color: var(--danger);
 }

@@ -257,7 +257,16 @@ async def _run_effects(
             row = await cur.fetchone()
             generation = int(row[0]) + 1 if row else 1
             duration = timer.after
-            if clock.demo_enabled() and timer.demo_after:
+            use_demo = timer.demo_after and (
+                clock.demo_enabled()
+                or __import__("os").environ.get("AOS_RFQ_DEMO_SHORT_DEADLINE", "1").strip().lower()
+                in ("1", "true", "yes")
+            )
+            if name == "quote_deadline":
+                from .reply_deadline import brief_reply_duration_for_instance
+
+                duration = await brief_reply_duration_for_instance(conn, instance_id)
+            elif use_demo:
                 duration = timer.demo_after
             fires_at = at + clock.parse_duration(duration)
             await conn.execute(
@@ -443,6 +452,14 @@ async def apply_event(
 
     if match.transition is None:
         reason = match.reason or "no_match"
+        if (
+            reason == "guard_failed"
+            and event == "timer.quotes_closed"
+            and from_state == "awaiting_quotes"
+        ):
+            from . import quotes as quote_ops
+
+            await quote_ops.ensure_quote_deadline_from_brief(conn, instance_id)
         await write_execution_event(
             conn,
             ExecutionEventWrite(
@@ -599,4 +616,10 @@ async def apply_event(
         job_closed=bool(to_spec.final),
     )
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
+    if to_spec.final:
+        from .po_ordered import post_po_ordered_announcement_if_needed
+
+        await post_po_ordered_announcement_if_needed(
+            conn, org=org, org_id=str(org_id), instance_id=instance_id
+        )
     return ApplyEventResult(True, from_state, to_state, new_version)

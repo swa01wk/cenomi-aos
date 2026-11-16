@@ -98,13 +98,21 @@ def seed_sql(org: OrgModel) -> str:
         out.append(f"insert into org.departments(org_id, id, name, head_person_id) values ({_lit(o.id)}, {_lit(did)}, "
                    f"{_lit(d.name)}, {_lit(d.head)}) on conflict do nothing;")
         for tid, t in d.teams.items():
-            out.append(f"insert into org.teams(org_id, department_id, id, name, owner_person_id) values ({_lit(o.id)}, "
-                       f"{_lit(did)}, {_lit(tid)}, {_lit(t.name)}, {_lit(t.owner)}) on conflict do nothing;")
+            out.append(
+                f"insert into org.teams(org_id, department_id, id, name, owner_person_id) values ({_lit(o.id)}, "
+                f"{_lit(did)}, {_lit(tid)}, {_lit(t.name)}, {_lit(t.owner)})"
+                " on conflict (org_id, department_id, id) do update set"
+                " name = excluded.name, owner_person_id = excluded.owner_person_id;"
+            )
     for pid, p in org.people.items():
         dept, team = p.team.split("/")
-        out.append(f"insert into org.people(org_id, id, name, department_id, team_id, console_access) values "
-                   f"({_lit(o.id)}, {_lit(pid)}, {_lit(p.name)}, {_lit(dept)}, {_lit(team)}, {_lit(p.console)}) "
-                   "on conflict do nothing;")
+        out.append(
+            f"insert into org.people(org_id, id, name, department_id, team_id, console_access) values "
+            f"({_lit(o.id)}, {_lit(pid)}, {_lit(p.name)}, {_lit(dept)}, {_lit(team)}, {_lit(p.console)}) "
+            "on conflict (org_id, id) do update set"
+            " name = excluded.name, department_id = excluded.department_id,"
+            " team_id = excluded.team_id, console_access = excluded.console_access;"
+        )
         for role in p.roles:
             out.append(f"insert into org.role_mappings(org_id, person_id, role) values ({_lit(o.id)}, {_lit(pid)}, "
                        f"{_lit(role)}) on conflict do nothing;")

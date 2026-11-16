@@ -60,9 +60,9 @@ class HttpKernelClient:
         if resp.status_code == 429 and code == "budget_exhausted":
             return BudgetExhausted(code, resp.status_code, title, detail)
         if resp.status_code == 422 and code == "validation_failed":
-            err = ValidationFailed(code, resp.status_code, title, detail)
-            err.errors = body.get("errors")
-            return err
+            raw_errors = body.get("errors")
+            errors = raw_errors if isinstance(raw_errors, list) else None
+            return ValidationFailed(code, resp.status_code, title, detail, errors=errors)
         return KernelProblemError(code, resp.status_code, title, detail)
 
     @staticmethod
@@ -243,6 +243,7 @@ class HttpKernelClient:
             idempotent=False,
             fencing_token=attempt["fencing_token"],
             json_body=body,
+            tool_error=True,
         )
         return resp.json()
 

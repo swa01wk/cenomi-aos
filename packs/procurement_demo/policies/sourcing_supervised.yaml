@@ -8,6 +8,8 @@ spec:
     - {resource: erp_supplier, actions: [read], effect: ALLOW}
     - {resource: erp_po, actions: [read], effect: ALLOW}
     - {resource: erp_po, actions: [create], effect: REQUIRE_APPROVAL}
+    - {resource: erp_pr, actions: [read], effect: ALLOW}
+    - {resource: erp_pr, actions: [create], effect: REQUIRE_APPROVAL}
     - {resource: mailbox, actions: [read, draft], effect: ALLOW}
     - {resource: mailbox, actions: [send], effect: REQUIRE_APPROVAL}
     - {resource: quotes, actions: [read], effect: ALLOW}

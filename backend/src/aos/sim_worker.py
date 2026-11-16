@@ -57,9 +57,8 @@ def _in_process_connectors(connector_secrets: dict[str, str]):  # type: ignore[n
     async def invoke(*, connector: str, tool: str, arguments: dict[str, Any]) -> Any:
         if connector not in servers:
             module = importlib.import_module(f"{__package__}.connectors.{connector}")
-            servers[connector], _store = module.build_server(
-                ConnectorConfig(name=connector, secret=connector_secrets.get(connector))
-            )
+            built = module.build_server(ConnectorConfig(name=connector, secret=connector_secrets.get(connector)))
+            servers[connector] = built[0]
         async with Client(servers[connector]) as client:
             return await client.call_tool(tool, arguments)
 
@@ -105,9 +104,9 @@ class InProcessKernel:
         if status == 429 and code == "budget_exhausted":
             return BudgetExhausted(code, status, title, detail)
         if status == 422 and code == "validation_failed":
-            err = ValidationFailed(code, status, title, detail)
-            err.errors = (extra or {}).get("errors")
-            return err
+            raw = (extra or {}).get("errors")
+            errors = raw if isinstance(raw, list) else None
+            return ValidationFailed(code, status, title, detail, errors=errors)
         return KernelProblemError(code, status, title, detail)
 
     def _checked(self, result: Any) -> Any:

@@ -24,6 +24,25 @@ function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
 }
 
 describe("workPanelAutoFocus", () => {
+  it("opens brief document during conversation when draft exists", () => {
+    const id = recommendedWorkPanelArtifactId(
+      snap({
+        state: "conversation",
+        artifacts: [
+          {
+            artifact_id: "brief1",
+            artifact_type: "brief",
+            name: "10 MacBooks",
+            latest_version: 1,
+            status: "draft",
+            view: { type: "document", fields: [], columns: [] },
+          },
+        ],
+      }),
+    );
+    expect(id).toBe("brief1");
+  });
+
   it("prefers a sheet artifact during shortlisting", () => {
     const id = recommendedWorkPanelArtifactId(
       snap({
@@ -115,5 +134,22 @@ describe("workPanelAutoFocus", () => {
     });
     expect(shouldAutoFocusWorkPanel(snapshot, null, true)).toBeNull();
     expect(shouldAutoFocusWorkPanel(snapshot, null, false)).toBe("brief1");
+  });
+
+  it("treats placeholder panel=work like no selection", () => {
+    const snapshot = snap({
+      state: "intake",
+      artifacts: [
+        {
+          artifact_id: "brief1",
+          artifact_type: "type_brief",
+          name: "Brief",
+          latest_version: 1,
+          status: "draft",
+          view: { type: "document", fields: [], columns: [] },
+        },
+      ],
+    });
+    expect(shouldAutoFocusWorkPanel(snapshot, "work", false)).toBe("brief1");
   });
 });

@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate api-types check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean
+.PHONY: help install vendor test validate api-types check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean reset-demo
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -71,13 +71,33 @@ up: ## build and start the stack (mints a worker token into .env if missing); wa
 
 compose-up:
 	$(COMPOSE) up -d --build --wait
+	@bash scripts/sync-pack-docker.sh || true
 	@echo "Web http://localhost:8080 · API http://localhost:8000/docs · mock ERP :8101 · mock mail :8102"
 
 worker-token: ## mint a new development worker token into .env (AOS_WORKER_TOKEN)
 	@bash scripts/dev-worker-token.sh
+	@$(COMPOSE) up -d --no-deps worker
 
 down: ## stop the stack (keeps data; add V=1 to drop volumes)
 	$(COMPOSE) down $(if $(V),-v,)
+
+reset-demo: ## wipe all jobs, chat, and mock mail; re-seed org (stack must be up)
+	bash scripts/reset-demo.sh
+
+demo-backup: ## export job JSON for demo restore (INSTANCE=RFP-0001)
+	bash scripts/demo-backup.sh
+
+demo-restore: ## restore job from demo backup (FILE=demo/backups/....json)
+	bash scripts/demo-restore.sh
+
+demo-rfp-full: ## reset + bootstrap full RFP demo (Noura, CDO, Rami, evaluation)
+	bash scripts/demo-rfp-full.sh
+
+demo-client-full: ## reset + bootstrap RFP-0001 and QQ-0001/QQ-0013 (eval, BAFO, Q&A routing)
+	bash scripts/demo-client-full.sh
+
+verify-demo-rfp: ## API checks on RFP-0001 (spec stage, rubrics, chat) — stack must be up
+	bash scripts/verify-demo-rfp.sh
 
 logs: ## follow logs
 	$(COMPOSE) logs -f --tail=100

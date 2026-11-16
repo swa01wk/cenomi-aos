@@ -1,0 +1,15 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_upload_manifest, version: 1, owner: head_of_procurement}
+spec:
+  description: User-uploaded RFP attachments merged into the master package.
+  fields:
+    template_type: {type: string, required: true}
+    agent_generated_master: {type: text, classification: shareable}
+    uploaded_files: {type: list, classification: shareable}
+  view: {type: document}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: all
+    requester: all

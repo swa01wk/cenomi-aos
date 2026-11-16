@@ -7,7 +7,7 @@ import os
 from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,7 @@ from ..kernel import (
     demo,
     events,
     instances,
+    shared_attachments,
     participants,
     publish,
     registry_store,
@@ -63,6 +64,10 @@ def _raise_seat_error(exc: SeatError) -> None:
 
 def _raise_instance_error(exc: instances.InstanceError) -> None:
     raise KernelProblem(exc.code, exc.status, exc.title, exc.detail, **exc.extra) from exc
+
+
+def _raise_shared_attachment_error(exc: shared_attachments.SharedAttachmentError) -> None:
+    raise KernelProblem(exc.code, exc.status, exc.title, exc.detail) from exc
 
 
 def _raise_outbound_mail_error(exc: outbound_mail.OutboundMailError) -> None:
@@ -631,9 +636,67 @@ async def start_instance(
 @router.get("/instances/{id}", tags=["instances"])
 async def get_instance(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> dict:
     try:
+        from aos.kernel.pack_publish import heal_instance_pack_pin
+
+        await heal_instance_pack_pin(
+            conn, org_id=p.org_id, instance_id=id, packs_dir=k.settings.packs_dir
+        )
         await instances.refresh_decisions_for_viewer(
             conn, k.org, id, packs_dir=k.settings.packs_dir
         )
+        snap_row = await conn.execute("select state from work.instances where id = %s", (id,))
+        st = await snap_row.fetchone()
+        if st is not None and str(st[0]) in (
+            "awaiting_quotes",
+            "awaiting_proposals",
+            "comparison",
+        ):
+            from aos.connectors.mail_poll import poll_imap_via_gateway
+
+            await poll_imap_via_gateway(k.gateway, k.broker, org_id=p.org_id, instance_id=id)
+            from aos.kernel import quote_capture, quotes as quote_ops
+
+            await quote_capture.sync_quotes_from_mail_threads(
+                conn,
+                k.gateway,
+                k.broker,
+                org_id=p.org_id,
+                instance_id=id,
+                org=k.org,
+                packs_dir=k.settings.packs_dir,
+            )
+            await quote_capture.sync_proposals_from_mail_threads(
+                conn,
+                k.gateway,
+                k.broker,
+                org_id=p.org_id,
+                instance_id=id,
+                org=k.org,
+                packs_dir=k.settings.packs_dir,
+            )
+            if k.settings.demo:
+                from aos.kernel import demo_rfp_acks
+
+                await demo_rfp_acks.process_due_demo_rfp_acks(
+                    conn,
+                    k.org,
+                    id,
+                    packs_dir=k.settings.packs_dir,
+                    demo=True,
+                )
+            await quote_ops.sync_quote_count_attribute(conn, id)
+            await quote_ops.sync_proposal_count_attribute(conn, id)
+            await quote_ops.sync_ack_count_attribute(conn, id)
+            await quote_ops.ensure_quote_deadline_from_brief(conn, id)
+            from aos.kernel import clock, timers as timer_ops
+
+            await timer_ops.process_due_timers_for_instance(
+                conn,
+                id,
+                as_of=clock.now(),
+                org=k.org,
+                packs_dir=k.settings.packs_dir,
+            )
         return await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
     except instances.InstanceError as exc:
         _raise_instance_error(exc)
@@ -685,8 +748,14 @@ async def post_turn(
     return result
 
 
+class SendRfqsBody(BaseModel):
+    resend: bool = False
+    supplier_ids: list[str] | None = None
+
+
 @router.post("/instances/{id}/send-rfqs", tags=["instances"])
-async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep) -> dict:
+async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep, body: SendRfqsBody | None = None) -> dict:
+    opts = body or SendRfqsBody()
     try:
         async with k.pool.connection() as conn:
             async with conn.transaction():
@@ -695,6 +764,8 @@ async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep) -> dict:
                     org_id=p.org_id,
                     instance_id=id,
                     person_id=p.person_id,
+                    supplier_ids=opts.supplier_ids,
+                    resend=opts.resend,
                 )
         sent_keys, receipts = await outbound_mail.execute_rfqs_mail(
             k.gateway,
@@ -716,12 +787,66 @@ async def send_rfqs(id: str, p: PrincipalDep, k: KernelDep) -> dict:
                     receipts=receipts,
                     packs_dir=k.settings.packs_dir,
                 )
+                if plan.resend and plan.relay_only:
+                    from aos.kernel import quotes as quote_ops
+
+                    supplier_ids = [str(r.get("supplier_id") or "") for r in receipts if r.get("supplier_id")]
+                    await quote_ops.restart_reply_deadlines(conn, instance_id=id, supplier_ids=supplier_ids)
                 snapshot = await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
         return {**body, "snapshot": snapshot}
     except outbound_mail.OutboundMailError as exc:
         _raise_outbound_mail_error(exc)
     except instances.InstanceError as exc:
         _raise_instance_error(exc)
+
+
+@router.post("/instances/{id}/shared-attachments", tags=["instances"])
+async def upload_instance_shared_attachment(
+    id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+    file: UploadFile = File(...),
+) -> dict:
+    try:
+        data = await file.read()
+        attachment = await shared_attachments.upload(
+            conn,
+            org_id=p.org_id,
+            instance_id=id,
+            person_id=p.person_id,
+            filename=file.filename or "attachment",
+            content_type=file.content_type or "application/octet-stream",
+            data=data,
+        )
+        snapshot = await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
+        return {"attachment": attachment, "snapshot": snapshot}
+    except shared_attachments.SharedAttachmentError as exc:
+        _raise_shared_attachment_error(exc)
+    except instances.InstanceError as exc:
+        _raise_instance_error(exc)
+
+
+@router.delete("/instances/{id}/shared-attachments/{attachment_id}", tags=["instances"])
+async def delete_instance_shared_attachment(
+    id: str,
+    attachment_id: str,
+    p: PrincipalDep,
+    k: KernelDep,
+    conn: TxDep,
+) -> dict:
+    try:
+        await shared_attachments.delete_attachment(
+            conn,
+            org_id=p.org_id,
+            instance_id=id,
+            person_id=p.person_id,
+            attachment_id=attachment_id,
+        )
+        snapshot = await instances.build_snapshot(conn, k.org, p.org_id, id, p.person_id)
+        return {"snapshot": snapshot}
+    except shared_attachments.SharedAttachmentError as exc:
+        _raise_shared_attachment_error(exc)
 
 
 @router.get("/instances/{id}/events", tags=["instances"])
@@ -1393,6 +1518,78 @@ async def simulate_vendor_reply(
         subject=body.subject,
     )
     return {"status": "accepted", "inbound": note.get("payload"), "actor": p.person_id}
+
+
+@router.post("/demo/rfp/bootstrap", tags=["demo"])
+async def bootstrap_rfp_demo(
+    k: KernelDep,
+    p: ConsoleDep,
+    conn: TxDep,
+    body: dict | None = None,
+) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_rfp_bootstrap
+
+    payload = body or {}
+    iid = str(payload.get("instance_id") or "RFP-0001")
+    replace = bool(payload.get("replace", True))
+    instance_id = await demo_rfp_bootstrap.bootstrap_full_rfp_demo(
+        conn,
+        k.org,
+        packs_dir=k.settings.packs_dir,
+        instance_id=iid,
+        replace=replace,
+    )
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    st_row = await cur.fetchone()
+    state = str(st_row[0]) if st_row else "comparison"
+    return {"instance_id": instance_id, "state": state}
+
+
+@router.post("/demo/qq/bootstrap", tags=["demo"])
+async def bootstrap_qq_demo(
+    k: KernelDep,
+    p: ConsoleDep,
+    conn: TxDep,
+    body: dict | None = None,
+) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_qq_bootstrap
+
+    payload = body or {}
+    iid = str(payload.get("instance_id") or "QQ-0001")
+    replace = bool(payload.get("replace", True))
+    instance_id = await demo_qq_bootstrap.bootstrap_full_qq_demo(
+        conn,
+        k.org,
+        packs_dir=k.settings.packs_dir,
+        instance_id=iid,
+        replace=replace,
+    )
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    st_row = await cur.fetchone()
+    state = str(st_row[0]) if st_row else "closed"
+    return {"instance_id": instance_id, "state": state}
+
+
+@router.get("/demo/instances/{id}/export", tags=["demo"])
+async def export_demo_instance(id: str, k: KernelDep, p: ConsoleDep, conn: TxDep) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_instance_backup
+
+    try:
+        return await demo_instance_backup.export_instance(conn, id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/demo/instances/import", tags=["demo"])
+async def import_demo_instance(k: KernelDep, p: ConsoleDep, conn: TxDep, body: dict) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_instance_backup
+
+    iid = await demo_instance_backup.restore_instance(conn, body, replace=True)
+    return {"instance_id": iid}
 
 
 @router.get("/demo/state", tags=["demo"])

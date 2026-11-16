@@ -120,6 +120,7 @@ def _brief_v(n: int) -> dict:
         "specification": "spec",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 
@@ -469,7 +470,7 @@ class ParticipantsKernelTests(unittest.IsolatedAsyncioTestCase):
                 pid1 = await participants.resolve_participant(
                     conn, self.org, inst, "procurement_approver"
                 )
-            self.assertEqual(pid1, "khalid")
+            self.assertEqual(pid1, "cdo")
             cur = await conn.execute(
                 "select bound_by from work.participants where instance_id = %s and role = 'procurement_approver'",
                 (inst,),
@@ -479,12 +480,46 @@ class ParticipantsKernelTests(unittest.IsolatedAsyncioTestCase):
                 pid2 = await participants.resolve_participant(
                     conn, self.org, inst, "procurement_approver"
                 )
-            self.assertEqual(pid2, "khalid")
+            self.assertEqual(pid2, "cdo")
             cur = await conn.execute(
                 "select count(*) from work.participants where instance_id = %s and role = 'procurement_approver'",
                 (inst,),
             )
             self.assertEqual((await cur.fetchone())[0], 1)
+
+    async def test_queue_lists_master_rfp_review_for_cdo(self) -> None:
+        inst = "RFP-P01"
+        proc_queue = "procurement/procurement"
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    insert into work.instances (
+                      id, org_id, workflow, pack_version_id, seat, seat_version, title, state, version,
+                      attributes, created_by, correlation_id, status
+                    ) values (%s, %s, 'sourcing_rfp', %s, %s, 1, 'Web portal RFP', 'master_rfp_drafting', 2, '{}', 'noura', %s, 'running')
+                    """,
+                    (inst, ORG_ID, self.pack_version_id, SEAT, f"corr_{inst}"),
+                )
+                await conn.execute(
+                    "insert into work.participants (instance_id, role, person_id, bound_by)"
+                    " values (%s, 'buyer', 'noura', 'creation'), (%s, 'procurement_approver', 'cdo', 'rule')",
+                    (inst, inst),
+                )
+                await conn.execute(
+                    "insert into work.pending_items ("
+                    " id, instance_id, kind, event, title, detail, for_role, for_person_id, options, status"
+                    ") values ("
+                    " 'pend_rfp', %s, 'decision', 'decision.master_rfp_confirmed',"
+                    " 'Review and approve master RFP', '', 'procurement_approver', 'cdo', '[]', 'open'"
+                    ")",
+                    (inst,),
+                )
+            items = await participants.list_queue_instances(conn, self.org, ORG_ID, "cdo", proc_queue)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["instance_id"], inst)
+            self.assertEqual(items[0]["queue_item_kind"], "review")
+            self.assertEqual(items[0]["waiting_on"]["kind"], "person")
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")

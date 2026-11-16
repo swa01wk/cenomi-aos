@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { client } from "../../api/client";
-import { ApiProblemError, isProblem, problemMessage, type Problem } from "../../api/problems";
+import { apiBaseUrl, client } from "../../api/client";
+import { ApiProblemError, isProblem, parseProblem, problemMessage, type Problem } from "../../api/problems";
+import { getToken } from "../../api/session";
 import type { UiEvent } from "../../api/stream";
 import { useEventStream } from "../../api/stream";
 import { useSession } from "../../app/session";
@@ -62,6 +63,14 @@ export function useJobPage(instanceId: string) {
       loadedRef.current = true;
     }
   }, [snapshotQuery.data, resetAuxFromSnapshot]);
+
+  useEffect(() => {
+    if (snapshotQuery.data?.state !== "awaiting_quotes" || sessionExpired) return;
+    const id = window.setInterval(() => {
+      void snapshotQuery.refetch();
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [sessionExpired, snapshotQuery, snapshotQuery.data?.state]);
 
   const applyEvent = useCallback(
     (event: UiEvent) => {
@@ -205,23 +214,108 @@ export function useJobPage(instanceId: string) {
     [instanceId, queryClient, snapshotQuery],
   );
 
-  const sendRfqs = useCallback(async () => {
-    const { data, error } = await client.POST("/instances/{id}/send-rfqs", {
-      params: {
-        path: { id: instanceId },
-        header: { "Idempotency-Key": newClientTurnId() },
-      },
-    });
-    if (error) {
-      if (isProblem(error)) throw new ApiProblemError(error);
-      throw new Error(problemMessage(error as Problem) || "Could not send outbound messages");
-    }
-    if (data?.snapshot) {
-      queryClient.setQueryData(workspaceKeys.instance(instanceId), data.snapshot);
-    } else {
+  const sendRfqs = useCallback(
+    async (opts?: { resend?: boolean; supplierIds?: string[] }) => {
+      const { data, error } = await client.POST("/instances/{id}/send-rfqs", {
+        params: {
+          path: { id: instanceId },
+          header: { "Idempotency-Key": newClientTurnId() },
+        },
+        body: {
+          resend: opts?.resend ?? false,
+          supplier_ids: opts?.supplierIds,
+        },
+      });
+      if (error) {
+        if (isProblem(error)) throw new ApiProblemError(error);
+        throw new Error(problemMessage(error as Problem) || "Could not send outbound messages");
+      }
+      if (data?.snapshot) {
+        queryClient.setQueryData(workspaceKeys.instance(instanceId), data.snapshot);
+      } else {
+        await snapshotQuery.refetch();
+      }
+    },
+    [instanceId, queryClient, snapshotQuery],
+  );
+
+  const resendRfqs = useCallback(
+    async (supplierIds?: string[]) => {
+      await sendRfqs({ resend: true, supplierIds });
+    },
+    [sendRfqs],
+  );
+
+  const applySnapshot = useCallback(
+    (snap: InstanceSnapshot | undefined) => {
+      if (snap) queryClient.setQueryData(workspaceKeys.instance(instanceId), snap);
+      else void snapshotQuery.refetch();
+    },
+    [instanceId, queryClient, snapshotQuery],
+  );
+
+  const uploadSharedAttachment = useCallback(
+    async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const token = getToken();
+      const res = await fetch(`${apiBaseUrl()}/instances/${encodeURIComponent(instanceId)}/shared-attachments`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const problem = await parseProblem(res);
+        if (problem) throw new ApiProblemError(problem);
+        throw new Error(`${res.status} ${res.statusText}`);
+      }
+      const data = (await res.json()) as { snapshot?: InstanceSnapshot };
+      applySnapshot(data.snapshot);
+    },
+    [applySnapshot, instanceId],
+  );
+
+  const saveArtifactVersion = useCallback(
+    async (artifactId: string, baseVersion: number, content: Record<string, unknown>) => {
+      const { data, error } = await client.POST("/artifacts/{id}/versions", {
+        params: { path: { id: artifactId } },
+        body: { base_version: baseVersion, content: content as Record<string, never> },
+      });
+      if (error) {
+        if (isProblem(error)) throw new ApiProblemError(error);
+        throw new Error(problemMessage(error as Problem) || "Could not save");
+      }
       await snapshotQuery.refetch();
-    }
-  }, [instanceId, queryClient, snapshotQuery]);
+      await queryClient.invalidateQueries({ queryKey: workspaceKeys.artifact(artifactId) });
+      if (data?.version != null) {
+        await queryClient.invalidateQueries({
+          queryKey: workspaceKeys.artifactVersion(artifactId, data.version),
+        });
+      }
+    },
+    [queryClient, snapshotQuery],
+  );
+
+  const removeSharedAttachment = useCallback(
+    async (attachmentId: string) => {
+      const token = getToken();
+      const res = await fetch(
+        `${apiBaseUrl()}/instances/${encodeURIComponent(instanceId)}/shared-attachments/${encodeURIComponent(attachmentId)}`,
+        {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        },
+      );
+      if (!res.ok) {
+        const problem = await parseProblem(res);
+        if (problem) throw new ApiProblemError(problem);
+        throw new Error(`${res.status} ${res.statusText}`);
+      }
+      const data = (await res.json()) as { snapshot?: InstanceSnapshot };
+      applySnapshot(data.snapshot);
+    },
+    [applySnapshot, instanceId],
+  );
 
   const pageError =
     snapshotQuery.error instanceof ApiProblemError
@@ -243,6 +337,10 @@ export function useJobPage(instanceId: string) {
     postTurn,
     decide,
     sendRfqs,
+    resendRfqs,
+    uploadSharedAttachment,
+    removeSharedAttachment,
+    saveArtifactVersion,
     loadOlderTurns,
     streamingTurnId,
     awaitingTurnId: awaitingTurn?.turn_id ?? null,

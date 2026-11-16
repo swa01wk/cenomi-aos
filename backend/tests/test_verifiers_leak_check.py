@@ -106,6 +106,7 @@ class RealPackTypes(unittest.TestCase):
             "title": "Cleaning trolleys", "category": "CAT-0042", "quantity": 40,
             "specification": "Stainless steel, three shelves", "delivery_date": "2026-11-20",
             "delivery_site": "Mall A loading bay", "budget_guidance": 40000,
+        "vendor_reply_deadline": "1.5 minutes",
         }
 
     def _run(self, body: str):

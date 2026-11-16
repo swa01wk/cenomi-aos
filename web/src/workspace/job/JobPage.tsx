@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiProblemError } from "../../api/problems";
@@ -20,9 +20,35 @@ import { newClientTurnId } from "../../components/clientTurnId";
 import { personChatPath } from "../jobPaths";
 import { startSpecialistFromIntake } from "../startJobs";
 import { useDigitalWorkers } from "../useWorkspaceQueries";
-import { buildHandoffIntakeMessage, isCoordinatorJob, shouldHandOffFromCoordinator } from "../workspaceEntry";
+import {
+  buildHandoffIntakeMessage,
+  isCoordinatorJob,
+  pickSpecialistWorker,
+  shouldHandOffFromCoordinator,
+} from "../workspaceEntry";
 import { markCoordinatorHandedOff } from "../openPersonChat";
+import { HandoffTransition } from "../HandoffTransition";
+import { assigneeLabel, workerColleagueName, workerInitials } from "../persona";
+import type { components } from "../../api/schema";
 import styles from "./job.module.css";
+import { WorkPanelResizeHandle } from "./WorkPanelResizeHandle";
+import { useWorkPanelWidth } from "./useWorkPanelWidth";
+
+function useMinWidth(minPx: number): boolean {
+  const [ok, setOk] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(`(min-width: ${minPx}px)`).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${minPx}px)`);
+    const sync = () => setOk(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [minPx]);
+  return ok;
+}
+
+type Worker = components["schemas"]["DigitalWorker"];
 
 export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }) {
   const params = useParams();
@@ -40,9 +66,21 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
   );
   const [composerProblem, setComposerProblem] = useState<Problem | null>(null);
   const [seatBlock, setSeatBlock] = useState<Problem | null>(null);
+  const [handoffUi, setHandoffUi] = useState<{
+    fromName: string;
+    fromTitle: string;
+    fromInitials: string;
+    toWorker: Worker;
+  } | null>(null);
 
   const userPanelOverride = useRef(false);
   const prevWorkflowState = useRef<string | null>(null);
+  const sideBySide = useMinWidth(chatLayout ? 960 : 1080);
+  const { width: workPanelWidth, startResize, resetWidth } = useWorkPanelWidth();
+
+  useEffect(() => {
+    setHandoffUi(null);
+  }, [instanceId]);
 
   const openArtifact = useCallback(
     (artifactId: string) => {
@@ -76,10 +114,35 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
           shouldHandOffFromCoordinator(snap, text, snap.turns, activeWorkers)
         ) {
           const intake = buildHandoffIntakeMessage(text, snap.turns, activeWorkers);
-          const data = await startSpecialistFromIntake(intake, newClientTurnId(), queryClient);
-          markCoordinatorHandedOff(instanceId);
-          clearComposerDraft(instanceId);
-          void navigate(personChatPath(data.seat, data.instance_id), { replace: true });
+          const toWorker = pickSpecialistWorker(intake, activeWorkers);
+          if (!toWorker) {
+            await job.postTurn(text, clientTurnId);
+            clearComposerDraft(instanceId);
+            return;
+          }
+          const from = assigneeLabel(snap.assignee);
+          setHandoffUi({
+            fromName: from.name,
+            fromTitle: from.title,
+            fromInitials: from.name
+              .split(/\s+/)
+              .filter(Boolean)
+              .map((p) => p[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase(),
+            toWorker,
+          });
+          try {
+            const data = await startSpecialistFromIntake(intake, newClientTurnId(), queryClient);
+            markCoordinatorHandedOff(instanceId);
+            clearComposerDraft(instanceId);
+            setHandoffUi(null);
+            void navigate(personChatPath(data.seat, data.instance_id), { replace: true });
+          } catch (handoffErr) {
+            setHandoffUi(null);
+            throw handoffErr;
+          }
           return;
         }
         await job.postTurn(text, clientTurnId);
@@ -110,9 +173,6 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
     }
     const next = shouldAutoFocusWorkPanel(snapshot, panelId, userPanelOverride.current);
     if (!next) return;
-    if (chatLayout) {
-      userPanelOverride.current = true;
-    }
     openArtifact(next);
   }, [snapshot, artifactFocusKey, panelId, openArtifact, chatLayout]);
 
@@ -152,13 +212,32 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
       ? { kind: rawNotice.kind, text: rawNotice.text }
       : null;
   let composerDisabled: string | undefined;
-  if (isJobClosed(snapshot)) composerDisabled = closedComposerMessage;
+  const handoffInProgress = Boolean(handoffUi && isCoordinatorJob(snapshot));
+  if (handoffInProgress) composerDisabled = "Connecting…";
+  else if (isJobClosed(snapshot)) composerDisabled = closedComposerMessage;
   else if (seatNotice) composerDisabled = seatNotice.text;
   else if (seatBlock) composerDisabled = seatBlock.title;
   else composerDisabled = composerBlockedForPoLoop(snapshot);
 
   const documentsOpen = Boolean(panelId);
-  const layoutClass = chatLayout ? styles.jobLayoutChatOnly : styles.jobLayout;
+  const hasWorkArtifacts = snapshot.artifacts.length > 0;
+  const specialistJob = !isCoordinatorJob(snapshot);
+  /** Person-chat route: show the work column for real jobs, not only after the first artifact exists. */
+  const chatWorkColumn = chatLayout && (hasWorkArtifacts || specialistJob);
+  const workPanelVisible = chatLayout ? chatWorkColumn : true;
+  const resizable = Boolean(workPanelVisible && sideBySide);
+
+  const layoutClass = [
+    chatLayout ? styles.jobLayoutChatOnly : styles.jobLayout,
+    chatWorkColumn ? styles.jobLayoutChatSplit : "",
+    resizable ? styles.jobLayoutResizable : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const layoutStyle: CSSProperties | undefined = resizable
+    ? ({ "--work-panel-width": `${workPanelWidth}px` } as CSSProperties)
+    : undefined;
 
   const workPanel = (
     <WorkPanel
@@ -166,18 +245,35 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
       snapshot={snapshot}
       panelArtifactId={panelId}
       onSelectArtifact={selectWorkPanelArtifact}
-      onSendRfqs={job.sendRfqs}
+      onSendRfqs={() => job.sendRfqs()}
+      onResendRfqs={job.resendRfqs}
+      onUploadSharedAttachment={job.uploadSharedAttachment}
+      onRemoveSharedAttachment={job.removeSharedAttachment}
+      onSaveArtifactVersion={job.saveArtifactVersion}
       agentBusy={Boolean(
         job.awaitingTurnId ||
           job.streamingTurnId ||
           (job.toolActivity && job.toolActivity.state !== "completed"),
       )}
-      onClose={documentsOpen ? closeDocuments : undefined}
+      onClose={chatWorkColumn ? closeDocuments : undefined}
     />
   );
 
+  const renderWorkPanel = () => (
+    <>
+      {resizable ? (
+        <WorkPanelResizeHandle
+          onResizeStart={startResize}
+          onReset={resetWidth}
+          jobLayout={!chatLayout}
+        />
+      ) : null}
+      {workPanel}
+    </>
+  );
+
   return (
-    <div className={layoutClass}>
+    <div className={layoutClass} style={layoutStyle}>
       <Conversation
         snapshot={snapshot}
         streamingTurnId={job.streamingTurnId}
@@ -186,40 +282,43 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
         toolActivity={job.toolActivity}
         bannerMode={job.bannerMode}
         syncCount={job.syncCount}
+        handoffBanner={
+          handoffInProgress && handoffUi ? (
+            <HandoffTransition
+              fromName={handoffUi.fromName}
+              fromTitle={handoffUi.fromTitle}
+              fromInitials={handoffUi.fromInitials}
+              toName={workerColleagueName(handoffUi.toWorker)}
+              toTitle={handoffUi.toWorker.title ?? ""}
+              toInitials={workerInitials(handoffUi.toWorker)}
+            />
+          ) : null
+        }
         composerDisabledReason={composerDisabled}
         seatNotice={seatNotice}
         initialComposerText={getComposerDraft(instanceId)}
         onComposerTextChange={(t) => setComposerDraft(instanceId, t)}
         onSend={onSend}
         onDecide={job.decide}
+        onSaveArtifactVersion={job.saveArtifactVersion}
         onOpenArtifact={openArtifact}
         onLoadOlder={() => void job.loadOlderTurns()}
         showLoadOlder={snapshot.turns.length >= 50}
         chatLayout={chatLayout}
         documentCount={snapshot.artifacts.length}
         documentsOpen={documentsOpen}
+        showDocumentsEntry={chatLayout && specialistJob}
         onToggleDocuments={() => {
           if (documentsOpen) closeDocuments();
           else if (snapshot.artifacts[0]) openArtifact(snapshot.artifacts[0].artifact_id);
+          else setSearchParams({ panel: "work" });
         }}
       />
-      {chatLayout ? (
-        <>
-          {documentsOpen && (
-            <button
-              type="button"
-              className={styles.drawerBackdrop}
-              aria-label="Close documents"
-              onClick={closeDocuments}
-            />
-          )}
-          <div className={[styles.workPanelDrawer, documentsOpen ? styles.workPanelDrawerOpen : ""].join(" ")}>
-            {workPanel}
-          </div>
-        </>
-      ) : (
-        workPanel
-      )}
+      {chatLayout
+        ? chatWorkColumn
+          ? renderWorkPanel()
+          : null
+        : renderWorkPanel()}
       {composerProblem && (
         <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 50 }}>
           <ProblemNotice problem={composerProblem} />

@@ -25,6 +25,7 @@ def _valid_brief() -> dict:
         "specification": "Ergonomic",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh HQ",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 

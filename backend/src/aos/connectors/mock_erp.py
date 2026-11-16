@@ -20,10 +20,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .base import ConnectorConfig, ConnectorError, Faults, Store, stall
-from .mock_erp_seed import PRC_BU, SCHEMA, seed
+from .mock_erp_seed import IT_DEV_CATEGORY, PRC_BU, SCHEMA, ensure_it_dev_rfp_catalog, seed
 
 AOS_PO = "AOS"  # PO_HEADERS_ALL.ATTRIBUTE_CATEGORY on orders AOS created; ATTRIBUTE1 is the reference
+AOS_PR = "AOS_PR"  # POR_REQUISITION_HEADERS_ALL — Fusion converts these to PO after approval
 FIRST_AOS_PO = 778201
+FIRST_AOS_PR = 880001
 
 _SUPPLIERS_IN_CATEGORY = """
 select s.SEGMENT1 as id, s.VENDOR_NAME as name, site.EMAIL_ADDRESS as email, c.CATEGORY_CODE as category_id
@@ -106,6 +108,42 @@ def _po_view(store: Store, header: dict) -> dict:
             "total": str(total), "created_at": header["CREATION_DATE"]}
 
 
+def _pr_view(store: Store, header: dict) -> dict:
+    lines = store.q(
+        "select ITEM_DESCRIPTION, QUANTITY, UNIT_PRICE, UOM_CODE, NEED_BY_DATE, SHIP_TO_NOTE"
+        " from POR_REQUISITION_LINES_ALL where REQUISITION_HEADER_ID = ? order by LINE_NUM",
+        (header["REQUISITION_HEADER_ID"],),
+    )
+    supplier = store.one("select SEGMENT1 from POZ_SUPPLIERS where VENDOR_ID = ?", (header["VENDOR_ID"],))
+    view_lines = []
+    total = Decimal("0")
+    for line in lines:
+        total += Decimal(line["QUANTITY"]) * Decimal(line["UNIT_PRICE"])
+        entry = {
+            "item": line["ITEM_DESCRIPTION"],
+            "quantity": _number(line["QUANTITY"]),
+            "unit_price": _number(line["UNIT_PRICE"]),
+        }
+        if line["UOM_CODE"]:
+            entry["uom"] = line["UOM_CODE"]
+        view_lines.append(entry)
+    first = lines[0] if lines else {}
+    return {
+        "id": header["SEGMENT1"],
+        "reference": header["ATTRIBUTE1"],
+        "idempotency_key": header["ATTRIBUTE2"],
+        "supplier_id": supplier["SEGMENT1"] if supplier else None,
+        "ship_to": first.get("SHIP_TO_NOTE"),
+        "need_by": first.get("NEED_BY_DATE"),
+        "currency": header["CURRENCY_CODE"],
+        "lines": view_lines,
+        "total": str(total),
+        "created_at": header["CREATION_DATE"],
+        "document_status": header["DOCUMENT_STATUS"],
+        "fusion_next_step": "Oracle Fusion converts approved requisitions to purchase orders.",
+    }
+
+
 def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     store = Store(cfg.db_path, SCHEMA)
     seed(store)
@@ -121,6 +159,12 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     def aos_header(where: str, args: tuple) -> dict | None:
         return store.one(f"select * from PO_HEADERS_ALL where ATTRIBUTE_CATEGORY = ? and ({where})", (AOS_PO, *args))
 
+    def aos_requisition(where: str, args: tuple) -> dict | None:
+        return store.one(
+            f"select * from POR_REQUISITION_HEADERS_ALL where ATTRIBUTE_CATEGORY = ? and ({where})",
+            (AOS_PR, *args),
+        )
+
     @server.tool()
     def browse_categories(query: str = "", token: str | None = None) -> dict:
         """List ERP categories whose name, description or items contain every word of the query."""
@@ -134,6 +178,8 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
     def search_suppliers(category_id: str, token: str | None = None) -> dict:
         """Active suppliers on the approved supplier list for a category."""
         guard(token, "erp_supplier", "read", "search_suppliers")
+        if category_id == IT_DEV_CATEGORY:
+            ensure_it_dev_rfp_catalog(store)
         rows = store.q(_SUPPLIERS_IN_CATEGORY, (category_id,))
         if cfg.faults.oversized_reads:
             rows = rows * 500
@@ -210,6 +256,86 @@ def build_server(cfg: ConnectorConfig) -> tuple[MCPServer, Store]:
             await stall(cfg)  # committed, but the caller times out before hearing back
         header = store.one("select * from PO_HEADERS_ALL where PO_HEADER_ID = ?", (hid,))
         return {**_po_view(store, header), "duplicate": False}
+
+    @server.tool()
+    def find_pr(reference: str, token: str | None = None) -> dict:
+        """Find a purchase requisition by the reference AOS wrote on it."""
+        guard(token, "erp_pr", "read", "find_pr")
+        row = aos_requisition("ATTRIBUTE1 = ?", (reference,))
+        return {"found": row is not None, "pr": _pr_view(store, row) if row else None}
+
+    @server.tool()
+    async def create_pr(
+        supplier_id: str,
+        ship_to: str,
+        need_by: str,
+        currency: str,
+        lines: list[dict],
+        reference: str,
+        idempotency_key: str,
+        token: str | None = None,
+    ) -> dict:
+        """Create a purchase requisition in Fusion. PO conversion happens outside AOS."""
+        guard(token, "erp_pr", "create", "create_pr")
+        existing = aos_requisition("ATTRIBUTE1 = ? or ATTRIBUTE2 = ?", (reference, idempotency_key))
+        if existing:
+            return {**_pr_view(store, existing), "duplicate": True}
+        if cfg.faults.take("fail_validation"):
+            raise ToolError("validation: supplier site is inactive for purchasing (injected fault)")
+        vendor = store.one(
+            "select s.VENDOR_ID, site.VENDOR_SITE_ID from POZ_SUPPLIERS s"
+            " join POZ_SUPPLIER_SITES_ALL_M site on site.VENDOR_ID = s.VENDOR_ID"
+            " where s.SEGMENT1 = ? and s.ENABLED_FLAG = 'Y' and site.PURCHASING_SITE_FLAG = 'Y'"
+            " and site.INACTIVE_DATE is null order by site.VENDOR_SITE_ID limit 1",
+            (supplier_id,),
+        )
+        if not vendor:
+            raise ToolError(f"validation: unknown or inactive supplier {supplier_id}")
+        if not lines:
+            raise ToolError("validation: a requisition needs at least one line")
+        parsed = []
+        for line in lines:
+            try:
+                qty, price = Decimal(str(line["quantity"])), Decimal(str(line["unit_price"]))
+                parsed.append((str(line.get("item") or line.get("description") or "Item"), str(qty), str(price), line.get("uom")))
+            except (KeyError, ArithmeticError) as exc:
+                raise ToolError(f"validation: bad line {line!r}") from exc
+        count = store.one(
+            "select count(*) as n from POR_REQUISITION_HEADERS_ALL where ATTRIBUTE_CATEGORY = ?", (AOS_PR,)
+        )["n"]
+        store.x("begin")
+        try:
+            hid = store.x(
+                "insert into POR_REQUISITION_HEADERS_ALL(SEGMENT1, PRC_BU_ID, VENDOR_ID, VENDOR_SITE_ID,"
+                " CURRENCY_CODE, DOCUMENT_STATUS, ATTRIBUTE_CATEGORY, ATTRIBUTE1, ATTRIBUTE2, CREATION_DATE)"
+                " values (?, ?, ?, ?, ?, 'INCOMPLETE', ?, ?, ?, ?)",
+                (
+                    f"PR-{FIRST_AOS_PR + count}",
+                    PRC_BU,
+                    vendor["VENDOR_ID"],
+                    vendor["VENDOR_SITE_ID"],
+                    currency,
+                    AOS_PR,
+                    reference,
+                    idempotency_key,
+                    _now(),
+                ),
+            )
+            for num, (desc, qty, price, uom) in enumerate(parsed, start=1):
+                store.x(
+                    "insert into POR_REQUISITION_LINES_ALL(REQUISITION_HEADER_ID, LINE_NUM, ITEM_DESCRIPTION,"
+                    " UOM_CODE, QUANTITY, UNIT_PRICE, NEED_BY_DATE, SHIP_TO_NOTE)"
+                    " values (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (hid, num, desc, uom, qty, price, need_by, ship_to),
+                )
+            store.x("commit")
+        except BaseException:
+            store.x("rollback")
+            raise
+        if cfg.faults.take("timeout_after_commit"):
+            await stall(cfg)
+        header = store.one("select * from POR_REQUISITION_HEADERS_ALL where REQUISITION_HEADER_ID = ?", (hid,))
+        return {**_pr_view(store, header), "duplicate": False}
 
     @server.tool()
     def admin_set_faults(timeout_after_commit: int = 0, timeout_delay_s: float = 30.0, fail_validation: int = 0,

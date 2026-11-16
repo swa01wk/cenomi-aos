@@ -1,5 +1,5 @@
 import type { components } from "../api/schema";
-import { isEntryColleague } from "./workspaceEntry";
+import { isEntryColleague, isMisroutedQuickQuoteJob } from "./workspaceEntry";
 
 type Job = components["schemas"]["InstanceSummary"];
 
@@ -45,8 +45,12 @@ export function openChatInstanceForSeat(seat: string, jobs: Job[], worker: Worke
   }
 
   const conversational = sorted.find(
-    (j) => j.workflow !== "workspace_coordination" && (j.state === "conversation" || j.state === "intake"),
+    (j) =>
+      j.workflow !== "workspace_coordination" &&
+      (j.state === "conversation" || j.state === "intake") &&
+      !isMisroutedQuickQuoteJob(j),
   );
   if (conversational) return conversational.instance_id;
-  return sorted[0]?.instance_id;
+  const resume = sorted.find((j) => !isMisroutedQuickQuoteJob(j));
+  return resume?.instance_id;
 }

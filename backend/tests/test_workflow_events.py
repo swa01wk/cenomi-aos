@@ -96,6 +96,7 @@ def _brief_content(*, category: str = "CAT-1") -> dict:
         "specification": "spec",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 
@@ -106,6 +107,7 @@ def _brief_no_category() -> dict:
         "specification": "spec",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 
@@ -1401,6 +1403,7 @@ def _brief_v(n: int) -> dict:
         "specification": "spec",
         "delivery_date": "2026-12-01",
         "delivery_site": "Riyadh",
+        "vendor_reply_deadline": "1.5 minutes",
     }
 
 

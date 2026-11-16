@@ -1,0 +1,48 @@
+.handle {
+  flex: none;
+  width: 10px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--line);
+  transition: background 0.12s ease, width 0.12s ease;
+}
+
+.handle:hover::after,
+.handle:focus-visible::after {
+  width: 3px;
+  background: var(--accent-line);
+}
+
+.handle:focus-visible {
+  outline: none;
+}
+
+.handle:focus-visible::after {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+@media (max-width: 959px) {
+  .handle {
+    display: none;
+  }
+}
+
+@media (max-width: 1079px) {
+  .handleJobOnly {
+    display: none;
+  }
+}

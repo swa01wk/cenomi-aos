@@ -2,7 +2,7 @@ apiVersion: aos/v1
 kind: ArtifactType
 metadata: {name: po_payload, version: 1, owner: head_of_procurement}
 spec:
-  description: The exact purchase order to be written to the ERP.
+  description: Purchase requisition payload submitted to Oracle Fusion (PO conversion happens in Fusion).
   fields:
     supplier_id: {type: string, required: true}
     ship_to: {type: string, required: true}

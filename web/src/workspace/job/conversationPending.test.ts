@@ -59,6 +59,73 @@ describe("splitConversationPending", () => {
     expect(staleRetries.map((p) => p.pending_id)).toEqual(["p2", "p3"]);
   });
 
+  it("holds decision cards while the specialist awaits a user reply", () => {
+    const pending = [
+      {
+        pending_id: "p-brief",
+        instance_id: "QQ-1",
+        kind: "decision" as const,
+        event: "decision.brief_confirmed",
+        title: "Confirm the brief",
+        for_role: "requester",
+        status: "open" as const,
+        created_at: "2026-10-28T08:00:00Z",
+      },
+    ];
+    const snapshot = snap({
+      pending,
+      state: "intake",
+      turns: [
+        {
+          turn_id: "t-seat",
+          seq: 2,
+          at: "2026-10-29T12:00:00Z",
+          author: { kind: "seat", id: "seat_sourcing_poc", name: "Noor" },
+          blocks: [{ kind: "text", text: "Which site?" }],
+        },
+      ],
+    });
+    const { primary } = splitConversationPending(pending, snapshot);
+    expect(primary).toHaveLength(0);
+  });
+
+  it("hides brief confirm when the specialist spoke again after the card opened", () => {
+    const pending = [
+      {
+        pending_id: "p-brief",
+        instance_id: "QQ-1",
+        kind: "decision" as const,
+        event: "decision.brief_confirmed",
+        title: "Confirm the brief",
+        for_role: "requester",
+        status: "open" as const,
+        created_at: "2026-11-02T06:50:00Z",
+      },
+    ];
+    const snapshot = snap({
+      pending,
+      state: "intake",
+      turns: [
+        {
+          turn_id: "t-person",
+          seq: 1,
+          at: "2026-11-02T06:51:00Z",
+          author: { kind: "person", id: "faisal", name: "Faisal" },
+          blocks: [{ kind: "text", text: "10 iphones" }],
+        },
+        {
+          turn_id: "t-seat",
+          seq: 2,
+          at: "2026-11-02T06:52:00Z",
+          author: { kind: "seat", id: "seat_sourcing_poc", name: "Noor" },
+          blocks: [{ kind: "text", text: "Who signs off on quality?" }],
+        },
+      ],
+    });
+    const { primary } = splitConversationPending(pending, snapshot);
+    expect(primary).toHaveLength(0);
+  });
+
   it("shows only the current-stage retry when no forward decision", () => {
     const pending = [
       {

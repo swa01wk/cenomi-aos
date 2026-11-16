@@ -34,7 +34,7 @@ function snap(partial: Partial<InstanceSnapshot>): InstanceSnapshot {
 }
 
 describe("showSendRfqsBar", () => {
-  it("hides send when a task retry card is open", () => {
+  it("still shows send during rfq_sending when a retry card is open", () => {
     expect(showSendRfqsBar(snap({}))).toBe(true);
     const retryPending = {
       pending_id: "p1",
@@ -46,7 +46,7 @@ describe("showSendRfqsBar", () => {
       for_role: "buyer",
       created_at: "2026-01-01T00:00:00Z",
     };
-    expect(showSendRfqsBar(snap({ pending: [retryPending] }))).toBe(false);
+    expect(showSendRfqsBar(snap({ pending: [retryPending] }))).toBe(true);
     expect(hasOpenTaskRetry(snap({ pending: [retryPending] }))).toBe(true);
   });
 });

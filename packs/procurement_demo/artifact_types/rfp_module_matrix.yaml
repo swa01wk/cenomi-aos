@@ -1,0 +1,26 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_module_matrix, version: 1, owner: head_of_procurement}
+spec:
+  description: Cross-vendor module price comparison with fair benchmarks for BAFO negotiation.
+  fields:
+    module_id: {type: string, required: true}
+    module_name: {type: string, required: true}
+    fair_benchmark: {type: money, required: true, classification: restricted}
+    tamkeen_sar: {type: money, classification: restricted}
+    rawabi_sar: {type: money, classification: restricted}
+    peninsula_sar: {type: money, classification: restricted}
+    high_supplier: {type: string}
+    high_amount: {type: money, classification: restricted}
+    vs_fair_pct: {type: number, description: High quote vs fair benchmark (%).}
+    bafo_talking_point: {type: text, classification: shareable}
+  row_based: true
+  row_key: module_id
+  view:
+    type: sheet
+    columns:
+      [module_id, module_name, fair_benchmark, tamkeen_sar, rawabi_sar, peninsula_sar, high_supplier, vs_fair_pct, bafo_talking_point]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: [module_id, module_name, fair_benchmark, high_supplier, vs_fair_pct, bafo_talking_point]

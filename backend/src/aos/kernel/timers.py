@@ -88,6 +88,10 @@ async def process_due_timer(
         "update work.timers set status = 'fired', fired_at = %s where id = %s",
         (as_of, timer_id),
     )
+    if emits == "quotes_closed":
+        from . import quotes as quote_ops
+
+        await quote_ops.sync_quote_count_attribute(conn, instance_id)
     participants = await _participants(conn, instance_id)
     roles = [r for r, _ in participants]
     data = {"instance_id": instance_id, "timer": name, "emits": emits}
@@ -113,6 +117,31 @@ async def process_due_timer(
         actor={"kind": "kernel", "id": "scheduler"},
     )
     return TimerProcessResult(timer_id, "fired")
+
+
+async def process_due_timers_for_instance(
+    conn: AsyncConnection,
+    instance_id: str,
+    *,
+    as_of: datetime,
+    org: OrgModel,
+    packs_dir: Path,
+) -> list[TimerProcessResult]:
+    """Fire overdue timers for one job (e.g. while the client polls awaiting quotes)."""
+    cur = await conn.execute(
+        "select id from work.timers"
+        " where instance_id = %s and status = 'scheduled' and fires_at <= %s"
+        " order by fires_at, id",
+        (instance_id, as_of),
+    )
+    results: list[TimerProcessResult] = []
+    for (timer_id,) in await cur.fetchall():
+        results.append(
+            await process_due_timer(
+                conn, str(timer_id), as_of=as_of, org=org, packs_dir=packs_dir
+            )
+        )
+    return results
 
 
 async def run_timer_tick(

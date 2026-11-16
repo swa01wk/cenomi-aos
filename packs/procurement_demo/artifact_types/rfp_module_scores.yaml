@@ -1,0 +1,25 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_module_scores, version: 1, owner: head_of_procurement}
+spec:
+  description: Granular commercial score per scope module and supplier (vs fair benchmark).
+  fields:
+    module_line_id: {type: string, required: true}
+    module_id: {type: string, required: true}
+    module_name: {type: string, required: true}
+    supplier_id: {type: string, required: true}
+    supplier: {type: string, required: true}
+    quoted_amount: {type: money, required: true, classification: restricted}
+    fair_benchmark: {type: money, required: true, classification: restricted}
+    variance_sar: {type: money, classification: restricted}
+    variance_pct: {type: number, required: true}
+    module_score: {type: number, required: true}
+  row_based: true
+  row_key: module_line_id
+  view:
+    type: sheet
+    columns: [module_id, module_name, supplier, quoted_amount, fair_benchmark, variance_pct, module_score]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: [module_id, module_name, supplier, variance_pct, module_score]

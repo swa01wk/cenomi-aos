@@ -9,7 +9,15 @@ import { useDigitalWorkers } from "./useWorkspaceQueries";
 import { repeatOrderFirstMessage } from "./repeatOrder";
 import { personChatPath } from "./jobPaths";
 import { workerColleagueName, workerInitials } from "./persona";
-import { entryColleague } from "./workspaceEntry";
+import {
+  entryColleague,
+  isFormalRfpRequest,
+  pickSpecialistWorker,
+  routeWorkflowName,
+  shouldOpenSpecialistJob,
+  specialistColleagues,
+} from "./workspaceEntry";
+import { useSession } from "../app/session";
 import { startCoordinatorThread, startSpecialistFromIntake } from "./startJobs";
 import styles from "./chatHome.module.css";
 
@@ -23,6 +31,7 @@ export default function ChatHomePage({ newJob = false }: ChatHomePageProps) {
   const [searchParams] = useSearchParams();
   const repeatFrom = searchParams.get("repeat")?.trim() || null;
   const queryClient = useQueryClient();
+  const { me } = useSession();
   const workers = useDigitalWorkers();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,6 +57,26 @@ export default function ChatHomePage({ newJob = false }: ChatHomePageProps) {
         setRoutingNote("Opening the repeat with your specialist…");
         const data = await startSpecialistFromIntake(bodyText, idempotencyRef.current, queryClient, {
           repeat_from_instance_id: repeatFrom,
+        });
+        idempotencyRef.current = null;
+        void navigate(personChatPath(data.seat, data.instance_id));
+        return;
+      }
+      const specialist = pickSpecialistWorker(bodyText, activeWorkers);
+      const directToSpecialist =
+        newJob &&
+        Boolean(specialist) &&
+        shouldOpenSpecialistJob(bodyText, activeWorkers) &&
+        (me?.roles.includes("sourcing_user") || isFormalRfpRequest(bodyText));
+      if (directToSpecialist && specialist) {
+        const wf = routeWorkflowName(bodyText, activeWorkers);
+        setRoutingNote(
+          wf === "sourcing_rfp"
+            ? `Starting a full RFP with ${workerColleagueName(specialist)}…`
+            : `Opening with ${workerColleagueName(specialist)}…`,
+        );
+        const data = await startSpecialistFromIntake(bodyText, idempotencyRef.current, queryClient, {
+          seat: specialist.seat,
         });
         idempotencyRef.current = null;
         void navigate(personChatPath(data.seat, data.instance_id));
@@ -88,38 +117,81 @@ export default function ChatHomePage({ newJob = false }: ChatHomePageProps) {
   }
 
   const name = workerColleagueName(entry);
+  const specialists = specialistColleagues(activeWorkers);
+  const starters = newJob
+    ? [
+        "Hi — I need help with a purchase",
+        "We need equipment for a new site",
+        "Can you help me get quotes for laptops?",
+        "Run an RFP for a new customer web service and API",
+      ]
+    : ["Hey, how are you?", "I need to order supplies for my team"];
 
   return (
     <div className={styles.shell} aria-label="Workspace chat">
       <header className={styles.header}>
-        <h1>{newJob ? "New job" : "What can we help with?"}</h1>
-        <p>
-          {newJob
-            ? "Tell your workspace coordinator what you need. They will bring in the right digital colleague when it is time."
-            : "Message your workspace coordinator in plain language. They route detailed requests to the right colleague and stay with you for everything else."}
-        </p>
+        <div className={styles.headerInner}>
+          <h1>{newJob ? "New job" : "What can we help with?"}</h1>
+          <p>
+            {newJob
+              ? "Tell your workspace coordinator what you need. They will bring in the right digital colleague when it is time."
+              : "Message your workspace coordinator in plain language. They route detailed requests to the right colleague and stay with you for everything else."}
+          </p>
+        </div>
       </header>
 
-      <div className={styles.body}>
-        <div>
-          <span className="eyebrow">Your coordinator</span>
-          <div className={styles.peopleRow}>
-            <div className={styles.personChip} aria-current="true">
-              <span className={styles.avatar} aria-hidden="true">
+      <div className={styles.content}>
+        <div className={styles.primary}>
+          <div className={styles.body}>
+            <div className={styles.welcome}>
+              <span className={styles.welcomeAvatar} aria-hidden="true">
                 {workerInitials(entry)}
               </span>
-              <span>
-                {name}
-                {entry.title ? (
-                  <>
-                    <br />
-                    <span style={{ fontWeight: 500, fontSize: 12, color: "var(--ink-3)" }}>{entry.title}</span>
-                  </>
-                ) : null}
-              </span>
+              <p className={styles.welcomeLead}>
+                Start with <strong>{name}</strong>
+                {entry.title ? ` · ${entry.title}` : ""}
+              </p>
+              <p className={styles.welcomeHint}>Say hello, or describe what you need in plain language.</p>
+              <div className={styles.suggestions} role="list" aria-label="Example messages">
+                {starters.map((line) => (
+                  <button
+                    key={line}
+                    type="button"
+                    className={styles.suggestion}
+                    disabled={busy}
+                    onClick={() => setMessage(line)}
+                  >
+                    {line}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
+
+        <aside className={styles.aside} aria-label="How this works">
+          <span className="eyebrow">How it works</span>
+          <ol className={styles.steps}>
+            <li>Chat with your coordinator like a colleague.</li>
+            <li>When your request is clear, they connect you with a specialist.</li>
+            <li>Track progress in one thread and the work panel.</li>
+          </ol>
+          {specialists.length > 0 && (
+            <>
+              <span className="eyebrow" style={{ marginTop: 20 }}>
+                Specialists on your team
+              </span>
+              <ul className={styles.specialistList}>
+                {specialists.map((w) => (
+                  <li key={w.seat}>
+                    <span className={styles.specialistName}>{workerColleagueName(w)}</span>
+                    {w.title ? <span className={styles.specialistTitle}>{w.title}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </aside>
       </div>
 
       <div className={styles.composerDock}>

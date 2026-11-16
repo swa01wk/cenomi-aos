@@ -22,6 +22,12 @@ services:
 
   api:
     build: {context: .., dockerfile: backend/Dockerfile}
+    env_file:
+      - ../.env
+    volumes:
+      # Live pack tree: local edits and startup auto-bump stay on the host (avoids image-only drift).
+      - ../packs:/app/packs
+      - ../seed:/app/seed:ro
     environment:
       AOS_DATABASE_URL: postgresql://aos_kernel:aos_kernel_dev@postgres:5432/aos
       AOS_SESSION_SECRET: ${AOS_SESSION_SECRET:-aos-dev-session-secret-change-me-0123456789abcdef}
@@ -29,9 +35,15 @@ services:
       AOS_CONNECTOR_SECRETS: '{"mock_erp":"${MOCK_ERP_SECRET:-dev-erp-secret}","mock_mail":"${MOCK_MAIL_SECRET:-dev-mail-secret}"}'
       AOS_CONNECTOR_URLS: '{"mock_erp":"http://mock-erp:8101/mcp","mock_mail":"http://mock-mail:8102/mcp"}'
       AOS_DEMO: ${AOS_DEMO:-0}
+      AOS_SYNC_PACK_ON_START: ${AOS_SYNC_PACK_ON_START:-1}
       AOS_RFQ_TEST_TO: ${AOS_RFQ_TEST_TO:-}
       AOS_RFQ_TEST_SUPPLIER_ID: ${AOS_RFQ_TEST_SUPPLIER_ID:-SUP-11632}
+      AOS_RFQ_TEST_ROUTE_ALL: ${AOS_RFQ_TEST_ROUTE_ALL:-1}
       AOS_RFQ_DEMO_SHORT_DEADLINE: ${AOS_RFQ_DEMO_SHORT_DEADLINE:-1}
+      AOS_RFQ_TEST_DELIVER_TO_POLLED_INBOX: ${AOS_RFQ_TEST_DELIVER_TO_POLLED_INBOX:-1}
+      AOS_IMAP_POLL: ${AOS_IMAP_POLL:-1}
+      # Same mailbox IMAP polls (set in .env to your Gmail address).
+      AOS_POLLED_INBOX: ${AOS_POLLED_INBOX:-}
     ports: ["8000:8000"]
     depends_on:
       postgres: {condition: service_healthy}
@@ -57,10 +69,10 @@ services:
       MOCK_MAIL_SECRET: ${MOCK_MAIL_SECRET:-dev-mail-secret}
       AOS_INBOUND_SECRET: ${AOS_INBOUND_SECRET:-dev-inbound-secret}
       AOS_INBOUND_URL: http://api:8000/api/inbound/mock_mail
-      SMTP_SERVER: ${SMTP_SERVER:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      AOS_IMAP_POLL: ${AOS_IMAP_POLL:-1}
+      AOS_IMAP_BACKGROUND: ${AOS_IMAP_BACKGROUND:-1}
+      AOS_IMAP_POLL_INTERVAL: ${AOS_IMAP_POLL_INTERVAL:-15}
+      # SMTP/IMAP credentials come from env_file (.env); do not override with empty defaults here.
     volumes: [mockdata:/data]
     ports: ["8102:8102"]
 
@@ -94,6 +106,7 @@ services:
       AOS_WORKER_LANES: assist,task
       AOS_FAKE_SCRIPT: ${AOS_FAKE_SCRIPT:-}
       AOS_FAKE_SCENARIO: ${AOS_FAKE_SCENARIO:-}
+      AOS_RFQ_DEMO_SHORT_DEADLINE: ${AOS_RFQ_DEMO_SHORT_DEADLINE:-1}
     depends_on:
       api: {condition: service_healthy}
 

@@ -17,6 +17,7 @@ def _brief(**overrides: object) -> dict:
         "specification": "Industrial",
         "delivery_date": "2026-12-01",
         "delivery_site": "Mall A",
+        "vendor_reply_deadline": "1.5 minutes",
     }
     base.update(overrides)
     return base

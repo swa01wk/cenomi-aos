@@ -32,3 +32,8 @@
 .input[aria-disabled="true"] {
   color: var(--ink-3);
 }
+
+.inputExpanded {
+  min-height: 7.5rem;
+  line-height: 1.45;
+}

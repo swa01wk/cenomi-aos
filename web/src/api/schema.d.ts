@@ -514,11 +514,48 @@ export interface paths {
         put?: never;
         /**
          * @description Buyer approves and sends every rfq_email draft on the job through the mail connector (idempotent per supplier).
-         *     Completes the rfq_send workflow step when the job is in rfq_sending. Until governed request_action is wired in
-         *     the worker, this is the human approval path for the POC demo.
+         *     Completes the rfq_send workflow step when the job is in rfq_sending. While awaiting quotes, send again with
+         *     `resend: true` to deliver the current draft text (all suppliers or a subset). Until governed request_action is
+         *     wired in the worker, this is the human approval path for the POC demo.
          */
         post: operations["sendRfqs"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instances/{id}/shared-attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Buyer uploads a file once; it is included on every RFQ email when Approve and send runs.
+         *     Allowed while the job is drafting or sending RFQs (or awaiting quotes for re-send).
+         */
+        post: operations["uploadInstanceSharedAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instances/{id}/shared-attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteInstanceSharedAttachment"];
         options?: never;
         head?: never;
         patch?: never;
@@ -592,6 +629,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description Jobs waiting on this team: unclaimed roles the caller may claim (`queue_item_kind` `claim`) and jobs with an
+         *     open decision assigned to the caller (`queue_item_kind` `review`, for example master RFP approval).
+         */
         get: operations["listQueue"];
         put?: never;
         post?: never;
@@ -1616,8 +1657,13 @@ export interface components {
             closed_at?: string | null;
             /** Format: date-time */
             last_activity_at?: string;
-            /** @description On a queue item */
+            /** @description On a claim queue item */
             claim_role?: string;
+            /**
+             * @description Claim binds a role; review opens the job for an assigned decision.
+             * @enum {string}
+             */
+            queue_item_kind?: "claim" | "review";
         };
         QueueRejection: {
             instance_id: string;
@@ -1654,9 +1700,34 @@ export interface components {
             } | null;
             /** @description Resume the instance stream from here */
             cursor: string;
+            /** @description Intake only. True when request_intake completed and the brief passes full validation, so decision.brief_confirmed may be shown even if assist sent a closing message last. */
+            intake_ready_for_confirm?: boolean;
+            /**
+             * Format: date-time
+             * @description When the active quote_deadline timer fires (demo reply window), if scheduled.
+             */
+            quote_deadline_at?: string;
+            /** @description Per-supplier reply window end times after resend (supplier_id → ISO time). */
+            quote_resend_deadlines?: {
+                [key: string]: string;
+            };
+            /** @description Awaiting quotes only. Reply window from the brief (demo treats the number as minutes). */
+            vendor_reply_window_minutes?: number;
+            /** @description Files the buyer uploaded to include on every RFQ send for this job. */
+            shared_attachments?: components["schemas"]["SharedAttachment"][];
+        };
+        SharedAttachment: {
+            attachment_id: string;
+            filename: string;
+            content_type?: string;
+            size_bytes: number;
+            /** Format: date-time */
+            uploaded_at: string;
         };
         ArtifactSummary: {
             artifact_id: string;
+            /** @description Row key for keyed artifacts (e.g. supplier_id on rfq_email). */
+            key?: string;
             artifact_type: string;
             name: string;
             latest_version: number;
@@ -3962,7 +4033,16 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description When true and the job is awaiting quotes */
+                    resend?: boolean;
+                    /** @description Optional supplier ids; omit to include every rfq_email on the job. */
+                    supplier_ids?: string[];
+                };
+            };
+        };
         responses: {
             /** @description Send receipts and an updated snapshot */
             200: {
@@ -3988,6 +4068,69 @@ export interface operations {
             409: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    uploadInstanceSharedAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["InstanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        attachment: components["schemas"]["SharedAttachment"];
+                        snapshot: components["schemas"]["InstanceSnapshot"];
+                    };
+                };
+            };
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    deleteInstanceSharedAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["InstanceId"];
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshot: components["schemas"]["InstanceSnapshot"];
+                    };
+                };
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
         };
     };
     listTurns: {
@@ -4134,7 +4277,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Unclaimed jobs the caller may claim */
+            /** @description Team queue items */
             200: {
                 headers: {
                     [name: string]: unknown;

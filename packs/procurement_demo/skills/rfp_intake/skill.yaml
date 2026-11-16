@@ -1,0 +1,16 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: rfp_intake, version: 2, owner: head_of_procurement}
+spec:
+  work_types: [analysis]
+  instructions: instructions.md
+  ceiling: internal
+  budget: {tokens: 80000, cost_usd: 1.5, seconds: 600, steps: 24, actions: 18, retries: 4}
+  reads: [job_snapshot, recent_messages, brief]
+  produces: [brief]
+  may_request: [ask_question, browse_categories]
+  verifiers: [brief_schema]
+  runs:
+    analysis:
+      classification_ceiling: internal
+      budget: {tokens: 80000, cost_usd: 1.50, time_s: 600, steps: 24, actions: 18, retries: 4}

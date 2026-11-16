@@ -1,0 +1,22 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: master_rfp, version: 1, owner: head_of_procurement}
+spec:
+  description: Master request for proposal — scope, requirements and evaluation criteria sent to suppliers.
+  fields:
+    title: {type: string, required: true, classification: shareable}
+    scope_summary: {type: text, required: true, classification: shareable}
+    functional_requirements: {type: text, required: true, classification: shareable}
+    technical_requirements: {type: text, classification: shareable}
+    delivery_timeline: {type: string, required: true, classification: shareable}
+    proposal_deadline:
+      type: string
+      required: true
+      classification: shareable
+      description: When proposals are due, in plain language (demo treats numbers as minutes when short deadlines apply).
+    evaluation_criteria: {type: text, required: true, classification: shareable}
+    budget_guidance: {type: money, classification: internal}
+  view: {type: document}
+  visibility:
+    buyer: all
+    procurement_approver: all

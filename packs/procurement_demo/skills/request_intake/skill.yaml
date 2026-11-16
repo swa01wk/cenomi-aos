@@ -5,7 +5,7 @@ spec:
   work_types: [analysis]
   instructions: instructions.md
   ceiling: internal
-  budget: {tokens: 40000, cost_usd: 1.0, seconds: 300, steps: 8, actions: 6, retries: 3}
+  budget: {tokens: 80000, cost_usd: 1.5, seconds: 600, steps: 24, actions: 18, retries: 4}
   reads: [job_snapshot, recent_messages, brief]
   produces: [brief]
   may_request: [ask_question, browse_categories]
@@ -13,4 +13,4 @@ spec:
   runs:
     analysis:
       classification_ceiling: internal
-      budget: {tokens: 40000, cost_usd: 1.00, time_s: 300, steps: 8, actions: 6, retries: 3}
+      budget: {tokens: 80000, cost_usd: 1.50, time_s: 600, steps: 24, actions: 18, retries: 4}

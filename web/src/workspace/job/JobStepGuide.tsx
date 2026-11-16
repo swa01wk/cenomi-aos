@@ -7,17 +7,24 @@ export function JobStepGuide({
   guide,
   live = false,
   workflowState,
+  compact = false,
 }: {
   guide: StepGuide;
   live?: boolean;
   workflowState?: string;
+  compact?: boolean;
 }) {
   const waitingDots = stepGuideShowsWaitingDots(guide, workflowState);
   const liveGuide = live && guide.kind !== "complete";
 
   return (
     <div
-      className={[styles.guide, styles[`guide_${guide.kind}`], liveGuide ? styles.guide_live : ""]
+      className={[
+        styles.guide,
+        styles[`guide_${guide.kind}`],
+        liveGuide ? styles.guide_live : "",
+        compact ? styles.guide_compact : "",
+      ]
         .filter(Boolean)
         .join(" ")}
       role="status"

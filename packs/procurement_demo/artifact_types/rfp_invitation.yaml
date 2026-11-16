@@ -1,0 +1,17 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_invitation, version: 1, owner: head_of_procurement}
+spec:
+  description: RFP invitation email to one supplier, derived from the master RFP.
+  fields:
+    supplier_id: {type: string, required: true}
+    to: {type: string, required: true}
+    subject: {type: string, required: true}
+    body: {type: text, required: true}
+    attachments: {type: list}
+  item_key: supplier_id
+  classification: shareable
+  view: {type: message_composer}
+  visibility:
+    buyer: all
+    procurement_approver: all

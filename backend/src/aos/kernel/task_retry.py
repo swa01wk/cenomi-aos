@@ -399,6 +399,15 @@ async def finalize_workflow_task_exception(
         instance_id=instance_id,
         task_id=task_id,
     )
+    from . import decisions as decision_ops
+    from .settings import Settings
+
+    await decision_ops.open_ready_decisions(
+        conn,
+        instance_id,
+        org=org,
+        packs_dir=Settings.from_env().packs_dir,
+    )
 
 
 async def spawn_replacement_task(

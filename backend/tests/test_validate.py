@@ -65,7 +65,7 @@ class DemoPackPasses(unittest.TestCase):
 
     def test_procurement_approver_signs_every_purchase_order(self) -> None:
         gates = parse_yaml((PACK / "policies" / "quick_quote_gates.yaml").read_text())
-        rule = next(r for r in gates["spec"]["rules"] if r["id"] == "po_create")
+        rule = next(r for r in gates["spec"]["rules"] if r["id"] == "pr_create")
         chain = rule["approval"]["chain"]
         self.assertEqual(
             [step["approver"] for step in chain],
@@ -107,7 +107,7 @@ class BrokenPacksFail(PackCase):
 
     def test_require_approval_needs_a_rule_naming_approvers(self) -> None:
         self.edit("policies/quick_quote_gates.yaml",
-                  lambda d: d["spec"].__setitem__("rules", [r for r in d["spec"]["rules"] if r["id"] != "po_create"]))
+                  lambda d: d["spec"].__setitem__("rules", [r for r in d["spec"]["rules"] if r["id"] != "pr_create"]))
         self.assertFailsWith("E_NO_APPROVAL_CHAIN")
 
     def test_dead_end_and_unreachable_states(self) -> None:
@@ -121,7 +121,7 @@ class BrokenPacksFail(PackCase):
 
     def test_task_completed_must_name_a_template_of_the_state(self) -> None:
         def fn(d):
-            d["spec"]["transitions"][2]["on"] = "task.completed.po_create"
+            d["spec"]["transitions"][2]["on"] = "task.completed.pr_create"
         self.edit("workflows/quick_quote.yaml", fn)
         self.assertFailsWith("E_EVENT")
 

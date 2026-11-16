@@ -23,6 +23,17 @@ spec:
         due: 1d
       conditions:
         - workflow.state == "ordering"
+    - id: pr_create
+      action: erp_pr.create
+      effect: REQUIRE_APPROVAL
+      approval:
+        chain:
+          - {approver: participant:buyer, kind: content}
+          - {approver: participant:procurement_approver}
+        segregation: [not_requester, distinct_approvers]
+        due: 1d
+      conditions:
+        - workflow.state == "ordering"
     - id: requester_never_sees_quotes
       action: quotes.read
       effect: NEVER

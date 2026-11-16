@@ -1,0 +1,45 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: proposal, version: 4, owner: head_of_procurement}
+spec:
+  description: A supplier's proposal, captured from their RFP reply.
+  fields:
+    supplier: {type: string, required: true}
+    reply_kind:
+      type: string
+      classification: shareable
+      description: ack (receipt confirmed), question (clarification), or proposal (commercials).
+    question_lane:
+      type: string
+      classification: shareable
+      description: When reply_kind is question — commercial (procurement) or technical (category manager).
+    acknowledged: {type: boolean, classification: shareable}
+    unit_price: {type: money, required: true, classification: restricted}
+    total: {type: money, required: true, classification: restricted}
+    pricing_modules:
+      type: list
+      classification: restricted
+      description: Module-level price breakdown (module_id, name, amount) for BAFO and commercial scoring.
+    lead_time_days: {type: integer, required: true}
+    warranty_months: {type: integer}
+    received_at: {type: datetime, required: true}
+    reply_excerpt:
+      type: text
+      description: Verbatim excerpt from the counterparty email for preview in the workspace.
+    notes:
+      type: text
+      description: Buyer-facing notes when the reply is incomplete or needs clarification.
+  view: {type: tracker, columns: [supplier, reply_kind, question_lane, acknowledged, received_at, total, lead_time_days]}
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager:
+      - supplier
+      - reply_kind
+      - question_lane
+      - acknowledged
+      - received_at
+      - reply_excerpt
+      - notes
+      - lead_time_days
+      - warranty_months

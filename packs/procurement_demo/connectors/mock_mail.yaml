@@ -27,6 +27,15 @@ spec:
         properties:
           idempotency_key: {type: string}
         additionalProperties: false
+    poll_imap_inbox:
+      resource: mailbox
+      action: read
+      class: read
+      input_schema:
+        type: object
+        additionalProperties: false
+        properties:
+          instance_id: {type: string, description: When set, only match inbound mail to this job's sent RFQs.}
     draft_message: {resource: mailbox, action: draft, class: staged_write}
     send_message: {resource: mailbox, action: send, class: committed_effect, reconcile_with: find_message}
   governance: {require_policy_evaluation: true, allow_direct_runtime_credentials: false}

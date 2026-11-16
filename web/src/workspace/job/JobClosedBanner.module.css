@@ -7,15 +7,34 @@
   border: 1px solid color-mix(in srgb, var(--good, #1a7f4b) 35%, var(--line));
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--good, #1a7f4b) 8%, var(--panel)) 0%,
+    color-mix(in srgb, var(--good, #1a7f4b) 10%, var(--panel)) 0%,
     var(--panel) 55%
   );
+  animation: bannerEnter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--good, #1a7f4b) 25%, transparent);
+}
+
+@keyframes bannerEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--good, #1a7f4b) 0%, transparent);
+  }
+  55% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--good, #1a7f4b) 12%, transparent);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--good, #1a7f4b) 0%, transparent);
+  }
 }
 
 .iconWrap {
+  position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -23,11 +42,43 @@
   border: 1px solid color-mix(in srgb, var(--good, #1a7f4b) 40%, transparent);
 }
 
+.iconRing {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--good, #1a7f4b) 35%, transparent);
+  animation: ringPulse 1.4s ease-out 1;
+  opacity: 0;
+}
+
+@keyframes ringPulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
 .icon {
   font-size: 18px;
   font-weight: 700;
   line-height: 1;
   color: var(--good, #1a7f4b);
+  animation: checkPop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .copy {
@@ -41,10 +92,61 @@
   color: var(--ink);
 }
 
+.poLine {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.poId {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--good, #1a7f4b);
+  background: color-mix(in srgb, var(--good, #1a7f4b) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--good, #1a7f4b) 35%, var(--line));
+  animation: poIdGlow 2s ease-in-out 600ms 1;
+}
+
+@keyframes poIdGlow {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 12px color-mix(in srgb, var(--good, #1a7f4b) 35%, transparent);
+  }
+}
+
+.supplierId {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.amount {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
 .detail {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.detailMuted {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--ink-2);
 }
 
@@ -73,4 +175,13 @@
 .repeatLink:hover {
   background: color-mix(in srgb, var(--good, #1a7f4b) 8%, var(--panel));
   color: var(--good, #1a7f4b);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner,
+  .icon,
+  .iconRing,
+  .poId {
+    animation: none;
+  }
 }

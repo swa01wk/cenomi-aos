@@ -141,9 +141,15 @@ def ask_question_command_schema() -> dict[str, Any]:
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 3,
-                "items": {"type": "string"},
+                "items": {
+                    "type": "string",
+                    "description": "One line, plain language, under ~120 characters.",
+                },
             },
-            "preamble": {"type": "string"},
+            "preamble": {
+                "type": "string",
+                "description": "One short line before the questions (under ~15 words).",
+            },
         },
         "additionalProperties": False,
     }
@@ -169,7 +175,7 @@ def enrich_command_schema(
         entry["input_schema"] = ask_question_command_schema()
         entry["description"] = (
             "Ask the requester up to three questions and end this reply; their answer starts your next one. "
-            "preamble is one short sentence shown before the questions."
+            "Keep preamble and each question to a single short line — chat style, not an email."
         )
         return entry
     if name == "submit":
