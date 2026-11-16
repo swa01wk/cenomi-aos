@@ -45,10 +45,9 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   await conversation.getByRole("button", { name: "Send" }).click();
   await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
 
-  // Attempt 2: saves v2 and streams its reply; the completed turn replaces the streamed text.
-  await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible({
-    timeout: 120_000,
-  });
+  // Attempt 2: saves v2, passes brief_schema, and the requester is asked to confirm the brief (stop 6 confirms it).
+  const confirmBrief = conversation.getByRole("button", { name: "Confirm the brief", exact: true });
+  await expect(confirmBrief).toBeVisible({ timeout: 120_000 });
   await expect(workPanel.getByText("v2 · latest")).toBeVisible({ timeout: 120_000 });
   await expect(workPanel.getByRole("combobox", { name: "Version" }).locator("option")).toHaveCount(2);
 
@@ -57,6 +56,6 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   await expect(page).toHaveURL(url);
   await expect(conversation.getByRole("paragraph").filter({ hasText: need })).toBeVisible();
   await expect(conversation.getByText(reply, { exact: true })).toBeVisible();
-  await expect(conversation.getByText("Thanks, your brief is updated.", { exact: true })).toBeVisible();
+  await expect(confirmBrief).toBeVisible({ timeout: 30_000 });
   await expect(workPanel.getByText("v2 · latest")).toBeVisible({ timeout: 30_000 });
 });
