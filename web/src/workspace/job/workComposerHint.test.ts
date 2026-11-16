@@ -20,8 +20,8 @@ describe("workComposerHint", () => {
   });
 
   it("writes copy for one or many drafts", () => {
-    expect(composerHintCopy(1, "Outbound drafting")).toContain("A draft outbound message is ready");
-    expect(composerHintCopy(3, undefined)).toContain("3 draft outbound messages are ready");
+    expect(composerHintCopy(1, "Outbound drafting")).toBe("1 draft ready · Outbound drafting. Review before sending.");
+    expect(composerHintCopy(3, undefined)).toBe("3 drafts ready. Review before sending.");
     expect(composerHintCopy(2, "Outbound sending", "rfq_sending")).toContain("Approve and send");
   });
 });
