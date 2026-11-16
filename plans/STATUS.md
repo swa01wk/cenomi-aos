@@ -74,6 +74,7 @@ on Mon 30 Nov 2026** | Planning doc: [Cenomi AOS — 10-day UAT slice](https://c
 | BUG-03 | 2 | R-X-02 | 16 Nov | SPEC-02 (heal tests with SPEC-01) | Open: backend CI on `main` code runs 428 tests, 25 failures and 34 errors (pack-neutral 554 hits; publish-flow `setUpClass` errors from auto-publish; 4 pack warnings) |
 | BUG-04 | 2 | R-QQ-01 | 16 Nov (first CI run, PR #47) | PR #47 | Fix in review: stop 3b configures, tests, approves and activates the workspace-coordinator Seat (stops 2–3 only covered the first Seat by name) |
 | BUG-06 | 2 | R-QQ-01 | 16 Nov (found fixing BUG-04) | PR #47 | Fix in review: a Seat with no eval suites stayed CONFIGURED forever — Run evals started no runs, so nothing promoted it to TESTING; it could never be approved or activated in the Console (the demo relied on auto-publish). `POST /console/seats/{seat}/evals` now promotes such a Seat at once; test added |
+| BUG-07 | 2 | R-QQ-01 | 16 Nov (found fixing BUG-04) | PR #47 | Fix in review: the scripted intake (`request_intake.happy.yaml`) failed `brief_schema` — no `vendor_reply_deadline`, and a fixed delivery date of 20 Nov that stops being three days out on 18 Nov. Scripts now take `{{today+Nd}}` dates; test checks the scripted brief passes the verifier on any day |
 | BUG-05 | 3 | — | 16 Nov (first CI run) | Fixed in PR #47 | `web/src/api/schema.d.ts` was not regenerated after demo routes were added to `openapi.yaml`; `workComposerHint.test.ts` expected the old hint copy. `web` job now green |
 
 ## Open questions and risks

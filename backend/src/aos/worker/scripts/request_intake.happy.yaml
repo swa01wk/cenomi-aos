@@ -28,9 +28,10 @@ attempts:
                 category: CAT-JAN-EQ
                 quantity: 4
                 specification: "Heavy-duty custodial trolleys"
-                delivery_date: "2026-11-20"
+                delivery_date: "{{today+21d}}"
                 delivery_site: "North warehouse"
                 quality_signoff: "Facilities manager"
+                vendor_reply_deadline: "{{today+7d}}"
                 budget_guidance: 15000
       - stream_chunks: ["Thanks", ", your brief is updated."]
         reply_text: "Thanks, your brief is updated."
