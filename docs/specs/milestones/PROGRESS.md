@@ -1,5 +1,8 @@
 # Progress
 
+> **16 Nov 2026:** the remaining M2 stories and M3–M5 are superseded for now by the UAT-1 slice. Status for that work
+> is in [`plans/STATUS.md`](../../../plans/STATUS.md).
+
 Tick a story when its PR merges with `make check` green. Stories are listed in the suggested build order inside each
 milestone. A story's details, tests and contract references are in its milestone file.
 

@@ -8,6 +8,10 @@ This repo is the AOS POC. Read, in order:
 
 How to work a story (plan, implement, `make check`, record) is in `IMPLEMENTING.md`.
 
+**Current work: the UAT-1 slice (17–30 Nov 2026).** Start at `plans/STATUS.md`. Each spec has
+`plans/UAT-1/specs/SPEC-xx-*/spec.md` and a ready-to-paste `prompt.md`; the rule for the slice and the requirement IDs
+are in `plans/UAT-1/milestone.md`. For UAT-1 work, record status in `plans/STATUS.md`, not `PROGRESS.md`.
+
 Rules that apply everywhere (details in `.cursor/rules/`):
 
 - The kernel decides; the agent proposes. Nothing but the kernel commits state.
