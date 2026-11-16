@@ -3,12 +3,13 @@ import { people, signInAs } from "./helpers";
 
 test("stop 5: agent reply streams, brief versions appear, reload keeps state", async ({ page }) => {
   await signInAs(page, people.faisal);
-  // Jobs start from the chat home (the old "New job" form is gone).
-  await expect(page.getByRole("heading", { name: "What can we help with?" })).toBeVisible({ timeout: 30_000 });
+  // Message the sourcing specialist directly so the job runs request intake (the chat home routes small talk and
+  // vague needs to the workspace coordinator first; stop 4 covers that path).
+  await page.goto("/workspace/people/seat_sourcing_poc");
   const need = "Need restock units for building north, same as last order if possible.";
-  await page.getByRole("textbox", { name: "Message" }).fill(need);
+  await page.getByRole("textbox", { name: /^Message / }).fill(need);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page).toHaveURL(/\/workspace\/people\/.+\/.+/, { timeout: 60_000 });
+  await expect(page).toHaveURL(/\/workspace\/people\/seat_sourcing_poc\/.+/, { timeout: 60_000 });
 
   const conversation = page.getByRole("region", { name: "Conversation" });
   await expect(conversation.getByRole("paragraph").filter({ hasText: need })).toBeVisible();
