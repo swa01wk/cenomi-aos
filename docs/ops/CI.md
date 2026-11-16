@@ -48,6 +48,7 @@ Some jobs pass vacuously until the work they check lands. Each switch below is a
 | 4 | `aos eval` lands → the `evals` job starts running by itself (it checks `aos eval --help`) |
 | 8 | Both journey specs land → remove `--pass-with-no-tests` from `e2e-journeys` |
 | 8 | Lint clean → remove `continue-on-error` from the ruff step |
+| Any time | Enable Dependency graph (Settings → Code security) → remove `continue-on-error` from the dependency review step |
 | After UAT | gitleaks baseline reviewed (dev secrets in `.env.example` and compose allowlisted in `.gitleaks.toml`) → remove `continue-on-error` from the secret scan |
 
 ## Contract for `make eval` (built on slice day 4)

@@ -66,14 +66,14 @@ Sources: `docs/demo/rfp-client-walkthrough.md`, `docs/demo/rfp-start-prompt.md`,
 
 ## Specs
 
-Must work: 27 engineer-days for two people over 12 working days (24). The gap is covered by the cut line below
+Must work: 28.5 engineer-days (including the backend test fixes and BUG-04 found on the first CI run) for two people over 12 working days (24). The gap is covered by the cut line below
 and reviewed at the end of day 5.
 
 | Spec | Title | Owner | Planned | Estimate (ed) | Priority |
 | --- | --- | --- | --- | --- | --- |
 | [SPEC-00](specs/SPEC-00-ci/spec.md) | CI for every test layer | Swaroop | Mon 16 Nov | 0 | Must |
 | [SPEC-01](specs/SPEC-01-read-only-job-read/spec.md) | The job read path never changes state | Swaroop | 1 · Tue 17 Nov | 1.5 | Must |
-| [SPEC-02](specs/SPEC-02-flags-pins-publish/spec.md) | Split the demo flag; honour pins; no auto-publish | Swaroop | 1 · Tue 17 Nov | 0.5 | Must |
+| [SPEC-02](specs/SPEC-02-flags-pins-publish/spec.md) | Split the demo flag; honour pins; no auto-publish | Swaroop | 1 · Tue 17 Nov | 1.5 | Must |
 | [SPEC-03](specs/SPEC-03-vendor-simulator/spec.md) | Vendor simulator replies by mail only | Saad | 1 · Tue 17 Nov | 1 | Must |
 | [SPEC-04](specs/SPEC-04-compute-tools/spec.md) | Compute tools from the demo formulas; score_recompute; verifier scopes | Swaroop | 2 · Wed 18 Nov | 1.5 | Must |
 | [SPEC-05](specs/SPEC-05-quote-triage/spec.md) | quote_triage reads vendor mail into quotes | Saad | 2 · Wed 18 Nov | 1 | Must |
@@ -102,7 +102,7 @@ and reviewed at the end of day 5.
 
 | Day | Swaroop | Saad | End-of-day check |
 | --- | --- | --- | --- |
-| 1 · Tue 17 Nov | SPEC-01, SPEC-02 (and merge SPEC-00, set required checks) | SPEC-03 | CI green; reloading a job changes nothing |
+| 1 · Tue 17 Nov | SPEC-01, SPEC-02 incl. backend tests green (and merge SPEC-00, set required checks) | SPEC-03; BUG-04 (stops 2–3 activate both Seats) | CI green; reloading a job changes nothing |
 | 2 · Wed 18 Nov | SPEC-04 | SPEC-05 | QQ quotes arrive through the agent |
 | 3 · Thu 19 Nov | SPEC-06 | SPEC-08 | PR/PO and mail sends are exactly-once with receipts |
 | 4 · Fri 20 Nov | SPEC-07 | SPEC-09 | QQ closes on the scripted model with no heal; RFP intake writes the spec stage |

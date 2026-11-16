@@ -1,7 +1,7 @@
 # SPEC-02: Split the demo flag; honour pins; no auto-publish
 
 Milestone: UAT-1 | Status: see `plans/STATUS.md` | Priority: Must | Layer: backend
-Owner: Swaroop | Planned: 1 · Tue 17 Nov | Estimate: 0.5 ed (engineer-days)
+Owner: Swaroop | Planned: 1 · Tue 17 Nov | Estimate: 1.5 ed (engineer-days)
 Requirements: R-X-02, R-QQ-08, R-RFP-12 (defined in `plans/UAT-1/milestone.md`)
 Branch: `feat/SPEC-02-flags-pins-publish` | Depends on: SPEC-00
 
@@ -18,6 +18,7 @@ In:
 - `sync_pack_on_start` default `False`; `bump_pack_manifest_version` never runs at startup.
 - Remove `heal_instance_pack_pin` and `align_instance_pack_to_seat` from any non-demo path; a running job keeps its pinned version (ADR 009, C12).
 - `test_pack_neutral.py`: add an explicit allowlist for `kernel/demo_*`, `connectors/demo_*` and the named web files, with an ADR (`docs/adr/016-uat-slice-flags-and-demo-allowlist.md`). Fix the hits in `decisions.py` and `instances.py` instead of allowlisting them. Remove the `"ven" + "dor-replies"` string split.
+- **Backend CI green.** On `main`, CI runs 428 tests with 25 failures and 34 errors (BUG-03 in `plans/STATUS.md`). Fix or retire each: the `heal_*` tests go with SPEC-01; the publish-flow `setUpClass` errors come from `AOS_SYNC_PACK_ON_START` defaulting on; fix `test_mcp_read_tools_match_mock_server_schemas`, `test_validate_endpoint_matches_cli`, `test_demo_pack_is_valid`, `test_quick_quote_simulation_happy_path`, `test_dry_run_through_the_fake_model_with_verifiers` and the rest against the current pack. Retiring a test needs a one-line reason in the PR.
 - `.env.example`: `AOS_DEMO=0`, `AOS_DEMO_CLOCK=1`, `AOS_VENDOR_SIM=1`, `AOS_SYNC_PACK_ON_START=0` with comments.
 
 Out:
@@ -33,7 +34,7 @@ Three independent flags, read once in `Settings`. Document each in `docs/ops/CI.
 - AC2: Given `AOS_DEMO=0`, when `/demo/rfp/bootstrap` is called, then it returns 404.
 - AC3: Given a job pinned to pack v56 and v57 published, when the job continues, then it runs on v56.
 - AC4: Given a fresh start, when the API boots, then no pack version is published and no file under `packs/` changes.
-- AC5: `make test` is green including `test_pack_neutral.py`.
+- AC5: `make test` is green including `test_pack_neutral.py`, and the CI `backend` job passes.
 
 ## Tests
 

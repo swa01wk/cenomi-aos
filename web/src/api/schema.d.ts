@@ -1348,6 +1348,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/demo/qq/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Replace or create a full Quick Quote client demo (iPhone) with line comparison and eval sheets. */
+        post: operations["bootstrapQqClientDemo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo/rfp/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Replace or create a full RFP client demo job at Evaluation with chat history for Noura, CDO, and category manager. */
+        post: operations["bootstrapRfpClientDemo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo/instances/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["exportDemoInstance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo/instances/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importDemoInstance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/demo/vendor-replies": {
         parameters: {
             query?: never;
@@ -5471,6 +5537,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoState"];
+                };
+            };
+        };
+    };
+    bootstrapQqClientDemo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default QQ-0001 */
+                    instance_id?: string;
+                    /** @default true */
+                    replace?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Bootstrapped instance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        instance_id: string;
+                        state: string;
+                    };
+                };
+            };
+        };
+    };
+    bootstrapRfpClientDemo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default RFP-0001 */
+                    instance_id?: string;
+                    /** @default true */
+                    replace?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Bootstrapped instance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        instance_id: string;
+                        state: string;
+                    };
+                };
+            };
+        };
+    };
+    exportDemoInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["InstanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full job backup for demo restore (chat, artifacts, pending) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    importDemoInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Restored instance id */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        instance_id: string;
+                    };
                 };
             };
         };
