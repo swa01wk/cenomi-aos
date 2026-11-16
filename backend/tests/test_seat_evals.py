@@ -135,6 +135,46 @@ class SeatEvalTests(unittest.TestCase):
             json={"version": SEAT_DEF_VERSION, "expected_version": expected_version},
         )
 
+    def test_seat_without_eval_suites_moves_to_testing_on_run_evals(self) -> None:
+        """A Seat that declares no eval suites (the workspace coordinator) must still reach Risk approval."""
+        name = "seat_workspace_coordinator"
+        _pg.admin_sql(
+            self.db,
+            f"""
+            delete from registry.eval_runs where seat = '{name}';
+            delete from registry.seat_events where seat = '{name}';
+            update registry.seats
+            set state = 'DRAFT', configured_by = null, activated_by = null,
+                record_version = 1, updated_at = now()
+            where name = '{name}' and version = {SEAT_DEF_VERSION};
+            """,
+        )
+        admin = self.login("platform_admin")
+        seat = self.client.get(f"/api/console/seats/{name}", headers=admin).json()
+        self.assertEqual(seat["state"], "DRAFT")
+        r = self.client.post(
+            f"/api/console/seats/{name}/configure",
+            headers=admin,
+            json={"version": SEAT_DEF_VERSION, "expected_version": seat["record_version"]},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        r = self.client.post(
+            f"/api/console/seats/{name}/evals",
+            headers=admin,
+            json={"version": SEAT_DEF_VERSION, "model": "fake"},
+        )
+        self.assertEqual(r.status_code, 202, r.text)
+        self.assertEqual(r.json(), [])
+        seat = self.client.get(f"/api/console/seats/{name}", headers=admin).json()
+        self.assertEqual(seat["state"], "TESTING")
+        r = self.client.post(
+            f"/api/console/seats/{name}/approve",
+            headers=self.login("risk"),
+            json={"version": SEAT_DEF_VERSION, "expected_version": seat["record_version"]},
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["state"], "APPROVED")
+
     def test_run_evals_202_and_refusals_deferred_only(self) -> None:
         self.configure("platform_admin")
         r = self.run_evals()
