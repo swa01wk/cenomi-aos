@@ -13,7 +13,7 @@ test("stop 4: Faisal starts a job and lands on the job page", async ({ page }) =
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page).toHaveURL(/\/workspace\/people\/.+\/.+/, { timeout: 60_000 });
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // Person-chat layout: no job title heading, the conversation is the page.
   await expect(
     page.getByRole("region", { name: "Conversation" }).getByRole("paragraph").filter({ hasText: need }),
   ).toBeVisible({ timeout: 30_000 });

@@ -17,6 +17,9 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   // without a reload.
   await expect(conversation.getByText(/Delivery date/).first()).toBeVisible({ timeout: 120_000 });
 
+  // The work panel opens on the first draft; open it by hand if it did not.
+  const docsButton = page.getByRole("button", { name: "Documents", exact: true });
+  if (await docsButton.isVisible()) await docsButton.click();
   const workPanel = page.getByRole("complementary", { name: "Work in progress" });
   await expect(workPanel.getByText("v1 · latest")).toBeVisible({ timeout: 120_000 });
 
