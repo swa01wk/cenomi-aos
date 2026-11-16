@@ -24,7 +24,7 @@ on Mon 30 Nov 2026** | Planning doc: [Cenomi AOS — 10-day UAT slice](https://c
 
 | Spec | Title | Requirements | Owner | Planned | Branch | PR | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [SPEC-00](UAT-1/specs/SPEC-00-ci/spec.md) | CI for every test layer | NFR-01, NFR-02 | Swaroop | Mon 16 Nov | `chore/uat-1-plan-and-ci` | — | In review |
+| [SPEC-00](UAT-1/specs/SPEC-00-ci/spec.md) | CI for every test layer | NFR-01, NFR-02 | Swaroop | Mon 16 Nov | `chore/uat-1-plan-and-ci` | [#47](https://github.com/swa01wk/cenomi-aos/pull/47) | In review |
 | [SPEC-01](UAT-1/specs/SPEC-01-read-only-job-read/spec.md) | The job read path never changes state | R-X-01, R-X-02, R-RFP-02, R-QQ-12 | Swaroop | 1 · Tue 17 Nov | `feat/SPEC-01-read-only-job-read` | — | Ready |
 | [SPEC-02](UAT-1/specs/SPEC-02-flags-pins-publish/spec.md) | Split the demo flag; honour pins; no auto-publish | R-X-02, R-QQ-08, R-RFP-12 | Swaroop | 1 · Tue 17 Nov | `feat/SPEC-02-flags-pins-publish` | — | Ready |
 | [SPEC-03](UAT-1/specs/SPEC-03-vendor-simulator/spec.md) | Vendor simulator replies by mail only | R-QQ-07, R-RFP-08, R-RFP-15 | Saad | 1 · Tue 17 Nov | `feat/SPEC-03-vendor-simulator` | — | Ready |
@@ -96,4 +96,5 @@ on Mon 30 Nov 2026** | Planning doc: [Cenomi AOS — 10-day UAT slice](https://c
 
 ## Daily log (newest first)
 
-- 2026-11-16 · Swaroop/Claude: slice planned; SPEC-00 CI ready for review; specs SPEC-01 to SPEC-25 written.
+- 2026-11-16 · Swaroop/Claude: slice planned; SPEC-00 CI and the plan in PR #47; specs SPEC-01 to SPEC-25 written.
+  Next: merge #47, set required checks, start SPEC-01/02 (Swaroop) and SPEC-03 (Saad).
