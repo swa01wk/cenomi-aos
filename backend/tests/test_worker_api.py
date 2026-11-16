@@ -155,7 +155,9 @@ class WorkerHarness(unittest.TestCase):
             insert into registry.eval_runs (id, org_id, seat, seat_version, suite, model, status, passed, total)
             values
               ('ev_worker_refusals', 'org_demo', '{SEAT}', 1, 'refusals', 'fake', 'passed', 4, 4),
-              ('ev_worker_dry_run', 'org_demo', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1)
+              ('ev_worker_dry_run', 'org_demo', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_worker_inbound_quotes', 'org_demo', '{SEAT}', 1, 'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_worker_inbound_trigger', 'org_demo', '{SEAT}', 1, 'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )

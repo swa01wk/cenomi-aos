@@ -180,7 +180,8 @@ class SeatEvalTests(unittest.TestCase):
         r = self.run_evals()
         self.assertEqual(r.status_code, 202, r.text)
         body = r.json()
-        self.assertEqual(len(body), 2)
+        # One run per suite the Seat declares (refusals, dry_run, inbound_quotes, inbound_trigger).
+        self.assertEqual(len(body), 4)
         self.assertTrue(all(row["status"] == "running" for row in body))
         seat = self.wait_for_evals()
         refusals = next(e for e in seat["evals"] if e["suite"] == "refusals")

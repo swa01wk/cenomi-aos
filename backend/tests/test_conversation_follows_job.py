@@ -112,7 +112,9 @@ class ConversationFollowsJobTests(unittest.TestCase):
             insert into registry.eval_runs (id, org_id, seat, seat_version, suite, model, status, passed, total)
             values
               ('ev_cf_refusals', '{ORG_ID}', '{SEAT}', 1, 'refusals', 'fake', 'passed', 4, 4),
-              ('ev_cf_dry', '{ORG_ID}', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1)
+              ('ev_cf_dry', '{ORG_ID}', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_cf_inbound_quotes', '{ORG_ID}', '{SEAT}', 1, 'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_cf_inbound_trigger', '{ORG_ID}', '{SEAT}', 1, 'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )
