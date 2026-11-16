@@ -22,6 +22,7 @@ people:
   faisal: {name: Faisal, team: facilities/operations, roles: [end_user], console: false}
   faisal_manager: {name: Facilities manager, team: facilities/operations, roles: [end_user], console: false}
   noura: {name: Noura, team: procurement/sourcing, roles: [sourcing_user], console: false}
+  rami: {name: Rami Al-Otaibi, team: procurement/sourcing, roles: [category_manager], console: false}
   khalid: {name: Khalid, team: procurement/procurement, roles: [procurement_user], console: false}
   cdo: {name: Samir Al-Farsi, team: procurement/procurement, roles: [cdo, executive_approver], console: false}
   head_of_procurement: {name: Head of Procurement, team: procurement/procurement, roles: [seat_owner, process_owner], console: true}

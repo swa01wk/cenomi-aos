@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { components } from "../../../api/schema";
 import { Button } from "../../../components";
+import { DocumentPdfDownload } from "./DocumentPdfDownload";
 import { formatFieldValue } from "./formatFieldValue";
 import styles from "./views.module.css";
 
@@ -15,30 +16,34 @@ export function EditableDocumentView({
   view,
   version,
   onSave,
+  artifactType,
 }: {
   view: ArtifactView;
   version: ArtifactVersion;
   onSave: (content: Record<string, unknown>) => Promise<void>;
+  artifactType?: string;
 }) {
   const order = view.columns?.length ? view.columns : view.fields.map((f) => f.name);
   const byName = new Map(view.fields.map((f) => [f.name, f]));
   const fields = order.map((n) => byName.get(n)).filter((f): f is FieldDef => Boolean(f));
+  const hiddenFields = version.hidden_fields ?? [];
+  const baseContent = (version.content ?? {}) as Record<string, unknown>;
   const editableNames = new Set(
-    fields.filter((f) => EDITABLE_TYPES.has(f.type) && !version.hidden_fields.includes(f.name)).map((f) => f.name),
+    fields.filter((f) => EDITABLE_TYPES.has(f.type) && !hiddenFields.includes(f.name)).map((f) => f.name),
   );
 
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...version.content }));
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...baseContent }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft({ ...version.content });
+    setDraft({ ...baseContent });
     setError(null);
   }, [version.version, version.content]);
 
   const dirty = fields.some((f) => {
     if (!editableNames.has(f.name)) return false;
-    return String(draft[f.name] ?? "") !== String(version.content[f.name] ?? "");
+    return String(draft[f.name] ?? "") !== String(baseContent[f.name] ?? "");
   });
 
   const save = async () => {
@@ -46,7 +51,7 @@ export function EditableDocumentView({
     setBusy(true);
     setError(null);
     try {
-      const next = { ...version.content, ...draft };
+      const next = { ...baseContent, ...draft };
       await onSave(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -55,14 +60,20 @@ export function EditableDocumentView({
     }
   };
 
+  const type = artifactType ?? version.artifact_type;
+  const pdfContent = { ...baseContent, ...draft };
+
   return (
     <div className={styles.viewBody}>
-      {version.hidden_fields.length > 0 && (
+      {type === "master_rfp" ? (
+        <DocumentPdfDownload view={view} content={pdfContent} artifactType={type} />
+      ) : null}
+      {hiddenFields.length > 0 && (
         <p className={styles.hiddenNote}>Some fields aren&apos;t shared with your role</p>
       )}
       <dl className={styles.docGrid}>
         {fields.map((field) => {
-          const raw: unknown = version.content[field.name];
+          const raw: unknown = baseContent[field.name];
           const empty = raw == null || raw === "" || (Array.isArray(raw) && raw.length === 0);
           const wide = WIDE_TYPES.has(field.type);
           const editable = editableNames.has(field.name);

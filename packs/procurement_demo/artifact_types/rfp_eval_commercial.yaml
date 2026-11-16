@@ -1,0 +1,23 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_eval_commercial, version: 1, owner: head_of_procurement}
+spec:
+  description: Commercial evaluation of RFP proposals (price, delivery, terms).
+  fields:
+    rank: {type: integer, required: true}
+    supplier: {type: string, required: true}
+    unit_price: {type: money, required: true, classification: restricted}
+    total: {type: money, required: true, classification: restricted}
+    lead_time_days: {type: integer, required: true}
+    warranty_months: {type: integer}
+    commercial_score: {type: number, required: true}
+    notes: {type: text, classification: shareable}
+  row_based: true
+  row_key: supplier
+  view:
+    type: sheet
+    columns: [rank, supplier, total, lead_time_days, warranty_months, commercial_score, notes]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: [rank, supplier, lead_time_days, commercial_score]

@@ -8,6 +8,15 @@ import type { InstanceSnapshot } from "./jobStreamReducer";
 import { artifactViewComponent } from "./views";
 import { SupplierQuotesView } from "./views/SupplierQuotesView";
 import { SUPPLIER_QUOTES_TAB_ID } from "./workPanelConstants";
+import {
+  filterWorkPanelTabArtifacts,
+  sortWorkPanelTabArtifacts,
+  groupWorkTabs,
+  workTabGroup,
+  workTabGroupLabel,
+  workTabShortLabel,
+  type WorkTabGroup,
+} from "./workPanelTabs";
 import { messageComposerArtifacts } from "./workComposerHint";
 import { WorkPanelComposerHint } from "./WorkPanelComposerHint";
 import { WorkPanelRfqDock } from "./WorkPanelRfqDock";
@@ -17,6 +26,7 @@ import { showResendRfqsBar } from "./workResendRfqs";
 import { showSharedAttachmentsBar } from "./workSharedAttachments";
 import { stageGuideIsLive, workPanelStageGuide } from "./stageGuideLogic";
 import { WorkPanelStageGuide } from "./WorkPanelStageGuide";
+import { downloadMasterRfpPdf } from "./views/DocumentPdfDownload";
 import styles from "./job.module.css";
 
 function resolvePanelArtifactId(
@@ -68,12 +78,15 @@ export function WorkPanel({
 }) {
   const queryClient = useQueryClient();
   const artifacts = snapshot.artifacts;
-  const quoteArtifacts = artifacts.filter((a) => a.artifact_type === "quote" && a.latest_version >= 1);
+  const proposalArtifacts = artifacts.filter(
+    (a) => a.artifact_type === "proposal" && a.latest_version >= 1,
+  );
   const showSupplierQuotesTab =
-    quoteArtifacts.length >= 1 &&
+    proposalArtifacts.length >= 1 &&
+    snapshot.workflow === "sourcing_rfp" &&
     (snapshot.state === "awaiting_quotes" ||
-      snapshot.state === "comparison" ||
       snapshot.state === "awaiting_proposals" ||
+      snapshot.state === "comparison" ||
       snapshot.state === "closed");
   const activeId = resolvePanelArtifactId(panelArtifactId, artifacts, showSupplierQuotesTab);
   const summary =
@@ -170,16 +183,37 @@ export function WorkPanel({
       ? [...composerDrafts, ...artifacts.filter((a) => !composerTabIds.has(a.artifact_id))]
       : artifacts;
 
+  const filteredTabArtifacts = sortWorkPanelTabArtifacts(
+    filterWorkPanelTabArtifacts(tabArtifacts, {
+      showSupplierQuotesTab,
+      hideComposerDraftsInBar: true,
+    }),
+  );
+
   const documentTabs = showSupplierQuotesTab
     ? [
         {
           artifact_id: SUPPLIER_QUOTES_TAB_ID,
-          name: `Supplier quotes (${Math.max(quoteArtifacts.length, 1)})`,
+          name: `RFP responses (${Math.max(proposalArtifacts.length, 1)})`,
           latest_version: 1,
+          artifact_type: "proposal",
+          status: "final",
+          view: { type: "tracker", fields: [] },
         } as InstanceSnapshot["artifacts"][number],
-        ...tabArtifacts,
+        ...filteredTabArtifacts,
       ]
-    : tabArtifacts;
+    : filteredTabArtifacts;
+
+  const tabGroups = useMemo(() => groupWorkTabs(documentTabs), [documentTabs]);
+  const [tabGroup, setTabGroup] = useState<WorkTabGroup>("documents");
+  useEffect(() => {
+    const active = documentTabs.find((a) => a.artifact_id === activeId);
+    if (active) setTabGroup(workTabGroup(active));
+  }, [activeId, documentTabs]);
+
+  const visibleTabs =
+    tabGroups.find((g) => g.group === tabGroup)?.tabs ??
+    (tabGroups[0]?.tabs.length ? tabGroups[0].tabs : documentTabs);
 
   if (!artifacts.length) {
     const emptyDetail =
@@ -230,46 +264,64 @@ export function WorkPanel({
     );
   }
 
-  const View = summary ? artifactViewComponent(summary.view.type) : null;
+  const viewType = summary?.view?.type;
+  const View = viewType ? artifactViewComponent(viewType) : null;
   const versions = detail.data?.versions ?? summary?.versions ?? [];
   const isLatest = summary ? version === summary.latest_version : true;
   const rfqDraftEditable =
     snapshot.state === "rfq_drafting" || snapshot.state === "rfq_sending";
+  const rfpInviteDrafting =
+    snapshot.state === "rfp_invitation_drafting" || snapshot.state === "rfp_sending";
   const cdoMasterRfpReview = snapshot.pending.some(
     (p) => p.status === "open" && p.event === "decision.master_rfp_confirmed",
   );
   const masterRfpCdoEdit =
-    snapshot.state === "master_rfp_drafting" &&
     snapshot.my_roles.includes("procurement_approver") &&
     summary?.artifact_type === "master_rfp" &&
-    summary?.status === "draft" &&
     isLatest &&
-    cdoMasterRfpReview;
+    (snapshot.state === "master_rfp_drafting" || cdoMasterRfpReview) &&
+    (summary?.status === "draft" || (summary?.status === "final" && cdoMasterRfpReview));
   const rfqEdit =
     snapshot.my_roles.includes("buyer") &&
     isLatest &&
     rfqDraftEditable &&
     summary?.status === "draft" &&
-    summary.view.type === "message_composer";
-  const canEditDraft = rfqEdit || masterRfpCdoEdit;
+    summary.view?.type === "message_composer";
+  const rfpInviteEdit =
+    snapshot.my_roles.includes("buyer") &&
+    isLatest &&
+    rfpInviteDrafting &&
+    summary?.status === "draft" &&
+    summary?.artifact_type === "rfp_invitation" &&
+    summary.view?.type === "message_composer";
+  const bafoEdit =
+    snapshot.my_roles.includes("buyer") &&
+    isLatest &&
+    snapshot.state === "bafo" &&
+    summary?.status === "draft" &&
+    summary?.artifact_type === "bafo_email" &&
+    summary.view?.type === "message_composer";
+  const canEditDraft = rfqEdit || rfpInviteEdit || bafoEdit || masterRfpCdoEdit;
 
   const body =
     activeId === SUPPLIER_QUOTES_TAB_ID ? (
       <div key={activeId} className={styles.workDraftScroll}>
-        <SupplierQuotesView snapshot={snapshot} />
+        <SupplierQuotesView snapshot={snapshot} onSaveArtifactVersion={onSaveArtifactVersion} />
       </div>
     ) : summary ? (
       <div key={activeId} className={styles.workDraftScroll}>
         {content.isLoading && <Skeleton />}
-        {View && content.data ? (
+        {View && content.data && summary.view ? (
           <View
             view={summary.view}
             version={content.data}
             artifactId={summary.artifact_id}
+            artifactType={summary.artifact_type}
             artifactStatus={summary.status}
             latestVersion={summary.latest_version}
             canEdit={canEditDraft}
             onSave={canEditDraft ? onSave : undefined}
+            snapshot={snapshot}
           />
         ) : null}
       </div>
@@ -305,11 +357,27 @@ export function WorkPanel({
             {activeId === SUPPLIER_QUOTES_TAB_ID ? "Supplier quotes" : (summary?.name ?? "Documents")}
           </div>
         </div>
-        {onClose ? (
-          <button type="button" className="btn" onClick={onClose}>
-            Close
-          </button>
-        ) : null}
+        <div className={styles.workHeadActions}>
+          {summary?.artifact_type === "master_rfp" && content.data ? (
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() =>
+                downloadMasterRfpPdf(
+                  summary.view,
+                  content.data!.content as Record<string, unknown>,
+                )
+              }
+            >
+              Download PDF
+            </button>
+          ) : null}
+          {onClose ? (
+            <button type="button" className="btn" onClick={onClose}>
+              Close
+            </button>
+          ) : null}
+        </div>
         {summary && (
           <div className={styles.workBadges}>
             <StatusPill state={summary.status} />
@@ -355,6 +423,33 @@ export function WorkPanel({
       ) : null}
 
       <div className={[styles.workMain, styles.workTabsWrap].join(" ")}>
+        {tabGroups.length > 1 ? (
+          <div className={styles.workTabGroups} role="toolbar" aria-label="Document groups">
+            {tabGroups.map(({ group }) => (
+              <button
+                key={group}
+                type="button"
+                className={[
+                  styles.workTabGroupChip,
+                  tabGroup === group ? styles.workTabGroupChipActive : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-pressed={tabGroup === group}
+                onClick={() => {
+                  setTabGroup(group);
+                  const inGroup = tabGroups.find((g) => g.group === group)?.tabs ?? [];
+                  if (!inGroup.some((t) => t.artifact_id === activeId) && inGroup[0]) {
+                    onSelectArtifact(inGroup[0].artifact_id);
+                    setViewVersion(inGroup[0].latest_version);
+                  }
+                }}
+              >
+                {workTabGroupLabel(group)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <Tabs
           label="Documents"
           activeId={activeId}
@@ -363,14 +458,9 @@ export function WorkPanel({
             const a = artifacts.find((x) => x.artifact_id === id);
             if (a) setViewVersion(a.latest_version);
           }}
-          tabs={documentTabs.map((a) => ({
+          tabs={visibleTabs.map((a) => ({
             id: a.artifact_id,
-            label:
-              a.artifact_id === SUPPLIER_QUOTES_TAB_ID
-                ? a.name
-                : composerTabIds.has(a.artifact_id)
-                  ? a.name
-                  : `${a.name} v${a.latest_version}`,
+            label: workTabShortLabel(a),
             tabClassName: composerTabIds.has(a.artifact_id) ? styles.workComposerTab : undefined,
             panel: a.artifact_id === activeId ? body : null,
           }))}

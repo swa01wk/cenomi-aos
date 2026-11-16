@@ -1122,6 +1122,92 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {oneOf: [{type: object, required: [minutes], properties: {minutes: {type: integer, minimum: 1}}}, {type: object, required: [to_next_timer], properties: {to_next_timer: {const: true}}}]}}}}
       responses:
         '200': {description: New demo time and timers fired, content: {application/json: {schema: {$ref: '#/components/schemas/DemoState'}}}}
+  /demo/qq/bootstrap:
+    post:
+      tags: [demo]
+      operationId: bootstrapQqClientDemo
+      x-milestone: M3
+      description: Replace or create a full Quick Quote client demo (iPhone) with line comparison and eval sheets.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instance_id: {type: string, default: QQ-0001}
+                replace: {type: boolean, default: true}
+      responses:
+        '200':
+          description: Bootstrapped instance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [instance_id, state]
+                properties:
+                  instance_id: {type: string}
+                  state: {type: string}
+  /demo/rfp/bootstrap:
+    post:
+      tags: [demo]
+      operationId: bootstrapRfpClientDemo
+      x-milestone: M3
+      description: |
+        Replace or create a full RFP client demo job at Evaluation with chat history for Noura, CDO, and category manager.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instance_id: {type: string, default: RFP-0001}
+                replace: {type: boolean, default: true}
+      responses:
+        '200':
+          description: Bootstrapped instance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [instance_id, state]
+                properties:
+                  instance_id: {type: string}
+                  state: {type: string}
+  /demo/instances/{id}/export:
+    get:
+      tags: [demo]
+      operationId: exportDemoInstance
+      x-milestone: M3
+      parameters: [{$ref: '#/components/parameters/InstanceId'}]
+      responses:
+        '200':
+          description: Full job backup for demo restore (chat, artifacts, pending)
+          content:
+            application/json:
+              schema: {type: object}
+        '404': {$ref: '#/components/responses/Problem'}
+  /demo/instances/import:
+    post:
+      tags: [demo]
+      operationId: importDemoInstance
+      x-milestone: M3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: Restored instance id
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [instance_id]
+                properties:
+                  instance_id: {type: string}
   /demo/vendor-replies:
     post:
       tags: [demo]

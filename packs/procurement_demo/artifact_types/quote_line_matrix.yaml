@@ -1,0 +1,28 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: quote_line_matrix, version: 1, owner: head_of_procurement}
+spec:
+  description: Cross-vendor line-item quote comparison (device, warranty, delivery, etc.).
+  fields:
+    line_id: {type: string, required: true}
+    line_name: {type: string, required: true}
+    fair_benchmark: {type: money, required: true, classification: restricted}
+    supplier_a: {type: string, description: Label for first bidder column}
+    supplier_a_sar: {type: money, classification: restricted}
+    supplier_b: {type: string}
+    supplier_b_sar: {type: money, classification: restricted}
+    supplier_c: {type: string}
+    supplier_c_sar: {type: money, classification: restricted}
+    high_supplier: {type: string}
+    vs_fair_pct: {type: number}
+    negotiation_note: {type: text, classification: shareable}
+  row_based: true
+  row_key: line_id
+  view:
+    type: sheet
+    columns:
+      [line_id, line_name, fair_benchmark, supplier_a, supplier_a_sar, supplier_b, supplier_b_sar, supplier_c, supplier_c_sar, high_supplier, vs_fair_pct, negotiation_note]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [line_id, line_name, high_supplier, vs_fair_pct, negotiation_note]

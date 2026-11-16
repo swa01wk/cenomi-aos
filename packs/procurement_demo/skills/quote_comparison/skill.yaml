@@ -7,7 +7,19 @@ spec:
   ceiling: restricted
   budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
   reads: [job_snapshot, brief, quote, comparison]
-  produces: [comparison, po_payload]
+  produces:
+    [
+      quote_line_matrix,
+      quote_line_scores,
+      quote_eval_commercial,
+      quote_eval_technical,
+      quote_evaluation,
+      technical_criterion_scores,
+      commercial_criterion_scores,
+      eval_scoring_policy,
+      comparison,
+      po_payload,
+    ]
   may_request: [price_calculator, create_po, find_po]
   verifiers: [score_recompute]
   runs:

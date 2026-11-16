@@ -35,7 +35,7 @@ export function quickQuoteRfpMisrouteNotice(snapshot: InstanceSnapshot): StepGui
   return {
     kind: "notice",
     title: `Quick Quote (${snapshot.instance_id}) — not the full RFP path`,
-    detail: `The work panel shows your brief (and later RFQ emails), not a separate master RFP document. Samir Al-Farsi (CDO) only approves master RFP on jobs routed as RFP (id starts with RFP-). ${nextOnThisPath} For master RFP + CDO before invitations, start a new job with explicit RFP wording (for example “formal RFP for our public marketing website”).`,
+    detail: `This job was created as Quick Quote (${snapshot.instance_id}). The workflow cannot change — you will not get a Master RFP tab or CDO approval here. ${nextOnThisPath} To run the full RFP path, open People → Noor Al-Rashid and send a new message (or + New job with “formal RFP…” wording). Confirm the new id starts with RFP- before you continue.`,
   };
 }
 
@@ -179,6 +179,46 @@ function quoteCaptureCount(snapshot: InstanceSnapshot): number {
   return snapshot.artifacts.filter((a) => a.artifact_type === "quote" && a.latest_version >= 1).length;
 }
 
+function proposalCaptureCount(snapshot: InstanceSnapshot): number {
+  return snapshot.artifacts.filter((a) => a.artifact_type === "proposal" && a.latest_version >= 1).length;
+}
+
+function awaitingProposalsRfpGuide(snapshot: InstanceSnapshot): StepGuide {
+  const proposals = proposalCaptureCount(snapshot);
+  const invited =
+    snapshot.artifacts.filter((a) => a.artifact_type === "rfp_invitation").length ||
+    snapshot.artifacts.filter((a) => a.artifact_type === "proposal").length ||
+    3;
+  const openClarify = snapshot.pending.filter(
+    (p) =>
+      p.status === "open" &&
+      (p.event === "decision.clarification_commercial_approved" ||
+        p.event === "decision.clarification_send_approved"),
+  );
+  if (openClarify.length > 0) {
+    return {
+      kind: "action",
+      title: "Vendor clarifications",
+      detail:
+        "Commercial questions are for procurement (Noura). Technical questions are for the category manager (Rami). Open the matching card in the thread and the proposal tab for the draft answer.",
+    };
+  }
+  if (proposals >= invited) {
+    return {
+      kind: "progress",
+      title: "Proposals received",
+      detail:
+        "All vendor proposals are in. The worker will publish commercial, technical, and weighted evaluation sheets; Rami will recommend a vendor for award.",
+    };
+  }
+  return {
+    kind: "wait",
+    title: "Awaiting vendor proposals",
+    detail:
+      "Invitations are out. Replies and clarification emails appear under Responses. Commercial clarifications stay with procurement; technical ones with the category manager.",
+  };
+}
+
 function pendingGuide(snapshot: InstanceSnapshot): StepGuide | null {
   if (specialistAwaitingReply(snapshot)) return null;
   const open = snapshot.pending.filter((p) => p.status === "open");
@@ -211,6 +251,10 @@ export function jobStepGuide(
 
   const cdoWait = masterRfpAwaitingCdoGuide(snapshot, openPendingForYou);
   if (cdoWait) return cdoWait;
+
+  if (snapshot.state === "awaiting_proposals" && snapshot.workflow === "sourcing_rfp" && openPendingForYou === 0) {
+    return awaitingProposalsRfpGuide(snapshot);
+  }
 
   if (snapshot.state === "awaiting_quotes" && openPendingForYou === 0) {
     return awaitingQuotesGuide(snapshot);
@@ -310,9 +354,9 @@ export function jobStepGuide(
       if (snapshot.my_roles.includes("procurement_approver") && cdoMasterRfpReviewOpen(snapshot)) {
         return {
           kind: "action",
-          title: "Review the master RFP",
+          title: "Review the master RFP package",
           detail:
-            "Edit the Master RFP tab if needed, then use Review and approve master RFP in the thread. Noura sends vendor invitations only after you approve.",
+            "Check Documents: RFP validation, template compliance, scoring agreement, and Master RFP. Approve in the thread before invitations.",
         };
       }
       if (cdoMasterRfpReviewOpen(snapshot)) {
@@ -320,14 +364,14 @@ export function jobStepGuide(
           kind: "wait",
           title: "With the CDO for master RFP approval",
           detail:
-            "Samir Al-Farsi reviews the Master RFP in Team queue or My jobs. Vendor invitation drafts start after he approves.",
+            "Samir reviews validation, agreed scoring, and Master RFP. Vendor invitations start after approval.",
         };
       }
       return {
         kind: "progress",
-        title: "Master RFP document",
+        title: "Specification and Master RFP",
         detail:
-          "The worker is drafting the master RFP (scope, requirements, evaluation criteria). When it is ready, it goes to the CDO for review before vendor invitations.",
+          "Procurement validates BoQ, terms, and fixed-price scope; requester may upload sections. Lock scoring method, then draft Master RFP for CDO.",
       };
     }
     case "rfp_invitation_drafting":
@@ -380,13 +424,29 @@ export function jobStepGuide(
     }
     case "awaiting_quotes":
       return awaitingQuotesGuide(snapshot);
-    case "comparison":
+    case "bafo":
+      return {
+        kind: "action",
+        title: "BAFO — module pricing",
+        detail:
+          "Open Module comparison and Module scores, then each BAFO draft under Drafts. Challenge outlier module prices (why X when fair looks Y vs peers). Approve Send BAFO cards in the thread; finish with Complete BAFO round.",
+      };
+    case "comparison": {
+      if (snapshot.workflow === "sourcing_rfp") {
+        return {
+          kind: "action",
+          title: "Recommend vendor for award",
+          detail:
+            "After BAFO, review Commercial eval, Technical eval, and Weighted eval. Rami uses Recommend vendor for award — pick a row or note a different vendor.",
+        };
+      }
+      const quoteHint = "Open the Quote tab in the work panel — the inbound email excerpt is at the top";
       return {
         kind: "action",
         title: "Award the order",
-        detail:
-          "Open Supplier quotes in the work panel to read each vendor’s inbound reply, then use Award this order in the thread.",
+        detail: `${quoteHint}, then use Award this order in the thread.`,
       };
+    }
     case "ordering": {
       const orderingRetry = snapshot.pending.some(
         (p) =>
@@ -399,21 +459,22 @@ export function jobStepGuide(
           kind: "wait",
           title: "Ordering paused",
           detail:
-            "The purchase-order step failed before a PO draft was saved. In the thread, use Retry: Ordering (signed in as the buyer).",
+            "The requisition step failed before a draft was saved. In the thread, use Retry: Requisition (signed in as the buyer).",
         };
       }
       return {
         kind: "progress",
-        title: "Purchase order in progress",
-        detail: "The worker is preparing the order record. An approver may need to sign off before it is sent.",
+        title: "Requisition in progress",
+        detail:
+          "The worker is preparing the Fusion requisition. After AOS approvals, Oracle Fusion converts it to a PO.",
       };
     }
     case "closed":
       return {
         kind: "complete",
-        title: "Order placed",
+        title: "Requisition submitted",
         detail:
-          "The purchase order was created in the ERP. Open PO payload or Supplier quotes in the work panel for the full record.",
+          "The purchase requisition was sent to Oracle Fusion. Open Requisition in the work panel; Fusion handles PO conversion.",
       };
     case "conversation":
     case "chat": {

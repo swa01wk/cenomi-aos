@@ -53,6 +53,7 @@ export function Conversation({
   onSend,
   onOpenArtifact,
   onDecide,
+  onSaveArtifactVersion,
   onLoadOlder,
   showLoadOlder,
   chatLayout = false,
@@ -83,6 +84,11 @@ export function Conversation({
     selection?: string[];
     idempotencyKey: string;
   }) => Promise<void>;
+  onSaveArtifactVersion?: (
+    artifactId: string,
+    baseVersion: number,
+    content: Record<string, unknown>,
+  ) => Promise<void>;
   onLoadOlder?: () => void;
   showLoadOlder?: boolean;
   chatLayout?: boolean;
@@ -290,6 +296,8 @@ export function Conversation({
                   view={view}
                   selectionVersion={selectionVersion}
                   latestArtifactVersion={artifact?.latest_version}
+                  myRoles={snapshot.my_roles}
+                  onSaveArtifactVersion={onSaveArtifactVersion}
                   onApprove={onDecide}
                 />
               );
@@ -336,6 +344,8 @@ export function Conversation({
                   view={view}
                   selectionVersion={selectionVersion}
                   latestArtifactVersion={artifact?.latest_version}
+                  myRoles={snapshot.my_roles}
+                  onSaveArtifactVersion={onSaveArtifactVersion}
                   onApprove={onDecide}
                   variant={pending.event === "task.retry" ? "retry" : "default"}
                 />

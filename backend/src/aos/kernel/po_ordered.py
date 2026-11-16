@@ -57,7 +57,7 @@ async def _already_announced(conn: AsyncConnection, instance_id: str, po_ref: st
             if not isinstance(block, dict):
                 continue
             text = str(block.get("text") or "")
-            if "purchase order" in text.lower() and needle in text.lower():
+            if ("purchase order" in text.lower() or "requisition" in text.lower()) and needle in text.lower():
                 return True
     return False
 
@@ -99,13 +99,15 @@ async def post_po_ordered_announcement_if_needed(
     ship_bit = f" Ship-to: {ship}." if ship else ""
 
     lines = [
-        f"Purchase order {po_ref} has been created in Oracle Fusion Procurement for supplier {supplier}.",
+        f"Purchase requisition {po_ref} has been submitted in Oracle Fusion Procurement for supplier {supplier}.",
     ]
     if amount:
-        lines.append(f"Order total: {amount}.")
+        lines.append(f"Requisition total: {amount}.")
     if ship_bit:
         lines.append(ship_bit.strip())
-    lines.append("The order is placed — procurement can track it in the ERP.")
+    lines.append(
+        "AOS is done — Oracle Fusion handles approval and PO conversion. Track the requisition in Fusion."
+    )
 
     seat_name, seat_version = str(inst[0]), int(inst[1])
     await post_agent_progress_turn(

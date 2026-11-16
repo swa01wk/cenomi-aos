@@ -10,5 +10,8 @@ export function defaultDecisionNote(pending: Pick<PendingItem, "event" | "title"
   if (pending.event === "decision.supplier_selected" || /award this order/i.test(pending.title)) {
     return "Awarding based on the comparison above.";
   }
+  if (pending.event === "decision.vendor_recommended" || /recommend vendor/i.test(pending.title)) {
+    return "Recommend based on the weighted evaluation; add a note if you prefer another vendor.";
+  }
   return "";
 }

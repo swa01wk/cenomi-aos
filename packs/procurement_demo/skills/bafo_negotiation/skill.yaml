@@ -1,0 +1,16 @@
+apiVersion: aos/v1
+kind: Skill
+metadata: {name: bafo_negotiation, version: 1, owner: head_of_procurement}
+spec:
+  work_types: [document_draft]
+  instructions: instructions.md
+  ceiling: restricted
+  budget: {tokens: 40000, cost_usd: 0.75, seconds: 180, steps: 16, actions: 10, retries: 2}
+  reads: [job_snapshot, proposal, rfp_module_matrix, rfp_module_scores]
+  produces: [rfp_module_matrix, rfp_module_scores, bafo_email]
+  may_request: [read_artifact, save_draft]
+  verifiers: [leak_check]
+  runs:
+    document_draft:
+      classification_ceiling: restricted
+      budget: {tokens: 40000, cost_usd: 0.75, time_s: 180, steps: 16, actions: 10, retries: 2}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourcing Agent — delivery status & roadmap</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f6f4;color:#1c1c1c;font-size:14px;line-height:1.5}
+.page{max-width:1100px;margin:0 auto;padding:28px 24px 48px}
+h1{font-size:23px;margin:0 0 6px}
+.lead{color:#555;margin:0 0 18px;max-width:900px}
+.key{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 22px}
+.st{font-size:12px;font-weight:700;border-radius:10px;padding:2px 11px;color:#fff;white-space:nowrap}
+.st.impl{background:#15803D}.st.prog{background:#D97706}.st.plan{background:#2563EB}
+.group{margin:0 0 26px}
+.group h2{font-size:17px;margin:0 0 2px;padding-left:10px}
+.group .gd{color:#666;font-size:13px;margin:0 0 12px;padding-left:10px}
+.count{color:#999;font-weight:400;font-size:14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.pcard{border:1px solid #e3e3e0;border-radius:8px;padding:12px 14px;background:#fff}
+.pcard h3{margin:0 0 5px;font-size:14px}
+.pcard p{margin:0;font-size:12.8px;color:#555}
+.meta{margin-top:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stage{font-size:11.5px;color:#777}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:0 0 26px}
+.scard{border:1px solid #e3e3e0;border-radius:8px;padding:14px;background:#fff;text-align:center}
+.scard .n{font-size:30px;font-weight:800;line-height:1}
+.scard .l{font-size:12.5px;color:#555;margin-top:4px}
+.note{font-size:12px;color:#888;margin-top:18px}
+@media print{body{background:#fff}.page{max-width:none}}
+</style></head><body>
+<div class="page">
+<h1>Sourcing Agent &mdash; delivery status &amp; roadmap</h1>
+<p class="lead">The sourcing agent is delivered in stages against a defined scope. Everything below is part of the agent&rsquo;s intended design: what is <b>live today</b>, what is <b>in progress</b>, and what is <b>planned next</b>. This is the roadmap, not a list of gaps &mdash; each planned item is scope the agent is meant to cover.</p>
+<div class="summary" id="summary"></div>
+<div class="key">
+  <span class="st impl">Implemented &mdash; live today</span>
+  <span class="st prog">In progress &mdash; building now</span>
+  <span class="st plan">Planned &mdash; next on the roadmap</span>
+</div>
+<div id="groups"></div>
+<p class="note">Sourcing Agent, procurement sourcing lifecycle (RFP and Quick Quote). Shared with the interactive lifecycle diagram.</p>
+</div>
+<script>
+var ROADMAP=[
+ ["Conversational intake & brief","The agent interviews the requester, asks only for what is missing and produces one versioned, validated brief.","Request (A)","impl"],
+ ["Supplier discovery & ranking","Suppliers are ranked on five cited signals in parallel, with a minimum shortlist of three.","Suppliers (B)","impl"],
+ ["RFP authoring with leak protection","Master and vendor RFPs are drafted with a strict internal-vs-shareable split and an automatic leak check.","RFP (C)","impl"],
+ ["CDO approval gate","The master RFP is approved by the CDO before anything reaches a vendor, with a send-back loop.","RFP (C)","impl"],
+ ["Invitations & mailbox watch","One invitation per vendor; the agent watches the mailbox and classifies every reply.","Vendor engagement (D)","impl"],
+ ["Clarifications routing","Commercial questions go to Sourcing, technical to the category manager, with one equal answer to all bidders.","Vendor engagement (D)","impl"],
+ ["Evaluation sheets","Module-level pricing with technical, commercial and weighted sheets and a visible scoring rubric.","Evaluation (E)","impl"],
+ ["BAFO negotiation","Line-item comparison, negotiation drafts and re-scoring on the same weights.","Award (F)","impl"],
+ ["Requisition to ERP","The requisition is written exactly once, with reconcile-and-retry safety.","Award (F)","impl"],
+ ["Quick Quote, end to end","The fast path runs request to purchase order as the proven journey.","Fast path","impl"],
+ ["Role queues & work panel","A separate queue per role with a Drafts / Responses / Documents work panel.","All stages","impl"],
+ ["Sealed two-envelope pricing","Prices held in a separate store, never opened before technical scores lock and never shown to evaluators.","Proposals / Evaluation","prog"],
+ ["Unified governed action path","Every outbound send and approval bound to the exact approved content.","Release / Award","prog"],
+ ["Fully autonomous governed run","The agent driving every stage live, beyond the current guided demo.","Whole lifecycle","prog"],
+ ["Native Oracle Fusion negotiation & award","Write the sourcing negotiation (with its rounds) and the per-vendor award record into Fusion, alongside the requisition.","Award (F)","plan"],
+ ["New-supplier onboarding","Duplicate check on name, CR and VAT, then supplier creation and category mapping in Fusion.","Suppliers (B)","plan"],
+ ["Independent multi-evaluator scoring","Each evaluator scores privately with change-reasons, and a moderation step when scores diverge.","Evaluation (E)","plan"],
+ ["Independent score re-check","A verifier that recomputes evaluation and comparison scores as a second check.","Evaluation (E)","plan"],
+ ["Vendor-engagement tracking","Acknowledgement tracking, reminders, reference checks and all-bidder deadline extensions as first-class steps.","Vendor engagement (D)","plan"],
+ ["Criteria-version lock","Criteria locked after approval, with a fresh approval needed for any change.","RFP (C)","plan"],
+ ["Award-decision role alignment","Confirm the final owner of the award decision in line with the approved PRD.","Recommendation (E/F)","plan"],
+ ["Lifecycle exits","Pause from any stage, cancel with a vendor notice, and re-tender when no bid qualifies.","Whole lifecycle","plan"]
+];
+var RM_STATUS={impl:{l:"Implemented",c:"#15803D"},prog:{l:"In progress",c:"#D97706"},plan:{l:"Planned",c:"#2563EB"}};
+var RM_GROUPS=[
+ ["impl","Implemented \u2014 live today","Working in the build now and shown in the lifecycle walkthrough."],
+ ["prog","In progress \u2014 building and hardening now","Underway: the core is in place and is being completed and strengthened."],
+ ["plan","Planned \u2014 next on the roadmap","Defined scope the agent is designed to cover, scheduled for upcoming delivery."]
+];
+var summary=RM_GROUPS.map(function(g){var n=ROADMAP.filter(function(r){return r[3]===g[0];}).length;var m=RM_STATUS[g[0]];return '<div class="scard"><div class="n" style="color:'+m.c+'">'+n+'</div><div class="l">'+m.l+'</div></div>';}).join("");
+document.getElementById("summary").innerHTML=summary;
+var groups=RM_GROUPS.map(function(g){
+  var items=ROADMAP.filter(function(r){return r[3]===g[0];});
+  var m=RM_STATUS[g[0]];
+  var cards=items.map(function(r){return '<div class="pcard" style="border-left:4px solid '+m.c+'"><h3>'+r[0]+'</h3><p>'+r[1]+'</p><div class="meta"><span class="st '+g[0]+'">'+m.l+'</span><span class="stage">'+r[2]+'</span></div></div>';}).join("");
+  return '<div class="group"><h2 style="border-left:4px solid '+m.c+'">'+g[1]+' <span class="count">('+items.length+')</span></h2><p class="gd">'+g[2]+'</p><div class="cards">'+cards+'</div></div>';
+}).join("");
+document.getElementById("groups").innerHTML=groups;
+</script>
+</body></html>

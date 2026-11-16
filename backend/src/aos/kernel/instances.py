@@ -520,6 +520,20 @@ async def refresh_decisions_for_viewer(
         )
 
     await decision_ops.open_ready_decisions(conn, instance_id, org=org, packs_dir=packs_dir)
+    if irow is not None:
+        from .demo_pack_repin import align_instance_pack_to_seat
+
+        await align_instance_pack_to_seat(
+            conn, org_id=org.organization.id, instance_id=instance_id
+        )
+    if irow is not None and str(irow[2]) == "quick_quote":
+        from .demo_qq_client_heal import heal_quick_quote_client_demo
+
+        await heal_quick_quote_client_demo(conn, instance_id, org=org, packs_dir=packs_dir)
+    if irow is not None and str(irow[2]) == "sourcing_rfp":
+        from .demo_rfp_client_heal import heal_sourcing_rfp_client_demo
+
+        await heal_sourcing_rfp_client_demo(conn, instance_id, org=org, packs_dir=packs_dir)
     await heal_legacy_selection_decision_turns(
         conn,
         org_id=org.organization.id,

@@ -250,6 +250,10 @@ def format_decision_person_text(
                 vendor_line = picked[0].lstrip("- ").strip()
                 vendor_name = vendor_line.split(" (", 1)[0].strip()
                 lines = [f"Awarded this order to {vendor_name}."]
+            elif job_moved and "recommend" in label.lower():
+                vendor_line = picked[0].lstrip("- ").strip()
+                vendor_name = vendor_line.split(" (", 1)[0].strip()
+                lines = [f"Recommended {vendor_name} for award. Procurement will raise the requisition next."]
             elif job_moved:
                 lines = [f"{label}."]
                 lines.append("")

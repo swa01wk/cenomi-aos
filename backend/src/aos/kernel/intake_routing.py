@@ -45,8 +45,20 @@ def _text_field_score(message: str, *fields: str) -> int:
     return score
 
 
+def _seat_for_workflow(workers: list[dict[str, Any]], workflow_name: str) -> str | None:
+    for worker in workers:
+        for wf in worker.get("workflows") or []:
+            if str(wf.get("name")) == workflow_name:
+                return str(worker["seat"])
+    return None
+
+
 def route_intake_message(message: str, workers: list[dict[str, Any]]) -> tuple[str, str]:
     """Return (seat_name, workflow_name) for the best-matching published route."""
+    if _RFP_STRONG.search(message):
+        seat = _seat_for_workflow(workers, "sourcing_rfp")
+        if seat:
+            return seat, "sourcing_rfp"
     best: tuple[str, str] | None = None
     best_score = -1
     for worker in workers:

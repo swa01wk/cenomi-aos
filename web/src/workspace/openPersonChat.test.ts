@@ -43,4 +43,30 @@ describe("openPersonChat", () => {
     markCoordinatorHandedOff("WC-NEW");
     expect(openChatInstanceForSeat("seat_workspace_coordinator", jobs, entryWorker)).toBe("WC-OLD");
   });
+
+  it("does not resume misrouted Quick Quote intake that looks like an RFP", () => {
+    const specialist: Worker = {
+      seat: "seat_sourcing_poc",
+      display_name: "Noor",
+      colleague_name: "Noor",
+      title: "Sourcing",
+      version: 1,
+      state: "ACTIVE",
+      workflows: [{ name: "quick_quote", title: "QQ", description: "", intake_hints: ["quote"] }],
+    };
+    const jobs: Job[] = [
+      {
+        instance_id: "QQ-0014",
+        title: "RFP: Full redesign of Cenomi Malls public marketing website",
+        workflow: "quick_quote",
+        seat: "seat_sourcing_poc",
+        state: "intake",
+        state_label: "Intake",
+        version: 1,
+        last_activity_at: "2026-11-03T09:00:00Z",
+        started_at: "2026-11-03T09:00:00Z",
+      },
+    ];
+    expect(openChatInstanceForSeat("seat_sourcing_poc", jobs, specialist)).toBeUndefined();
+  });
 });

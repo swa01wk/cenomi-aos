@@ -13,15 +13,17 @@ export function SheetView({
   view: ArtifactView;
   version: ArtifactVersion;
 }) {
-  const content = version.content as { rows?: unknown };
+  const content = (version.content ?? {}) as { rows?: unknown };
   const rows = Array.isArray(content.rows) ? (content.rows as Record<string, unknown>[]) : [];
-  const order = view.columns?.length ? view.columns : view.fields.map((f) => f.name);
-  const byName = new Map(view.fields.map((f) => [f.name, f]));
+  const fieldDefs = view.fields ?? [];
+  const order = view.columns?.length ? view.columns : fieldDefs.map((f) => f.name);
+  const byName = new Map(fieldDefs.map((f) => [f.name, f]));
+  const hiddenFields = version.hidden_fields ?? [];
   const rowKey = view.row_key;
 
   return (
     <div className={styles.viewBody}>
-      {version.hidden_fields.length > 0 && (
+      {hiddenFields.length > 0 && (
         <p className={styles.hiddenNote}>Some fields aren&apos;t shared with your role</p>
       )}
       <DataTable
@@ -35,7 +37,7 @@ export function SheetView({
         }}
         columns={order.flatMap((name) => {
           const field = byName.get(name);
-          if (!field) return [];
+          if (!field?.type) return [];
           return [
             {
               id: name,

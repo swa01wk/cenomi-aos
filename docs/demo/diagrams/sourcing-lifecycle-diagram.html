@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourcing Agent — business lifecycle & agent mapping</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f6f4;color:#1c1c1c;font-size:14px;line-height:1.45}
+header{padding:18px 24px 6px}
+h1{font-size:21px;margin:0 0 4px}
+header p{margin:0;color:#555;max-width:1200px}
+.jobcard{display:flex;flex-wrap:wrap;gap:0;margin:12px 24px 0;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff}
+.jobcard div{padding:8px 14px;border-right:1px solid #eee;min-width:120px}
+.jobcard dt{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;margin:0}
+.jobcard dd{margin:2px 0 0;font-weight:600;font-size:13px}
+.wftabs{display:flex;gap:8px;margin:14px 24px 0;flex-wrap:wrap}
+.wftabs button{font:inherit;font-size:14px;font-weight:600;padding:7px 16px;border:1px solid #c8c8c8;background:#fff;border-radius:8px 8px 0 0;cursor:pointer;color:#333}
+.wftabs button[aria-pressed=true]{background:#1c1c1c;color:#fff;border-color:#1c1c1c}
+.wftabs .sub{font-weight:400;opacity:.8;font-size:12px;margin-left:6px}
+.wrap{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;padding:6px 24px 24px}
+aside{background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;max-height:calc(100vh - 160px);overflow:auto;position:sticky;top:12px;align-self:start}
+aside h2{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#666;margin:10px 6px 6px}
+aside button{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:left;font:inherit;font-size:13px;background:none;border:1px solid transparent;border-radius:6px;padding:6px 8px;cursor:pointer;color:inherit}
+aside button:hover{background:#f2f2ef}
+aside button[aria-pressed=true]{background:#EEF3FF;border-color:#2563EB}
+.sid{flex:0 0 26px;font-weight:700;color:#444}
+.stitle{flex:1}
+.all{margin-bottom:4px;font-weight:600}
+main{min-width:0}
+.detail{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.detail h2{font-size:16px;margin:0 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.detail ol{margin:6px 0 0;padding-left:0;list-style:none;display:grid;gap:5px}
+.detail li{display:flex;gap:8px;align-items:flex-start}
+.num{flex:0 0 22px;height:22px;border-radius:11px;background:#2C4DB0;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.node-name{color:#555;font-size:12px}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.bar button{font:inherit;font-size:13px;padding:4px 11px;border:1px solid #c8c8c8;background:#fff;border-radius:6px;cursor:pointer}
+.bar button[aria-pressed=true]{background:#1c1c1c;color:#fff;border-color:#1c1c1c}
+.bar span{color:#666;font-size:12.5px}
+figure{margin:0;background:#fff;border:1px solid #ddd;border-radius:8px;overflow:auto;max-height:76vh}
+figure svg{display:block;max-width:none}
+#flow .node,#flow .edge,#flow .elbl{transition:opacity .2s}
+#flow.focus .node:not(.on){opacity:.16}
+#flow.focus .edge:not(.on){opacity:.10}
+#flow.focus .elbl:not(.on){opacity:.25}
+#flow.focus .edge.on path{stroke:#2563EB;stroke-width:3}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;font-size:12.5px;color:#444}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:4px;margin-right:6px;color:#fff}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#eef0f2;padding:0 3px;border-radius:3px}
+.section{margin-top:20px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px 18px}
+.section h2{font-size:17px;margin:0 0 4px}
+.section h3{font-size:14px;margin:16px 0 6px}
+.section p{margin:0 0 10px;color:#555;font-size:13px}
+.section table{width:100%;border-collapse:collapse;font-size:13px}
+.section th{text-align:left;font-size:12px;color:#555;font-weight:600;border-bottom:1px solid #ddd;padding:6px 8px;vertical-align:top}
+.section td{border-bottom:1px solid #eee;padding:7px 8px;vertical-align:top}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:6px}
+.pcard{border:1px solid #e3e3e0;border-radius:8px;padding:10px 12px;background:#fafafa}
+.pcard h4{margin:0 0 4px;font-size:13px}
+.pcard p{margin:0;font-size:12.5px;color:#555}
+.st{font-size:11px;font-weight:700;border-radius:9px;padding:1px 8px;color:#fff;white-space:nowrap}
+.st.impl{background:#15803D}.st.part{background:#D97706}.st.gap{background:#B23A3A}
+.st.prog{background:#D97706}.st.plan{background:#2563EB}
+.sev{font-size:11px;font-weight:700;border-radius:4px;padding:1px 7px;color:#fff;white-space:nowrap}
+.sev.high{background:#B23A3A}.sev.med{background:#D97706}.sev.low{background:#64748B}
+.go{font:inherit;font-size:12px;border:1px solid #c8c8c8;background:#fff;border-radius:5px;padding:0 6px;margin:0 4px 4px 0;cursor:pointer}
+.go:hover{border-color:#2563EB;color:#1D4ED8}
+.note{font-size:12px;color:#777;margin-top:8px}
+</style></head><body>
+<header>
+<h1>Sourcing Agent &mdash; business lifecycle &amp; how the agent maps onto it</h1>
+<p>The sourcing event as the business runs it, from a first message to a closed, recorded award, with the AOS digital worker (the sourcing agent) placed beside the people at each stage. Three lanes only: the <b>people</b> who act and decide, the <b>agent</b> that reads, drafts, checks and records, and the <b>vendors and Oracle Fusion</b> it talks to. Two shapes of the same process: the full <b>sourcing event (RFP)</b> and the faster <b>Quick Quote</b>. The badge on each step is how far it is built today; open issues are collated in the section below the chart.</p>
+</header>
+<dl class="jobcard" id="jobcard"></dl>
+<div class="wftabs" id="wftabs">
+  <button data-wf="rfp" aria-pressed="true">Sourcing event (RFP) <span class="sub">full lifecycle &middot; 12 stages</span></button>
+  <button data-wf="qq" aria-pressed="false">Quick Quote <span class="sub">fast path</span></button>
+</div>
+<div class="wrap">
+<aside id="scen" aria-label="Scenarios"></aside>
+<main>
+<div class="detail" id="detail" aria-live="polite"></div>
+<div class="bar" role="group" aria-label="Zoom">
+<button data-z="fit" aria-pressed="true">Fit to width</button>
+<button data-z="0.8" aria-pressed="false">80%</button>
+<button data-z="1" aria-pressed="false">100%</button>
+<span>Pick a phase or step on the left to light its path.</span>
+</div>
+<figure id="figure">
+<svg id="flow" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sourcing lifecycle"></svg>
+</figure>
+<div class="legend" id="legend"></div>
+<section class="section" id="compare"></section>
+<section class="section" id="implemented"></section>
+<section class="section" id="issues"></section>
+</main>
+</div>
+<script>
+/* ---------- tokens ---------- */
+var ACTOR = {
+  enduser:  {label:"End user (Faisal)",    c:"#15803D"},
+  sourcing: {label:"Sourcing (Noura)",     c:"#1D4ED8"},
+  procurement:{label:"Procurement (Khalid)", c:"#B45309"},
+  cdo:      {label:"CDO (Samir)",          c:"#9333EA"},
+  catmgr:   {label:"Category mgr (Rami)",  c:"#BE185D"},
+  evaluators:{label:"Evaluators",          c:"#0E7490"},
+  agent:    {label:"Agent (digital worker)", c:"#4F46E5"},
+  vendor:   {label:"Vendors",              c:"#475569"},
+  fusion:   {label:"Oracle Fusion",        c:"#0F766E"},
+  never:    {label:"Fairness block",       c:"#B23A3A"}
+};
+var STATUS = {
+  impl: {label:"Implemented (runs in the demo)", c:"#15803D", let:"B"},
+  part: {label:"Partial / demo-driven", c:"#D97706", let:"P"},
+  gap:  {label:"Not yet / gap", c:"#B23A3A", let:"!"}
+};
+/* automation level: where the agent is doing the work */
+var AUTO = {
+  A: {label:"Agentic \u2014 agent runs it end to end", c:"#4F46E5"},
+  S: {label:"Agent-assisted \u2014 agent drafts, a person approves", c:"#0E7490"},
+  H: {label:"Human decision \u2014 a person owns it", c:"#B45309"},
+  X: {label:"External \u2014 vendor / Oracle Fusion", c:"#64748B"}
+};
+function autoOf(n){ if(n.auto)return n.auto; if(n.kind==="term")return null; if(n.lane===1)return "A"; if(n.lane===2)return "X"; if(n.kind==="dec"||n.kind==="evt")return "H"; return "S"; }
+var LANES = [
+  {id:0, name:"People \u00b7 act & decide",          y0:68,  y1:250, fill:"#DDF2EE"},
+  {id:1, name:"Agent \u00b7 digital worker",          y0:250, y1:470, fill:"#E4EAFA"},
+  {id:2, name:"Vendors & Oracle Fusion",              y0:470, y1:628, fill:"#EBEEF3"}
+];
+var peopleY=[132,200], agentY=[322,398], extY=[548];
+function laneY(lane,slot){return lane===0?peopleY[slot||0]:lane===1?agentY[slot||0]:extY[0];}
+var COL=152, LEFT=150, TITLEBAR=44, RIBBON=22, H=640;
+function cx(c){ return LEFT + c*COL; }
+
+/* ---------- RFP (full sourcing event) ---------- */
+var RFP_PH=[["A","Request"],["B","Suppliers"],["C","RFP"],["D","Vendor engagement"],["E","Evaluation"],["F","Award"]];
+var RFP_N=[
+ {id:"start",c:0,lane:0,actor:"enduser",kind:"term",st:"impl",ph:"A",t:["START"],d:"Faisal, Facilities operations, opens a job and types the need in plain words. In the repo demo this is RFP-0001, started by Noura on his behalf."},
+ {id:"ag_intake",c:1,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"A",sub:"01 Intake",t:["Ask / Draft:","interview, build brief"],d:"The agent asks only for the missing fields (scope, sites, outcomes, term, budget guidance, who judges quality) and builds a versioned brief. The specification stage (RFP validation, template check, scoring agreement, uploads) runs here and can send back to Faisal. Skills: sourcing_assist, rfp_intake."},
+ {id:"p_brief",c:2,lane:0,actor:"enduser",kind:"dec",st:"impl",ph:"A",sub:"01",t:["Confirm","brief"],d:"The requester reads the brief and confirms it. In the demo the brief auto-confirms for sourcing-started jobs. This pins the brief version everything else is built against."},
+ {id:"fusion_cat",c:2,lane:2,actor:"fusion",kind:"store",st:"impl",ph:"A",t:["Fusion: categories","& suppliers (read)"],d:"mock_erp browse_categories / search_suppliers / get_supplier_history. Read-only; the agent never holds Fusion credentials."},
+ {id:"ag_suppliers",c:3,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"B",sub:"02 Suppliers",t:["Find / Suggest / Explain:","rank suppliers"],d:"Maps the brief to a Fusion category, pulls mapped suppliers and ranks them on five signals, each with its source, so 'why B above A?' is answered from evidence. Runs in parallel from the moment the category is known. Skill: supplier_lookup (verifier sources_cited)."},
+ {id:"p_shortlist",c:4,lane:0,actor:"sourcing",kind:"dec",st:"impl",ph:"B",sub:"02",t:["Confirm","shortlist (\u22653)"],d:"Noura picks the vendors with reasons; the agent enforces a minimum of three before the event can proceed."},
+ {id:"ag_onboard",c:4,lane:1,slot:1,actor:"agent",kind:"proc",st:"gap",ph:"B",sub:"02 side",t:["Check / Write:","onboard new supplier"],d:"Duplicate check on name, CR and VAT, then create the supplier and category mapping in Fusion after approval. NOT built: mock_erp has no create_supplier, and there is no onboarding task/skill. A new vendor can be shortlisted but not registered."},
+ {id:"fusion_supplier",c:4,lane:2,actor:"fusion",kind:"store",st:"gap",ph:"B",t:["Fusion: supplier","master (write)"],d:"supplier create + products-and-services category mapping. Not implemented."},
+ {id:"ag_rfp",c:5,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"C",sub:"03 RFP builder",t:["Draft / Check:","Master + Vendor RFP"],d:"Writes the Master RFP (internal: budget, incumbent notes) and the shareable Vendor RFP; the leak check blocks any internal figure from the vendor copy. Skills: master_rfp_authoring, rfp_authoring (verifier leak_check)."},
+ {id:"p_rfpcontent",c:6,lane:0,actor:"sourcing",kind:"proc",st:"impl",ph:"C",sub:"03",t:["Edit & mark","internal | shareable"],d:"Sourcing edits, uploads schedules and marks each file internal or shareable. One versioned source of truth."},
+ {id:"ag_pack",c:7,lane:1,actor:"agent",kind:"proc",st:"part",ph:"C",sub:"04 RFP approval",t:["Suggest / Draft:","criteria + approval pack"],d:"Proposes criteria and weights (70 technical / 30 commercial, min 70) and assembles the approval pack. Criteria lock after approval is not yet an explicit, enforced artifact."},
+ {id:"p_criteria",c:8,lane:0,actor:"procurement",kind:"dec",st:"part",ph:"C",sub:"04",t:["Agree criteria","(Sourcing + Proc.)"],d:"Noura owns technical, Khalid owns commercial and the split. Modelled; explicit criteria-version lock is partial."},
+ {id:"p_cdo",c:9,lane:0,actor:"cdo",kind:"dec",st:"impl",ph:"C",sub:"04",t:["Approve master","RFP (CDO)"],d:"Samir (CDO) approves the master RFP before anything reaches a vendor. Send-back with comments loops to the RFP builder. decision.master_rfp_confirmed."},
+ {id:"ag_invite",c:10,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"D",sub:"05 Release",t:["Draft / Watch:","invitations + mailbox"],d:"Drafts one invitation email per vendor with the Vendor RFP and acknowledgement deadline, then watches the mailbox and classifies every reply. Skill: rfp_authoring (verifier recipient_check)."},
+ {id:"p_send_inv",c:11,lane:0,actor:"sourcing",kind:"proc",st:"impl",ph:"D",sub:"05",t:["Approve & send","invitations"],d:"Nothing reaches a vendor without Noura's approval. In the demo: three Invite emails in Drafts, approve and send."},
+ {id:"ext_recv",c:12,lane:2,actor:"vendor",kind:"proc",st:"part",ph:"D",t:["Vendors ack","(mailbox)"],d:"Acknowledgement + reminder on a missed deadline. In the demo suppliers are simulated (acks staggered). Reminder/acknowledgement tracking as a first-class workflow step is partial."},
+ {id:"ag_clar",c:13,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"D",sub:"06 Clarifications",t:["Watch / Draft:","answer questions"],d:"Reads vendor questions, splits multi-question emails, drafts answers from the Master RFP with page references, and routes by type. Skill: proposal_triage."},
+ {id:"p_clar_tech",c:13,lane:0,actor:"catmgr",kind:"proc",st:"impl",ph:"D",sub:"06",t:["Technical","clarification (Rami)"],d:"Technical questions route to Rami (category manager). decision.clarification_send_approved. Commercial questions never appear on his queue."},
+ {id:"p_clar_comm",c:13,lane:0,slot:1,actor:"sourcing",kind:"proc",st:"impl",ph:"D",sub:"06",t:["Commercial","clarification (Noura)"],d:"Commercial questions route to Noura. decision.clarification_commercial_approved. Each approval posts one anonymised answer to all bidders."},
+ {id:"ext_qa",c:13,lane:2,actor:"vendor",kind:"proc",st:"impl",ph:"D",t:["Vendors ask","(Q&A)"],d:"Questions arrive across the per-vendor threads."},
+ {id:"ag_proposals",c:15,lane:1,actor:"agent",kind:"proc",st:"part",ph:"D",sub:"07 Proposals",t:["Watch:","collect, seal prices"],d:"Receives proposals as two envelopes: technical to the job, commercial sealed. Reference-client checks summarise evidence. Reference checks and extension-for-all are not fully modelled as workflow steps."},
+ {id:"p_extension",c:15,lane:0,slot:1,actor:"procurement",kind:"proc",st:"part",ph:"D",sub:"07",t:["Extend window","(all bidders)"],d:"An approved extension must move the date for every bidder, not one. Approval is modelled; 'applies to all' is a business rule to confirm in code."},
+ {id:"ext_submit",c:16,lane:2,actor:"vendor",kind:"store",st:"part",ph:"D",t:["Sealed proposals","in"],d:"Technical on the job; commercial sealed in a Procurement-only store until technical scores lock."},
+ {id:"ag_tech",c:17,lane:1,actor:"agent",kind:"proc",st:"part",ph:"E",sub:"08 Technical eval",t:["Suggest / Check:","score + evidence"],d:"Pre-reads each proposal, suggests a 0-5 score per criterion with quoted evidence, and flags large spreads for moderation. Evaluation sheets with 'Show scoring rubric' exist in the demo. Multi-evaluator independent scoring + moderation loop is not modelled. Skill: rfp_evaluation."},
+ {id:"p_eval",c:18,lane:0,actor:"evaluators",kind:"proc",st:"part",ph:"E",sub:"08",auto:"H",t:["Evaluators score","& lock"],d:"Cross-team evaluators (end user, mall ops, HSE) score independently and lock; a change of 1 point needs a reason. 'Evaluators' is not yet a distinct participant set in the workflow."},
+ {id:"dec_qual",c:19,lane:1,actor:"agent",kind:"evt",st:"part",ph:"E",sub:"08",t:["Any vendor","\u226570?"],d:"Automatic qualification gate. Below 70 the price envelope stays sealed for good. No-qualified-bid re-tender is a gap."},
+ {id:"never_price",c:19,lane:0,slot:1,actor:"never",kind:"dec",st:"part",ph:"E",t:["Price sealed until","technical lock"],d:"Fairness rule: no price may be opened or shown before technical scores lock, and evaluators/end user never see price. Classification + leak/refusal checks exist; the hard store-level gate is governance that is partial."},
+ {id:"ag_comm",c:20,lane:1,actor:"agent",kind:"proc",st:"part",ph:"E",sub:"09 Commercial eval",t:["Open / Compare / Compute:","normalise prices"],d:"Opens sealed envelopes for qualified vendors only, normalises to the same scope and term, flags gaps, and computes commercial score = lowest price \u00f7 price \u00d7 100. Module-level pricing + Commercial eval sheet exist in the demo."},
+ {id:"p_norm",c:21,lane:0,actor:"procurement",kind:"proc",st:"part",ph:"E",sub:"09",t:["Check","normalisation"],d:"Procurement checks the normalisation before scores combine."},
+ {id:"p_comm_confirm",c:21,lane:0,slot:1,actor:"sourcing",kind:"dec",st:"impl",ph:"E",sub:"09",t:["Confirm commercial","module review"],d:"decision.commercial_eval_confirmed, then negotiation begins."},
+ {id:"ag_bafo",c:22,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"F",sub:"11 BAFO",t:["Compare / Draft / Compute:","line-item BAFO"],d:"Builds a line-item comparison, drafts a defensible negotiation ask per outlier vendor, and re-scores the best-and-final offer with the same formula and weights. Demo: Module comparison + Module scores. Skill: bafo_negotiation."},
+ {id:"p_bafo_send",c:23,lane:0,actor:"procurement",kind:"proc",st:"impl",ph:"F",sub:"11",t:["Approve & send","BAFO"],d:"decision.bafo_send_approved per vendor."},
+ {id:"p_bafo_round",c:23,lane:0,slot:1,actor:"sourcing",kind:"dec",st:"impl",ph:"F",sub:"11",t:["Complete","BAFO round"],d:"decision.bafo_round_complete refreshes scores and returns to evaluation."},
+ {id:"ext_bafo",c:23,lane:2,actor:"vendor",kind:"proc",st:"impl",ph:"F",t:["Vendors send","best-and-final"],d:"Final offers arrive in each thread."},
+ {id:"ag_recommend",c:24,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"E",sub:"10 Recommendation",t:["Compute / Draft:","final 70/30 ranking"],d:"Final = technical \u00d7 70% + commercial \u00d7 30%, with the full score trail. Weighted eval sheet in the demo."},
+ {id:"p_recommend",c:25,lane:0,actor:"catmgr",kind:"dec",st:"impl",ph:"F",sub:"10",t:["Recommend vendor","for award (Rami)"],d:"decision.vendor_recommended by the category manager; locks the evaluation. (PRD assigns the final pick to Procurement \u2014 see issues.)"},
+ {id:"ag_award",c:26,lane:1,actor:"agent",kind:"proc",st:"part",ph:"F",sub:"12 Award",t:["Draft / Write / Watch:","award + Fusion"],d:"Drafts the award and regret emails (no other vendor's price), writes the requisition to Fusion and retries safely on failure. Skill: rfp_evaluation (rfp_pr_create, verifier payload_match)."},
+ {id:"p_award",c:27,lane:0,actor:"procurement",kind:"proc",st:"part",ph:"F",sub:"12",t:["Approve award","+ Fusion writes"],d:"Two-step: buyer then CDO. Nothing is sent or written without approval."},
+ {id:"fusion_write",c:27,lane:2,actor:"fusion",kind:"store",st:"part",ph:"F",t:["Fusion: requisition","(write)"],d:"Repo writes a purchase requisition via create_pr (exactly-once, reconcile_with find_pr). Fusion supplierNegotiations / supplierNegotiationAwards objects are not modelled \u2014 see issues."},
+ {id:"end",c:28,lane:0,actor:"enduser",kind:"term",st:"part",ph:"F",t:["CLOSED"],d:"The job closes only when every Fusion write succeeds; handover to the requester and an append-only record remain."}
+];
+var RFP_E=[
+ ["start","ag_intake"],["ag_intake","p_brief"],
+ ["ag_suppliers","fusion_cat","read",2],["p_brief","ag_suppliers","brief confirmed"],
+ ["ag_suppliers","p_shortlist"],
+ ["p_shortlist","ag_onboard","new supplier",1],["ag_onboard","fusion_supplier","create \u00b7 approval"],["ag_onboard","p_shortlist","added",1],
+ ["p_shortlist","ag_rfp","shortlist \u22653"],["ag_rfp","p_rfpcontent"],["p_rfpcontent","ag_pack"],
+ ["ag_pack","p_criteria"],["p_criteria","p_cdo"],["p_cdo","ag_rfp","send back",1],["p_cdo","ag_invite","approved \u00b7 lock"],
+ ["ag_invite","p_send_inv"],["p_send_inv","ext_recv","approved send"],
+ ["ext_recv","ag_proposals","window open"],["ext_recv","ext_qa","",2],
+ ["ext_qa","ag_clar","questions"],["ag_clar","p_clar_tech"],["ag_clar","p_clar_comm"],
+ ["p_clar_tech","ext_qa","answer all",1],["p_clar_comm","ext_qa","answer all",1],
+ ["ag_proposals","ext_submit","collect (sealed)"],["p_extension","ext_submit","extend all",1],
+ ["ext_submit","ag_tech","deadline"],["ag_tech","p_eval"],["p_eval","ag_tech","moderation",1],
+ ["p_eval","dec_qual","locked"],["dec_qual","ag_comm","\u226570 qualifies"],["dec_qual","ag_suppliers","none qualified: re-tender",1],
+ ["dec_qual","never_price","",2],
+ ["ag_comm","p_norm"],["p_norm","p_comm_confirm"],["p_comm_confirm","ag_bafo","to BAFO"],
+ ["ag_bafo","p_bafo_send"],["p_bafo_send","ext_bafo","approved send"],["p_bafo_send","p_bafo_round"],
+ ["p_bafo_round","ag_recommend","round complete"],["ag_recommend","p_recommend"],
+ ["p_recommend","ag_award","recommended"],["ag_award","p_award"],["p_award","fusion_write","approved writes"],
+ ["ag_award","fusion_write"],["fusion_write","end","all writes ok"]
+];
+var RFP_SC=[
+ {id:"W", g:"demo", t:"Full business walkthrough", path:["start","ag_intake","p_brief","ag_suppliers","p_shortlist","ag_rfp","p_rfpcontent","ag_pack","p_criteria","p_cdo","ag_invite","p_send_inv","ext_recv","ag_clar","p_clar_tech","p_clar_comm","ag_proposals","ext_submit","ag_tech","p_eval","dec_qual","ag_comm","p_norm","p_comm_confirm","ag_bafo","p_bafo_send","p_bafo_round","ag_recommend","p_recommend","ag_award","p_award","fusion_write","end"]},
+ {id:"A", g:"phase", t:"A \u00b7 Request: intake & brief", path:["start","ag_intake","p_brief"]},
+ {id:"B", g:"phase", t:"B \u00b7 Suppliers: rank & shortlist", path:["ag_suppliers","fusion_cat","p_shortlist"]},
+ {id:"B+",g:"phase", t:"B \u00b7 New-supplier onboarding (gap)", path:["p_shortlist","ag_onboard","fusion_supplier"]},
+ {id:"C", g:"phase", t:"C \u00b7 RFP build, criteria, CDO approval", path:["ag_rfp","p_rfpcontent","ag_pack","p_criteria","p_cdo"]},
+ {id:"D", g:"phase", t:"D \u00b7 Release, clarifications, proposals", path:["ag_invite","p_send_inv","ext_recv","ext_qa","ag_clar","p_clar_tech","p_clar_comm","ag_proposals","p_extension","ext_submit"]},
+ {id:"E", g:"phase", t:"E \u00b7 Technical \u2192 qualify \u2192 commercial", path:["ag_tech","p_eval","dec_qual","ag_comm","p_norm","p_comm_confirm"]},
+ {id:"F", g:"phase", t:"F \u00b7 BAFO, recommend, award, Fusion", path:["ag_bafo","p_bafo_send","p_bafo_round","ag_recommend","p_recommend","ag_award","p_award","fusion_write","end"]},
+ {id:"X1",g:"fair", t:"Fairness: price sealed until lock", path:["dec_qual","never_price","ag_comm"]},
+ {id:"X2",g:"fair", t:"Send-back & moderation loops", path:["p_cdo","ag_rfp","p_eval","ag_tech"]}
+];
+
+/* ---------- Quick Quote (fast path) ---------- */
+var QQ_PH=[["A","Request"],["B","Suppliers"],["C","RFQ"],["D","Quotes"],["E","Award"]];
+var QQ_N=[
+ {id:"start",c:0,lane:0,actor:"enduser",kind:"term",st:"impl",ph:"A",t:["START"],d:"Faisal opens a Quick Quote for a defined item (the repo demo uses QQ-0001 / QQ-0013). The requester is bound at creation."},
+ {id:"ag_intake",c:1,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"A",sub:"Intake",t:["Ask / Draft:","build the brief"],d:"sourcing_assist interviews, request_intake produces the brief (verifier brief_schema)."},
+ {id:"p_brief",c:2,lane:0,actor:"enduser",kind:"dec",st:"impl",ph:"A",t:["Confirm","brief"],d:"decision.brief_confirmed by the requester; pins the brief version."},
+ {id:"ag_suppliers",c:3,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"B",t:["Find / Suggest:","rank suppliers"],d:"supplier_lookup runs in parallel against the ERP and joins at shortlisting (verifier sources_cited)."},
+ {id:"fusion_cat",c:3,lane:2,actor:"fusion",kind:"store",st:"impl",ph:"B",t:["ERP: suppliers","(read)"],d:"mock_erp read; brokered by the gateway."},
+ {id:"p_shortlist",c:4,lane:0,actor:"sourcing",kind:"dec",st:"impl",ph:"B",t:["Confirm","shortlist (\u22653)"],d:"Noura claims from the queue and confirms the shortlist (\u22653)."},
+ {id:"ag_rfq",c:5,lane:1,actor:"agent",kind:"proc",st:"impl",ph:"C",t:["Draft / Check:","RFQ emails"],d:"rfq_authoring drafts the RFQs; leak_check sends a budget leak back as REWORK (verifier leak_check)."},
+ {id:"p_send",c:6,lane:0,actor:"sourcing",kind:"proc",st:"part",ph:"C",t:["Approve & send","RFQ \u00d73"],d:"Approve-and-send with interrupt/resume. Governed send path is partial (M3)."},
+ {id:"ext_vendors",c:7,lane:2,actor:"vendor",kind:"proc",st:"part",ph:"D",t:["Vendors reply","(quotes)"],d:"Inbound mail becomes quote_triage tasks; injection-safe. Demo-simulated."},
+ {id:"ag_quote",c:8,lane:1,actor:"agent",kind:"proc",st:"part",ph:"D",t:["Watch / Capture:","quotes"],d:"quote_triage captures each reply as a quote artifact."},
+ {id:"p_price_never",c:8,lane:0,slot:1,actor:"never",kind:"dec",st:"part",ph:"D",t:["Faisal asks price","\u2192 refused"],d:"The requester never sees a quote value; the reply is a refusal with the rule, never the number."},
+ {id:"dec_deadline",c:9,lane:1,actor:"agent",kind:"evt",st:"part",ph:"D",t:["Deadline /","quotes in (\u22651)"],d:"Timer or all-quotes event moves the job to comparison (guard quote_count\u22651). Timer built; count partial."},
+ {id:"ag_compare",c:10,lane:1,actor:"agent",kind:"proc",st:"part",ph:"E",t:["Compare / Compute:","comparison"],d:"quote_comparison uses price_calculator (no model arithmetic); verifier score_recompute is referenced but not implemented in code \u2014 see issues."},
+ {id:"p_award",c:11,lane:0,actor:"sourcing",kind:"dec",st:"part",ph:"E",t:["Award","supplier (lock)"],d:"decision.supplier_selected locks the comparison."},
+ {id:"ag_pr",c:12,lane:1,actor:"agent",kind:"proc",st:"part",ph:"E",t:["Draft / Write:","requisition"],d:"pr_create builds the po_payload (verifier payload_match). Has a scripted happy run."},
+ {id:"p_po",c:13,lane:0,actor:"procurement",kind:"proc",st:"part",ph:"E",t:["Approve PR/PO","(buyer \u2192 CDO)"],d:"Two-step approval; segregation of duties. Governed approval binding is partial (M3)."},
+ {id:"fusion_po",c:13,lane:2,actor:"fusion",kind:"store",st:"part",ph:"E",t:["ERP: PO/PR","(write)"],d:"create_po / create_pr, exactly-once with reconcile. Generic PO/PR, not Fusion negotiation/award objects."},
+ {id:"p_handover",c:14,lane:0,actor:"enduser",kind:"proc",st:"part",ph:"E",t:["Handover +","outcome"],d:"Handover to the requester; outcome record; timers cancelled."},
+ {id:"end",c:15,lane:0,actor:"enduser",kind:"term",st:"impl",ph:"E",t:["CLOSED"],d:"QQ reaches closed from Workspace actions \u2014 the proven POC journey."}
+];
+var QQ_E=[
+ ["start","ag_intake"],["ag_intake","p_brief"],["p_brief","ag_suppliers","brief confirmed"],
+ ["ag_suppliers","fusion_cat","read",2],["ag_suppliers","p_shortlist"],
+ ["p_shortlist","ag_rfq","\u22653"],["ag_rfq","p_send"],["p_send","ext_vendors","approved send"],
+ ["ext_vendors","ag_quote","replies"],["ag_quote","p_price_never","asks price",2],
+ ["ag_quote","dec_deadline","quotes in"],["dec_deadline","ag_compare"],["ag_compare","p_award"],
+ ["p_award","ag_pr","award (lock)"],["ag_pr","p_po"],["p_po","fusion_po","approved"],
+ ["ag_pr","fusion_po"],["fusion_po","p_handover","PO created"],["p_handover","end"]
+];
+var QQ_SC=[
+ {id:"W", g:"demo", t:"Full fast-path walkthrough", path:["start","ag_intake","p_brief","ag_suppliers","p_shortlist","ag_rfq","p_send","ext_vendors","ag_quote","dec_deadline","ag_compare","p_award","ag_pr","p_po","fusion_po","p_handover","end"]},
+ {id:"A", g:"phase", t:"A \u00b7 Intake & brief", path:["start","ag_intake","p_brief"]},
+ {id:"B", g:"phase", t:"B \u00b7 Discovery & shortlist", path:["ag_suppliers","fusion_cat","p_shortlist"]},
+ {id:"C", g:"phase", t:"C \u00b7 RFQ draft & send", path:["ag_rfq","p_send","ext_vendors"]},
+ {id:"D", g:"phase", t:"D \u00b7 Quotes & compare", path:["ext_vendors","ag_quote","dec_deadline","ag_compare"]},
+ {id:"E", g:"phase", t:"E \u00b7 Award \u2192 PR \u2192 closed", path:["p_award","ag_pr","p_po","fusion_po","p_handover","end"]},
+ {id:"X1",g:"fair", t:"Fairness: price refusal", path:["ag_quote","p_price_never"]}
+];
+
+var WF={
+ rfp:{title:"Sourcing event (full RFP) \u2014 one fair, documented competition, first message to award",
+      N:RFP_N,E:RFP_E,SC:RFP_SC,PH:RFP_PH,
+      intro:"The full sourcing event: define the need, choose who may compete, tell them the rules, answer questions equally, judge quality before price, improve the offer within the rules, then record the outcome in Oracle Fusion. The agent reads, drafts, ranks, checks, compares, computes and records; every decision that moves the lifecycle and every message or write that leaves the building stays with a named person. In the repo this is the sourcing_rfp@1 workflow and the RFP-0001 demo (make demo-rfp-full).",
+      job:[["Job","RFP-0001 (demo) / SRC-2026-0147 (PRD)"],["Need","Facility cleaning, three malls"],["Raised by","Faisal \u00b7 Facilities"],["Roles","Noura \u00b7 Samir (CDO) \u00b7 Rami \u00b7 Khalid"],["Term","3 years"],["Outcome","Award + Fusion record"]]},
+ qq: {title:"Quick Quote (fast path) \u2014 a defined item from request to purchase order",
+      N:QQ_N,E:QQ_E,SC:QQ_SC,PH:QQ_PH,
+      intro:"The faster shape for a defined item: no master RFP, no CDO gate, no sealed two-envelope evaluation, no BAFO. Find suppliers, send RFQs, collect quotes, compare, award and raise a PO. This is the proven POC journey (quick_quote@1, demo QQ-0001 / QQ-0013).",
+      job:[["Job","QQ-0001 / QQ-0013 (demo)"],["Need","Defined item (e.g. cleaning trolleys)"],["Raised by","Faisal \u00b7 Facilities"],["Roles","Noura \u00b7 Khalid \u00b7 CDO"],["Outcome","Purchase order + handover"]]}
+};
+var cur="rfp", zoom=1;
+
+/* ---------- render engine ---------- */
+var NS="http://www.w3.org/2000/svg";
+var svg=document.getElementById("flow"), fig=document.getElementById("figure");
+var NODE={}, W=0;
+function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function box(n){var w=n.w||148,h=56;if(n.kind==="dec"||n.kind==="evt"){w=n.w||140;h=n.t.length>2?82:74;}if(n.kind==="store"){w=136;h=52;}if(n.kind==="term"){w=92;h=40;}var y=laneY(n.lane,n.slot);return {w:w,h:h,x:cx(n.c)-w/2,y:y-h/2,cx:cx(n.c),cy:y};}
+function route(a,b,loop){
+  var A=box(a),B=box(b),pts;
+  if(a.lane===b.lane){
+    if(loop){var yy=Math.min(A.y,B.y)-16;pts=[[A.cx,A.y],[A.cx,yy],[B.cx,yy],[B.cx,B.y]];}
+    else if(Math.abs(A.cy-B.cy)<2){if(B.cx>A.cx)pts=[[A.x+A.w,A.cy],[B.x,B.cy]];else pts=[[A.x,A.cy],[B.x+B.w,B.cy]];}
+    else{var mx=(A.cx+B.cx)/2;pts=[[A.cx<B.cx?A.x+A.w:A.x,A.cy],[mx,A.cy],[mx,B.cy],[B.cx<A.cx?B.x+B.w:B.x,B.cy]];}
+  } else {
+    var down=a.lane<b.lane, sy=down?A.y+A.h:A.y, ty=down?B.y:B.y+B.h, my=(sy+ty)/2;
+    pts=[[A.cx,sy],[A.cx,my],[B.cx,my],[B.cx,ty]];
+  }
+  return pts;
+}
+function ptsStr(p){return p.map(function(q){return q[0]+","+q[1];}).join(" ");}
+function wrapT(g,n,B,top){n.t.forEach(function(line,i){var tx=el("text",{x:B.cx,y:top+i*13*(1),"text-anchor":"middle","font-size":11.2,fill:"#111"});tx.textContent=line;g.appendChild(tx);});}
+
+function drawWorkflow(wf){
+  svg.innerHTML="";
+  NODE={}; wf.N.forEach(function(n){NODE[n.id]=n;});
+  var maxC=0; wf.N.forEach(function(n){if(n.c>maxC)maxC=n.c;});
+  W=cx(maxC)+120;
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  var defs=el("defs",{});
+  defs.innerHTML='<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>'+
+   '<marker id="arrOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563EB"/></marker>';
+  svg.appendChild(defs);
+  svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:"#fff"}));
+  svg.appendChild(el("rect",{x:1,y:1,width:W-2,height:TITLEBAR-4,fill:"#2C4DB0"}));
+  var tt=el("text",{x:W/2,y:28,"text-anchor":"middle","font-size":16,"font-weight":700,fill:"#fff"});tt.textContent=wf.title;svg.appendChild(tt);
+  /* phase ribbon */
+  var ry=TITLEBAR+2;
+  wf.PH.forEach(function(p,i){
+    var cols=wf.N.filter(function(n){return n.ph===p[0];}).map(function(n){return n.c;});
+    if(!cols.length)return;
+    var x0=cx(Math.min.apply(null,cols))-70, x1=cx(Math.max.apply(null,cols))+70;
+    svg.appendChild(el("rect",{x:x0,y:ry,width:x1-x0,height:RIBBON-4,fill:(i%2?"#E4EAFA":"#DDF2EE"),stroke:"#c9d2e0","stroke-width":1,rx:3}));
+    var pt=el("text",{x:(x0+x1)/2,y:ry+13,"text-anchor":"middle","font-size":11,"font-weight":700,fill:"#2C4DB0"});pt.textContent="Phase "+p[0]+" \u00b7 "+p[1];svg.appendChild(pt);
+  });
+  LANES.forEach(function(l,i){
+    svg.appendChild(el("rect",{x:1,y:l.y0,width:W-2,height:l.y1-l.y0,fill:(i%2?"#fcfcfb":"#ffffff"),stroke:"#c9ccd2","stroke-width":1}));
+    svg.appendChild(el("rect",{x:1,y:l.y0,width:30,height:l.y1-l.y0,fill:l.fill,stroke:"#c9ccd2","stroke-width":1}));
+    var ly=(l.y0+l.y1)/2, lt=el("text",{x:20,y:ly,"text-anchor":"middle","font-size":12,"font-weight":700,fill:"#333",transform:"rotate(-90 20 "+ly+")"});
+    lt.textContent=l.name;svg.appendChild(lt);
+  });
+  var edgeLayer=el("g",{});svg.appendChild(edgeLayer);
+  wf.E.forEach(function(e){
+    var a=NODE[e[0]],b=NODE[e[1]];if(!a||!b)return;
+    var label=e[2]||"",style=e[3]||0, loop=style===1&&a.lane===b.lane, pts=route(a,b,loop);
+    var g=el("g",{class:"edge"});g.dataset.k=e[0]+">"+e[1];
+    var path=el("polyline",{points:ptsStr(pts),fill:"none",stroke:(style===2?"#9aa3b2":"#444"),"stroke-width":1.3,"marker-end":"url(#arr)"});
+    if(style===2)path.setAttribute("stroke-dasharray","4 4");
+    g.appendChild(path);edgeLayer.appendChild(g);
+    if(label){
+      var mid=pts[Math.floor((pts.length-1)/2)],nx=pts[Math.ceil((pts.length-1)/2)];
+      var lx=(mid[0]+nx[0])/2,ly=(mid[1]+nx[1])/2,tw=label.length*5.8+6;
+      var lb=el("g",{class:"elbl"});lb.dataset.k=e[0]+">"+e[1];
+      lb.appendChild(el("rect",{x:lx-tw/2,y:ly-8,width:tw,height:15,fill:"#fff",opacity:.92,rx:2}));
+      var txt=el("text",{x:lx,y:ly+3,"text-anchor":"middle","font-size":10.5,fill:(style===2?"#67707e":"#111")});txt.textContent=label;lb.appendChild(txt);
+      edgeLayer.appendChild(lb);
+    }
+  });
+  var nodeLayer=el("g",{});svg.appendChild(nodeLayer);
+  wf.N.forEach(function(n){
+    var B=box(n),ac=ACTOR[n.actor].c,sc=STATUS[n.st];
+    var g=el("g",{class:"node",id:"n-"+n.id});
+    if(n.kind==="term"){
+      g.appendChild(el("ellipse",{cx:B.cx,cy:B.cy,rx:B.w/2,ry:B.h/2,fill:ac,stroke:"#333","stroke-width":1.2}));
+      var t0=el("text",{x:B.cx,y:B.cy+4,"text-anchor":"middle","font-size":12,"font-weight":700,fill:"#fff"});t0.textContent=n.t[0];g.appendChild(t0);
+    } else if(n.kind==="dec"||n.kind==="evt"){
+      var hw=B.w/2,hh=B.h/2;
+      if(n.kind==="dec") g.appendChild(el("polygon",{points:[B.cx+","+(B.cy-hh),(B.cx+hw)+","+B.cy,B.cx+","+(B.cy+hh),(B.cx-hw)+","+B.cy].join(" "),fill:"#fff",stroke:ac,"stroke-width":2.4}));
+      else g.appendChild(el("polygon",{points:[(B.cx-hw+14)+","+(B.cy-hh),(B.cx+hw-14)+","+(B.cy-hh),(B.cx+hw)+","+B.cy,(B.cx+hw-14)+","+(B.cy+hh),(B.cx-hw+14)+","+(B.cy+hh),(B.cx-hw)+","+B.cy].join(" "),fill:"#fbfbf5",stroke:ac,"stroke-width":1.6}));
+      if(n.sub){var sb=el("text",{x:B.cx,y:B.cy-hh+11,"text-anchor":"middle","font-size":9,"font-weight":600,fill:ac});sb.textContent=n.sub;g.appendChild(sb);}
+      wrapT(g,n,B,B.cy-(n.t.length-1)*6.5+(n.sub?3:0));
+    } else if(n.kind==="store"){
+      var x=B.x,y=B.y,w=B.w,h=B.h,ry2=7;
+      g.appendChild(el("path",{d:"M"+x+","+(y+ry2)+" L"+x+","+(y+h-ry2)+" A"+(w/2)+","+ry2+" 0 0 0 "+(x+w)+","+(y+h-ry2)+" L"+(x+w)+","+(y+ry2),fill:"#eef3fb",stroke:ac,"stroke-width":1.3}));
+      g.appendChild(el("ellipse",{cx:B.cx,cy:y+ry2,rx:w/2,ry:ry2,fill:"#eef3fb",stroke:ac,"stroke-width":1.3}));
+      wrapT(g,n,B,B.cy-(n.t.length-1)*6.5+3);
+    } else {
+      g.appendChild(el("rect",{x:B.x,y:B.y,width:B.w,height:B.h,fill:"#fff",stroke:ac,"stroke-width":1.3,rx:3}));
+      g.appendChild(el("rect",{x:B.x+0.6,y:B.y+0.6,width:B.w-1.2,height:15,fill:ac}));
+      var top=ACTOR[n.actor].label.replace(/ \(.*\)/,"")+(n.sub?"  \u00b7  "+n.sub:"");
+      var al=el("text",{x:B.cx,y:B.y+11,"text-anchor":"middle","font-size":9,"font-weight":600,fill:"#fff"});al.textContent=top;g.appendChild(al);
+      wrapT(g,n,B,B.y+30);
+    }
+    if(n.kind!=="term"){
+      var bx=B.x+B.w-14,by=B.y-7;
+      g.appendChild(el("circle",{cx:bx,cy:by,r:8,fill:sc.c,stroke:"#fff","stroke-width":1.5}));
+      var bt=el("text",{x:bx,y:by+3.5,"text-anchor":"middle","font-size":10,"font-weight":700,fill:"#fff"});bt.textContent=sc.let;g.appendChild(bt);
+      var au=autoOf(n);
+      if(au){
+        var bottom=(n.kind==="dec"||n.kind==="evt")?B.cy+B.h/2:B.y+B.h;
+        g.appendChild(el("rect",{x:B.cx-10,y:bottom-6,width:20,height:13,rx:6,fill:AUTO[au].c,stroke:"#fff","stroke-width":1.2}));
+        var at=el("text",{x:B.cx,y:bottom+4,"text-anchor":"middle","font-size":9.5,"font-weight":700,fill:"#fff"});at.textContent=au;g.appendChild(at);
+      }
+    }
+    nodeLayer.appendChild(g);
+  });
+}
+
+/* ---------- sidebar / detail ---------- */
+var aside=document.getElementById("scen"), detail=document.getElementById("detail");
+var GROUPS=[["demo","Business walkthrough"],["phase","By phase"],["fair","Fairness & loops"]];
+function buildSidebar(wf){
+  aside.innerHTML="";
+  var allB=document.createElement("button");allB.className="all";allB.dataset.s="";allB.setAttribute("aria-pressed","true");
+  allB.innerHTML='<span class="stitle">Whole lifecycle (no highlight)</span>';aside.appendChild(allB);
+  GROUPS.forEach(function(gr){
+    var list=wf.SC.filter(function(s){return s.g===gr[0];});
+    if(!list.length)return;
+    var h=document.createElement("h2");h.textContent=gr[1];aside.appendChild(h);
+    list.forEach(function(s){
+      var b=document.createElement("button");b.dataset.s=s.id;b.setAttribute("aria-pressed","false");
+      b.innerHTML='<span class="sid">'+s.id+'</span><span class="stitle">'+s.t+'</span>';
+      aside.appendChild(b);
+    });
+  });
+  aside.querySelectorAll("button").forEach(function(b){b.addEventListener("click",function(){show(b.dataset.s);});});
+}
+function clearFocus(){
+  svg.classList.remove("focus");
+  svg.querySelectorAll(".on").forEach(function(e){e.classList.remove("on");});
+  svg.querySelectorAll(".edge path").forEach(function(p){p.setAttribute("marker-end","url(#arr)");});
+}
+function show(id){
+  var wf=WF[cur];
+  clearFocus();
+  aside.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.s===id?"true":"false");});
+  if(!id){detail.innerHTML='<h2>'+(cur==="rfp"?"Sourcing event (RFP)":"Quick Quote")+'</h2><div>'+wf.intro+'</div>';return;}
+  var s=wf.SC.find(function(x){return x.id===id;});
+  if(!s)return;
+  svg.classList.add("focus");
+  var on={},pairs={};
+  s.path.forEach(function(nid,i){on[nid]=1;if(i)pairs[s.path[i-1]+">"+nid]=1;});
+  for(var nid in on){var e=document.getElementById("n-"+nid);if(e)e.classList.add("on");}
+  svg.querySelectorAll(".edge").forEach(function(e){if(pairs[e.dataset.k]){e.classList.add("on");var p=e.querySelector("path");if(p)p.setAttribute("marker-end","url(#arrOn)");}});
+  svg.querySelectorAll(".elbl").forEach(function(e){if(pairs[e.dataset.k])e.classList.add("on");});
+  var html='<h2>'+s.id+' &middot; '+s.t+'</h2><ol>';
+  s.path.forEach(function(nid,i){
+    var n=NODE[nid];if(!n)return;var meta=[];if(n.sub)meta.push(n.sub);meta.push(ACTOR[n.actor].label);meta.push(STATUS[n.st].label);
+    html+='<li><span class="num">'+(i+1)+'</span><div><b>'+n.t.join(" ")+'</b> &mdash; '+n.d+'<div class="node-name">'+meta.join(" \u00b7 ")+'</div></div></li>';
+  });
+  html+='</ol>';detail.innerHTML=html;
+  var first=document.getElementById("n-"+s.path[0]);
+  if(first){var r=first.getBoundingClientRect(),fr=fig.getBoundingClientRect();fig.scrollLeft+=r.left-fr.left-200;}
+}
+
+/* legend */
+var leg=document.getElementById("legend");var lh="";
+for(var k in ACTOR) lh+='<span><span class="chip" style="background:'+ACTOR[k].c+'">'+ACTOR[k].label+'</span></span>';
+for(var s2 in STATUS) lh+='<span><span class="chip" style="background:'+STATUS[s2].c+'">'+STATUS[s2].let+' '+STATUS[s2].label+'</span></span>';
+lh+='<span style="flex-basis:100%;height:0"></span><span style="font-weight:700;color:#333">Badge at the foot of each step = who does the work:</span>';
+for(var a3 in AUTO) lh+='<span><span class="chip" style="background:'+AUTO[a3].c+'">'+a3+' '+AUTO[a3].label+'</span></span>';
+lh+='<span style="flex-basis:100%;height:0"></span><span>Diamond = a person decides or an automatic gate \u00b7 cylinder = stored data or a system \u00b7 dashed = a loop or side path</span>';
+leg.innerHTML=lh;
+
+/* zoom */
+function setZoom(z){zoom=z;svg.setAttribute("width",W*z);svg.setAttribute("height",H*z);}
+function applyZoomButton(){var b=document.querySelector('.bar button[aria-pressed=true]');if(!b)return;if(b.dataset.z==="fit")setZoom(Math.min(1,(fig.clientWidth-20)/W));else setZoom(parseFloat(b.dataset.z));}
+document.querySelectorAll(".bar button").forEach(function(b){
+  b.addEventListener("click",function(){
+    document.querySelectorAll(".bar button").forEach(function(x){x.setAttribute("aria-pressed","false");});
+    b.setAttribute("aria-pressed","true");applyZoomButton();
+  });
+});
+
+/* jobcard */
+function buildJob(wf){document.getElementById("jobcard").innerHTML=wf.job.map(function(j){return '<div><dt>'+j[0]+'</dt><dd>'+j[1]+'</dd></div>';}).join("");}
+
+/* ---------- implemented + issues ---------- */
+var IMPLEMENTED=[
+ ["Intake & brief","Chat intake with a versioned brief; the RFP specification stage (RFP validation, template check, scoring agreement, uploads) with send-back to the requester. Skills sourcing_assist, request_intake, rfp_intake; verifier brief_schema."],
+ ["Supplier discovery","Parallel ranking against the mock ERP on five signals with cited sources; minimum-of-three shortlist. Skill supplier_lookup; verifier sources_cited; mock_erp browse_categories / search_suppliers / get_supplier_history."],
+ ["RFP build & leak check","Master + Vendor RFP with internal vs shareable separation; leak_check blocks internal figures from the vendor copy. Master RFP 70/30 QCBS content in the demo."],
+ ["CDO approval","Master RFP approval by the CDO (Samir) before any vendor email; send-back loop. decision.master_rfp_confirmed."],
+ ["Invitations & mailbox","One invitation per vendor, approve-and-send, mailbox watcher classifies replies. Verifier recipient_check."],
+ ["Clarifications routing","Commercial questions route to Sourcing (Noura), technical to the category manager (Rami); one anonymised answer to all. demo_clarifications."],
+ ["Evaluation sheets","Module-level pricing; Commercial, Technical and Weighted evaluation sheets with a scoring rubric. Artifact types for technical/commercial criterion scores and eval policy. Skill rfp_evaluation."],
+ ["BAFO","Line-item / module comparison, negotiation drafts and re-scoring with the same weights. Skill bafo_negotiation; demo_bafo."],
+ ["Requisition to ERP","Purchase requisition / PO write with exactly-once semantics and reconcile (create_pr/create_po, reconcile_with find_pr/find_po). Verifier payload_match."],
+ ["Quick Quote end to end","QQ-0001 / QQ-0013 run request\u2192quotes\u2192compare\u2192award\u2192PO as the proven POC journey."],
+ ["Demo harness","make demo-rfp-full / demo-client-full bootstrap, supplier simulation (acks, clarifications, proposals), backup/restore, and kernel-posted progress lines."],
+ ["Three queues & work panel","Separate inboxes/queues for Noura, Samir and Rami; Drafts / Responses / Documents work panel with per-reply version history."]
+];
+/* delivery scope: everything the sourcing agent is designed to cover, by status.
+   status: impl = live today, prog = building & hardening now, plan = next on the roadmap. */
+var ROADMAP=[
+ ["Conversational intake & brief","The agent interviews the requester, asks only for what is missing and produces one versioned, validated brief.","Request (A)","impl"],
+ ["Supplier discovery & ranking","Suppliers are ranked on five cited signals in parallel, with a minimum shortlist of three.","Suppliers (B)","impl"],
+ ["RFP authoring with leak protection","Master and vendor RFPs are drafted with a strict internal-vs-shareable split and an automatic leak check.","RFP (C)","impl"],
+ ["CDO approval gate","The master RFP is approved by the CDO before anything reaches a vendor, with a send-back loop.","RFP (C)","impl"],
+ ["Invitations & mailbox watch","One invitation per vendor; the agent watches the mailbox and classifies every reply.","Vendor engagement (D)","impl"],
+ ["Clarifications routing","Commercial questions go to Sourcing, technical to the category manager, with one equal answer to all bidders.","Vendor engagement (D)","impl"],
+ ["Evaluation sheets","Module-level pricing with technical, commercial and weighted sheets and a visible scoring rubric.","Evaluation (E)","impl"],
+ ["BAFO negotiation","Line-item comparison, negotiation drafts and re-scoring on the same weights.","Award (F)","impl"],
+ ["Requisition to ERP","The requisition is written exactly once, with reconcile-and-retry safety.","Award (F)","impl"],
+ ["Quick Quote, end to end","The fast path runs request to purchase order as the proven journey.","Fast path","impl"],
+ ["Role queues & work panel","A separate queue per role with a Drafts / Responses / Documents work panel.","All stages","impl"],
+ ["Sealed two-envelope pricing","Prices held in a separate store, never opened before technical scores lock and never shown to evaluators.","Proposals / Evaluation","prog"],
+ ["Unified governed action path","Every outbound send and approval bound to the exact approved content.","Release / Award","prog"],
+ ["Fully autonomous governed run","The agent driving every stage live, beyond the current guided demo.","Whole lifecycle","prog"],
+ ["Native Oracle Fusion negotiation & award","Write the sourcing negotiation (with its rounds) and the per-vendor award record into Fusion, alongside the requisition.","Award (F)","plan"],
+ ["New-supplier onboarding","Duplicate check on name, CR and VAT, then supplier creation and category mapping in Fusion.","Suppliers (B)","plan"],
+ ["Independent multi-evaluator scoring","Each evaluator scores privately with change-reasons, and a moderation step when scores diverge.","Evaluation (E)","plan"],
+ ["Independent score re-check","A verifier that recomputes evaluation and comparison scores as a second check.","Evaluation (E)","plan"],
+ ["Vendor-engagement tracking","Acknowledgement tracking, reminders, reference checks and all-bidder deadline extensions as first-class steps.","Vendor engagement (D)","plan"],
+ ["Criteria-version lock","Criteria locked after approval, with a fresh approval needed for any change.","RFP (C)","plan"],
+ ["Award-decision role alignment","Confirm the final owner of the award decision in line with the approved PRD.","Recommendation (E/F)","plan"],
+ ["Lifecycle exits","Pause from any stage, cancel with a vendor notice, and re-tender when no bid qualifies.","Whole lifecycle","plan"]
+];
+/* ---------- current (manual) workflow vs agent-run lifecycle ---------- */
+var COMPARE=[
+ ["A \u00b7 Request & brief",
+  "Requester emails Procurement a loose request; the buyer chases missing details for days; the brief lives in Word and travels by email with no single version.",
+  "The agent interviews the requester, asks only for what is missing, validates against the template and produces one versioned brief; the requester confirms.",
+  "Days of back-and-forth collapse to minutes; one source of truth; far fewer restarts because nothing is half-specified.",
+  ["A","H"]],
+ ["B \u00b7 Suppliers",
+  "The buyer searches Fusion, past files and memory, builds a shortlist in a spreadsheet; ranking is subjective and the minimum of three is often skipped.",
+  "The agent ranks mapped suppliers on five cited signals in parallel and enforces at least three before the event can move.",
+  "Hours of manual lookup become seconds; the shortlist is defensible and evidence-backed instead of 'who we used last time'.",
+  ["A","H"]],
+ ["C \u00b7 RFP & approval",
+  "The buyer copies an old RFP (risking a budget or incumbent leak); criteria are argued in meetings; CDO sign-off is chased over email with no clear trail.",
+  "The agent drafts the Master and Vendor RFP with a hard internal-vs-shareable split, runs a leak check, assembles the approval pack and routes it to the CDO.",
+  "Reuse mistakes and budget leaks are blocked up front; approval becomes a recorded step instead of an inbox thread.",
+  ["A","S","H"]],
+ ["D \u00b7 Vendor engagement",
+  "The buyer emails each vendor, tracks acknowledgements in a sheet, answers questions ad hoc (risking unequal information) and extends deadlines inconsistently.",
+  "The agent sends one invite per vendor, watches the mailbox, splits and classifies questions, drafts one equal answer to all bidders and routes technical vs commercial.",
+  "No vendor is missed, equal treatment is enforced, and the tracking spreadsheet disappears.",
+  ["A","S"]],
+ ["E \u00b7 Evaluation",
+  "Scores are gathered by email and Excel, prices are often visible too early, arithmetic slips in, and there is no record of how differences were moderated.",
+  "The agent suggests a score per criterion with quoted evidence, keeps price sealed until technical scores lock, and computes the normalised commercial score.",
+  "Price-blind technical scoring, reliable arithmetic and an auditable trail replace a fragile, manual tally.",
+  ["A","H"]],
+ ["F \u00b7 Award",
+  "Negotiation and award/regret letters are hand-written (leak risk), and the requisition is keyed into Fusion by hand with the usual risk of errors or duplicate orders.",
+  "The agent drafts the BAFO and the award/regret letters (never another vendor's price) and writes the requisition exactly once, reconciling and retrying safely.",
+  "No duplicate POs, no price leak in letters, and a faster, cleaner close.",
+  ["A","S","H"]]
+];
+var GAINS=[
+ ["Time","Manual sourcing events run for weeks \u2014 the PRD worked example closed on day 49. The agent removes the drafting, chasing and tracking from the critical path, so what is left is mostly genuine vendor and decision wait."],
+ ["Effort","Dozens of emails and spreadsheets per event are handled by the agent. People step in only at the decisions and approvals that are theirs to make."],
+ ["Reliability","Leak checks, recipient checks, exactly-once requisitions, the sealed price and one equal answer to all bidders are enforced by the agent, not left to individual discipline."],
+ ["Clarity","One versioned source of truth and a full decision trail, instead of scattered inboxes, private spreadsheets and 'who approved what?'."]
+];
+function autoChips(list){return list.map(function(a){return '<span class="chip" style="background:'+AUTO[a].c+';margin:0 4px 3px 0">'+a+'</span>';}).join("");}
+function buildCompare(){
+  var rows=COMPARE.map(function(r){return '<tr><td><b>'+r[0]+'</b></td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+autoChips(r[4])+'</td></tr>';}).join("");
+  var gains=GAINS.map(function(g){return '<div class="pcard"><h4>'+g[0]+'</h4><p>'+g[1]+'</p></div>';}).join("");
+  var autoLeg=Object.keys(AUTO).map(function(a){return '<span class="chip" style="background:'+AUTO[a].c+'">'+a+' &mdash; '+AUTO[a].label+'</span>';}).join(" ");
+  document.getElementById("compare").innerHTML=
+   '<h2>Today&rsquo;s manual process vs the agent-run lifecycle</h2>'+
+   '<p>The same sourcing event, run two ways. On the left is how it happens today \u2014 email, spreadsheets and meetings, held together by the buyer. On the right is the agent-run lifecycle in the chart above. The last column shows <b>where the work is agentic</b> and where a person still owns the step.</p>'+
+   '<div style="margin:6px 0 12px">'+autoLeg+'</div>'+
+   '<table><thead><tr><th style="width:15%">Phase</th><th style="width:27%">Today (manual)</th><th style="width:27%">With the sourcing agent</th><th style="width:21%">What improves</th><th style="width:10%">Where it&rsquo;s agentic</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+   '<h3>What this buys the business</h3>'+
+   '<div class="cards">'+gains+'</div>'+
+   '<p class="note">Every drafting, reading, ranking, checking and computing step sits in the <b>Agent</b> lane and carries an <b>A</b> badge \u2014 that is the agentic automation. The <b>S</b> steps are where the agent prepares the work and a named person approves or sends it; the <b>H</b> steps are decisions the business keeps (confirm the brief, the shortlist, the CDO approval, the award). Nothing leaves the building, and nothing moves the lifecycle, without a person at an S or H step.</p>';
+}
+function buildImplemented(){
+ document.getElementById("implemented").innerHTML='<h2>What the agent does today &mdash; in detail</h2>'+
+  '<p>The capabilities already live in the build. The roadmap below sets these out alongside the scope still to come.</p>'+
+  '<div class="cards">'+IMPLEMENTED.map(function(r){return '<div class="pcard"><h4>'+r[0]+'</h4><p>'+r[1]+'</p></div>';}).join("")+'</div>';
+}
+var RM_STATUS={impl:{l:"Implemented",c:"#15803D"},prog:{l:"In progress",c:"#D97706"},plan:{l:"Planned",c:"#2563EB"}};
+var RM_GROUPS=[
+ ["impl","Implemented \u2014 live today","Working in the build now and shown in the walkthrough above."],
+ ["prog","In progress \u2014 building and hardening now","Underway: the core is in place and is being completed and strengthened."],
+ ["plan","Planned \u2014 next on the roadmap","Defined scope the agent is designed to cover, scheduled for upcoming delivery."]
+];
+function buildRoadmap(){
+ var groups=RM_GROUPS.map(function(g){
+   var items=ROADMAP.filter(function(r){return r[3]===g[0];});
+   var m=RM_STATUS[g[0]];
+   var cards=items.map(function(r){return '<div class="pcard" style="border-left:4px solid '+m.c+'"><h4>'+r[0]+'</h4><p>'+r[1]+'</p><p style="margin-top:6px"><span class="st '+g[0]+'">'+m.l+'</span> &nbsp;<span class="node-name">'+r[2]+'</span></p></div>';}).join("");
+   return '<h3 style="border-left:4px solid '+m.c+';padding-left:8px">'+g[1]+' <span style="color:#999;font-weight:400">('+items.length+')</span></h3>'+
+          '<p style="margin-top:0">'+g[2]+'</p><div class="cards">'+cards+'</div>';
+ }).join("");
+ document.getElementById("issues").innerHTML='<h2>Delivery status &amp; roadmap</h2>'+
+  '<p>The sourcing agent is delivered in stages against a defined scope. Everything below is part of the agent&rsquo;s intended design: what is <b>live today</b>, what is <b>in progress</b>, and what is <b>planned next</b>. This is the roadmap, not a list of gaps &mdash; each planned item is scope the agent is meant to cover.</p>'+
+  '<div style="margin:4px 0 14px">'+Object.keys(RM_STATUS).map(function(k){return '<span class="st '+k+'" style="margin-right:8px">'+RM_STATUS[k].l+'</span>';}).join("")+'</div>'+
+  groups;
+}
+
+/* ---------- workflow switch ---------- */
+function loadWF(key){
+  cur=key;
+  document.querySelectorAll("#wftabs button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.wf===key?"true":"false");});
+  buildJob(WF[key]);
+  drawWorkflow(WF[key]);
+  buildSidebar(WF[key]);
+  applyZoomButton();
+  show("");
+  fig.scrollLeft=0;
+}
+document.querySelectorAll("#wftabs button").forEach(function(b){b.addEventListener("click",function(){loadWF(b.dataset.wf);});});
+
+buildCompare();
+buildImplemented();
+buildRoadmap();
+loadWF("rfp");
+</script>
+</body></html>

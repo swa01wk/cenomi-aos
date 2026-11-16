@@ -17,6 +17,7 @@ from .job_title import display_instance_title
 from .org import OrgModel
 
 _TEAM_OWNER_RULE = re.compile(r"^team_owner\(([a-z0-9_]+/[a-z0-9_]+)\)$")
+_ORG_ROLE_RULE = re.compile(r"^org_role\(([a-z][a-z0-9_]{0,63})\)$")
 
 
 class ParticipantError(Exception):
@@ -50,7 +51,28 @@ def parse_team_owner_rule(rule: str) -> str | None:
     return m.group(1) if m else None
 
 
+def eval_org_role_rule(rule: str) -> str | None:
+    m = _ORG_ROLE_RULE.match((rule or "").strip())
+    return m.group(1) if m else None
+
+
+def person_for_org_role(org: OrgModel, role: str) -> str:
+    matches = [pid for pid, p in org.people.items() if role in (p.roles or [])]
+    if not matches:
+        raise ParticipantError(
+            "validation_failed",
+            422,
+            "No person for org role",
+            f"No one in the organization has role {role!r}.",
+        )
+    matches.sort()
+    return matches[0]
+
+
 def eval_participant_rule(org: OrgModel, rule: str) -> str:
+    org_role = eval_org_role_rule(rule)
+    if org_role is not None:
+        return person_for_org_role(org, org_role)
     team_path = parse_team_owner_rule(rule)
     if team_path is None:
         raise ParticipantError(

@@ -45,7 +45,7 @@ describe("WorkPanelComposerHint", () => {
         onOpenDraft={vi.fn()}
       />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent(/draft outbound message.*ready/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/1 draft ready/i);
     expect(screen.getByRole("button", { name: "Open draft" })).toBeInTheDocument();
   });
 

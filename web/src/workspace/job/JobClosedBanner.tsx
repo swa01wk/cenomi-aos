@@ -51,7 +51,7 @@ export function JobClosedBanner({ snapshot }: { snapshot: InstanceSnapshot }) {
   const reference = poContent.data?.reference
     ? String(poContent.data.reference)
     : poArtifact
-      ? `PO-${snapshot.instance_id.replace(/\D/g, "").padStart(6, "0")}`
+      ? `PR-${snapshot.instance_id.replace(/\D/g, "").padStart(6, "0")}`
       : null;
   const supplierId = poContent.data?.supplier_id ? String(poContent.data.supplier_id) : null;
   const amount = formatMoney(poContent.data?.po_amount);
@@ -64,16 +64,16 @@ export function JobClosedBanner({ snapshot }: { snapshot: InstanceSnapshot }) {
       </div>
       <div className={styles.copy}>
         <p className={styles.title}>
-          {reference ? "Order placed" : "Job complete"}
+          {reference ? "Requisition submitted" : "Job complete"}
         </p>
         {reference ? (
           <>
             <p className={styles.poLine}>
-              Purchase order{" "}
+              Purchase requisition{" "}
               <span className={styles.poId} data-testid="closed-po-id">
                 {reference}
               </span>{" "}
-              created in Oracle Fusion
+              submitted in Oracle Fusion
               {supplierId ? (
                 <>
                   {" "}
@@ -82,7 +82,7 @@ export function JobClosedBanner({ snapshot }: { snapshot: InstanceSnapshot }) {
               ) : null}
               .
             </p>
-            {amount ? <p className={styles.amount}>{amount} total</p> : null}
+            {amount ? <p className={styles.amount}>{amount} requisition total</p> : null}
           </>
         ) : (
           <p className={styles.detail}>
@@ -91,7 +91,8 @@ export function JobClosedBanner({ snapshot }: { snapshot: InstanceSnapshot }) {
           </p>
         )}
         <p className={styles.detailMuted}>
-          <span className={styles.jobId}>{snapshot.instance_id}</span> is closed. PO details stay in the work panel.
+          <span className={styles.jobId}>{snapshot.instance_id}</span> is closed. Requisition details stay in the work
+          panel; Fusion converts to PO after approval.
         </p>
         <Link
           to={`/workspace?repeat=${encodeURIComponent(snapshot.instance_id)}`}

@@ -5,6 +5,16 @@ type FieldDef = components["schemas"]["ArtifactView"]["fields"][number];
 /** One PO or catalog line stored as an object on a list field. */
 export function formatLineItemObject(value: Record<string, unknown>): string {
   const desc = value.description ?? value.name ?? value.item ?? "Item";
+  const moduleId = value.module_id;
+  if (moduleId != null && String(moduleId).trim()) {
+    const label = String(desc);
+    const amount = value.amount ?? value.unit_price;
+    const n = typeof amount === "number" ? amount : Number(amount);
+    if (Number.isFinite(n)) {
+      return `${moduleId} · ${label} · SAR ${n.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+    }
+    return `${moduleId} · ${label}`;
+  }
   const qty = value.quantity ?? value.qty;
   const price = value.unit_price ?? value.price;
   const currency = typeof value.currency === "string" ? value.currency : "";

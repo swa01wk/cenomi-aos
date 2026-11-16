@@ -141,7 +141,7 @@ class ConsoleReadsTests(unittest.TestCase):
                 by_template[t["template"]] = t.get("needs_approval")
         self.assertFalse(by_template["rfq_draft"])
         self.assertTrue(by_template["rfq_send"])
-        self.assertTrue(by_template["po_create"])
+        self.assertTrue(by_template["pr_create"])
         tr = next(t for t in body["transitions"] if t["from"] == "awaiting_quotes" and t["to"] == "comparison")
         self.assertIsInstance(tr["on"], list)
         self.assertEqual(len(tr["on"]), 2)

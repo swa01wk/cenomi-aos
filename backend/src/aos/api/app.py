@@ -78,6 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             interval_s=settings.scheduler_interval_seconds,
             org=org,
             packs_dir=settings.packs_dir,
+            demo=settings.demo,
         )
         try:
             yield

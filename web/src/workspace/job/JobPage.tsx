@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiProblemError } from "../../api/problems";
@@ -31,6 +31,22 @@ import { HandoffTransition } from "../HandoffTransition";
 import { assigneeLabel, workerColleagueName, workerInitials } from "../persona";
 import type { components } from "../../api/schema";
 import styles from "./job.module.css";
+import { WorkPanelResizeHandle } from "./WorkPanelResizeHandle";
+import { useWorkPanelWidth } from "./useWorkPanelWidth";
+
+function useMinWidth(minPx: number): boolean {
+  const [ok, setOk] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(`(min-width: ${minPx}px)`).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${minPx}px)`);
+    const sync = () => setOk(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [minPx]);
+  return ok;
+}
 
 type Worker = components["schemas"]["DigitalWorker"];
 
@@ -59,6 +75,8 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
 
   const userPanelOverride = useRef(false);
   const prevWorkflowState = useRef<string | null>(null);
+  const sideBySide = useMinWidth(chatLayout ? 960 : 1080);
+  const { width: workPanelWidth, startResize, resetWidth } = useWorkPanelWidth();
 
   useEffect(() => {
     setHandoffUi(null);
@@ -206,12 +224,20 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
   const specialistJob = !isCoordinatorJob(snapshot);
   /** Person-chat route: show the work column for real jobs, not only after the first artifact exists. */
   const chatWorkColumn = chatLayout && (hasWorkArtifacts || specialistJob);
+  const workPanelVisible = chatLayout ? chatWorkColumn : true;
+  const resizable = Boolean(workPanelVisible && sideBySide);
+
   const layoutClass = [
     chatLayout ? styles.jobLayoutChatOnly : styles.jobLayout,
     chatWorkColumn ? styles.jobLayoutChatSplit : "",
+    resizable ? styles.jobLayoutResizable : "",
   ]
     .filter(Boolean)
     .join(" ");
+
+  const layoutStyle: CSSProperties | undefined = resizable
+    ? ({ "--work-panel-width": `${workPanelWidth}px` } as CSSProperties)
+    : undefined;
 
   const workPanel = (
     <WorkPanel
@@ -233,8 +259,21 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
     />
   );
 
+  const renderWorkPanel = () => (
+    <>
+      {resizable ? (
+        <WorkPanelResizeHandle
+          onResizeStart={startResize}
+          onReset={resetWidth}
+          jobLayout={!chatLayout}
+        />
+      ) : null}
+      {workPanel}
+    </>
+  );
+
   return (
-    <div className={layoutClass}>
+    <div className={layoutClass} style={layoutStyle}>
       <Conversation
         snapshot={snapshot}
         streamingTurnId={job.streamingTurnId}
@@ -261,6 +300,7 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
         onComposerTextChange={(t) => setComposerDraft(instanceId, t)}
         onSend={onSend}
         onDecide={job.decide}
+        onSaveArtifactVersion={job.saveArtifactVersion}
         onOpenArtifact={openArtifact}
         onLoadOlder={() => void job.loadOlderTurns()}
         showLoadOlder={snapshot.turns.length >= 50}
@@ -274,7 +314,11 @@ export default function JobPage({ chatLayout = false }: { chatLayout?: boolean }
           else setSearchParams({ panel: "work" });
         }}
       />
-      {chatLayout ? (chatWorkColumn ? workPanel : null) : workPanel}
+      {chatLayout
+        ? chatWorkColumn
+          ? renderWorkPanel()
+          : null
+        : renderWorkPanel()}
       {composerProblem && (
         <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 480, zIndex: 50 }}>
           <ProblemNotice problem={composerProblem} />

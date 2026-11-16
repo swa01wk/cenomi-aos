@@ -612,6 +612,14 @@ async def _finalize_send_rfqs_once(
         from aos.kernel import quotes as quote_ops
 
         await quote_ops.ensure_quote_deadline_from_brief(conn, instance_id)
+        if _artifact_type == "rfp_invitation" and os.environ.get("AOS_DEMO", "0").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            from aos.kernel.demo_rfp_acks import schedule_demo_rfp_ack_times
+
+            await schedule_demo_rfp_ack_times(conn, instance_id, sent_keys)
 
     from aos.kernel.task_retry import void_open_task_retry
 

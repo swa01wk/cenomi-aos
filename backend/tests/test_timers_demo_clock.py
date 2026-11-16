@@ -221,7 +221,7 @@ class TimerTickTests(unittest.IsolatedAsyncioTestCase):
                         return await workflow.apply_event(
                             c2,
                             inst,
-                            "task.completed.po_create",
+                            "task.completed.pr_create",
                             by_role=None,
                             packs_dir=self.tmp,
                             org=ORG,

@@ -1,19 +1,26 @@
 apiVersion: aos/v1
 kind: ArtifactType
-metadata: {name: rfp_evaluation, version: 1, owner: head_of_procurement}
+metadata: {name: rfp_evaluation, version: 2, owner: head_of_procurement}
 spec:
-  description: Proposals totalled and scored for award.
+  description: Weighted combined RFP scores (commercial and technical) for category head vendor choice.
   fields:
     rank: {type: integer, required: true}
     supplier: {type: string, required: true}
+    supplier_id: {type: string, required: true}
     unit_price: {type: money, required: true, classification: restricted}
     total: {type: money, required: true, classification: restricted}
     lead_time_days: {type: integer, required: true}
-    warranty_months: {type: integer}
-    score: {type: number, required: true}
+    commercial_score: {type: number, required: true}
+    technical_score: {type: number, required: true}
+    weighted_score: {type: number, required: true}
+    commercial_weight: {type: number}
+    technical_weight: {type: number}
   row_based: true
-  row_key: supplier
-  view: {type: sheet, columns: [rank, supplier, unit_price, total, lead_time_days, warranty_months, score], export: excel}
+  row_key: supplier_id
+  view:
+    type: sheet
+    columns: [rank, supplier, commercial_score, technical_score, weighted_score, total, lead_time_days]
   visibility:
     buyer: all
     procurement_approver: all
+    category_manager: all

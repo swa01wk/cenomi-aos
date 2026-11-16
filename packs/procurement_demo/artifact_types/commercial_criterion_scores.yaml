@@ -1,0 +1,28 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: commercial_criterion_scores, version: 1, owner: head_of_procurement}
+spec:
+  description: Commercial envelope criteria with weighted contributions (price uses lowest-qualified QCBS formula).
+  fields:
+    line_id: {type: string, required: true}
+    supplier_id: {type: string, required: true}
+    supplier: {type: string, required: true}
+    criterion_id: {type: string, required: true}
+    criterion: {type: string, required: true}
+    weight_pct: {type: number, required: true}
+    score_component: {type: number, required: true}
+    contribution_pts: {type: number, required: true}
+    qualified: {type: boolean, required: true}
+    evaluated_total: {type: money, classification: restricted}
+    lowest_qualified_total: {type: money, classification: restricted}
+    calculation_notes: {type: text, classification: shareable}
+  row_based: true
+  row_key: line_id
+  view:
+    type: sheet
+    columns:
+      [supplier, criterion, weight_pct, score_component, contribution_pts, calculation_notes]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: [supplier, criterion, weight_pct, score_component, contribution_pts, calculation_notes]

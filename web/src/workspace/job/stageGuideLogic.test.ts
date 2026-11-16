@@ -188,8 +188,10 @@ describe("jobStepGuide", () => {
           {
             artifact_id: "m1",
             artifact_type: "master_rfp",
+            name: "Master RFP",
+            status: "draft",
             latest_version: 2,
-            view: { type: "document", title: "Master RFP" },
+            view: { type: "document", fields: [] },
           },
         ],
         pending: [

@@ -1054,12 +1054,23 @@ async def create_artifact_version(
     )
     hidden = projected.get("hidden_fields") or []
     if hidden:
-        raise ArtifactError(
-            "not_permitted",
-            403,
-            "Cannot edit hidden fields",
-            "You cannot save a version that would overwrite fields you cannot see.",
-        )
+        stored = await _fetch_version(conn, artifact_id, latest)
+        if stored is None:
+            raise ArtifactError(
+                "not_found",
+                404,
+                "Version not found",
+                f"No version {latest} for artifact {artifact_id!r}.",
+            )
+        base = stored.content if isinstance(stored.content, dict) else {}
+        merged = dict(base)
+        for key, val in content.items():
+            if key not in hidden:
+                merged[key] = val
+        for key in hidden:
+            if key not in content and key in base:
+                merged[key] = base[key]
+        content = merged
 
     field_errors = validate_artifact_content(at.spec, content, partial=False)
     if field_errors:

@@ -19,6 +19,12 @@ def _quick_quote() -> WorkflowDefinition:
     return wf
 
 
+def _sourcing_rfp() -> WorkflowDefinition:
+    wf = load_pack(PACK).get("WorkflowDefinition")["sourcing_rfp"]
+    assert isinstance(wf, WorkflowDefinition)
+    return wf
+
+
 class QuickQuoteTransitions(unittest.TestCase):
     def setUp(self) -> None:
         self.wf = _quick_quote()
@@ -93,7 +99,7 @@ class QuickQuoteTransitions(unittest.TestCase):
         m2 = match_transition(
             self.wf,
             state="ordering",
-            event="task.completed.po_create",
+            event="task.completed.pr_create",
             actor_role=None,
         )
         assert m2.transition is not None
@@ -122,7 +128,7 @@ class QuickQuoteTransitions(unittest.TestCase):
             ("rfq_sending", "task.completed.rfq_send", None, {}),
             ("awaiting_quotes", "timer.quotes_closed", None, {"quote_count": 2}),
             ("comparison", "decision.supplier_selected", "buyer", {}),
-            ("ordering", "task.completed.po_create", None, {}),
+            ("ordering", "task.completed.pr_create", None, {}),
         ]
         for state, event, role, attrs in cases:
             m = match_transition(
@@ -134,6 +140,55 @@ class QuickQuoteTransitions(unittest.TestCase):
             )
             self.assertIsNone(m.reason, f"{state} {event}")
             self.assertIsNotNone(m.transition, f"{state} {event}")
+
+
+class SourcingRfpTransitions(unittest.TestCase):
+    def setUp(self) -> None:
+        self.wf = _sourcing_rfp()
+
+    def test_vendor_recommended_moves_to_ordering(self) -> None:
+        m = match_transition(
+            self.wf,
+            state="comparison",
+            event="decision.vendor_recommended",
+            actor_role="category_manager",
+        )
+        self.assertIsNone(m.reason)
+        assert m.transition is not None
+        self.assertEqual(m.transition.to, "ordering")
+
+    def test_commercial_eval_confirmed_moves_to_bafo(self) -> None:
+        m = match_transition(
+            self.wf,
+            state="comparison",
+            event="decision.commercial_eval_confirmed",
+            actor_role="buyer",
+        )
+        self.assertIsNone(m.reason)
+        assert m.transition is not None
+        self.assertEqual(m.transition.to, "bafo")
+
+    def test_bafo_round_complete_returns_to_comparison(self) -> None:
+        m = match_transition(
+            self.wf,
+            state="bafo",
+            event="decision.bafo_round_complete",
+            actor_role="buyer",
+        )
+        self.assertIsNone(m.reason)
+        assert m.transition is not None
+        self.assertEqual(m.transition.to, "comparison")
+
+    def test_commercial_clarification_stays_in_awaiting_proposals(self) -> None:
+        m = match_transition(
+            self.wf,
+            state="awaiting_proposals",
+            event="decision.clarification_commercial_approved",
+            actor_role="buyer",
+        )
+        self.assertIsNone(m.reason)
+        assert m.transition is not None
+        self.assertEqual(m.transition.to, "awaiting_proposals")
 
 
 if __name__ == "__main__":

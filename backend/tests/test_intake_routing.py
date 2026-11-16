@@ -98,6 +98,27 @@ class IntakeRoutingTests(unittest.TestCase):
         )
         self.assertEqual(wf, "sourcing_rfp")
 
+    def test_formal_marketing_website_rfp_routes_to_sourcing_rfp(self) -> None:
+        workers = [
+            {
+                "seat": "seat_sourcing_poc",
+                "workflows": [
+                    {"name": "quick_quote", "intake_hints": ["need", "service", "buy", "quote"]},
+                    {
+                        "name": "sourcing_rfp",
+                        "title": "Sourcing event (full RFP)",
+                        "intake_hints": ["rfp", "website", "software", "development"],
+                    },
+                ],
+            },
+        ]
+        seat, wf = route_intake_message(
+            "Formal RFP for full redesign of Cenomi malls public marketing website",
+            workers,
+        )
+        self.assertEqual(seat, "seat_sourcing_poc")
+        self.assertEqual(wf, "sourcing_rfp")
+
     def test_website_rfp_phrasing_routes_to_sourcing_rfp(self) -> None:
         workers = [
             {

@@ -1,0 +1,42 @@
+# Scripted PR raise: save po_payload (requisition payload), request create_pr (Fusion converts to PO later).
+attempts:
+  - turns:
+      - tool_calls:
+          - name: read_artifact
+            args:
+              artifact_type: brief
+          - name: read_artifact
+            args:
+              artifact_type: quote
+              key: SUP-11632
+          - name: save_draft
+            args:
+              artifact_type: po_payload
+              content:
+                supplier_id: SUP-11632
+                ship_to: Al Nakheel Mall, Riyadh, Saudi Arabia
+                need_by: "2026-12-20"
+                currency: SAR
+                reference: AOS-QQ-0001-PR1
+                lines:
+                  - item: Apple MacBook Air 13-inch M4 8GB 256GB
+                    quantity: 13
+                    unit_price: 4250
+                po_amount: 55250
+          - name: request_action
+            args:
+              action: create_pr
+              tool: create_pr
+              args:
+                supplier_id: SUP-11632
+                ship_to: Al Nakheel Mall, Riyadh, Saudi Arabia
+                need_by: "2026-12-20"
+                currency: SAR
+                reference: AOS-QQ-0001-PR1
+                lines:
+                  - item: Apple MacBook Air 13-inch M4 8GB 256GB
+                    quantity: 13
+                    unit_price: 4250
+      - reply_text: >-
+          I prepared the purchase requisition in Oracle Fusion. Once approvals complete in Fusion,
+          procurement converts it to a PO — AOS stops here.

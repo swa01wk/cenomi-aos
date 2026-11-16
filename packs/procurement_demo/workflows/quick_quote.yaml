@@ -76,7 +76,7 @@ spec:
       label: Comparison
       view: comparison
       on_event:
-        mail.message_received: {template: quote_triage, skill: quote_triage, work_type: analysis, on_behalf_of: buyer}
+        mail.message_received: {template: quote_triage_late, skill: quote_triage, work_type: analysis, on_behalf_of: buyer}
       tasks:
         - template: quote_comparison
           skill: quote_comparison
@@ -85,10 +85,10 @@ spec:
           on_behalf_of: buyer
           budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
     ordering:
-      label: Ordering
+      label: Requisition
       view: po_payload
       tasks:
-        - template: po_create
+        - template: pr_create
           skill: quote_comparison
           work_type: record_update
           verifier: payload_match
@@ -111,7 +111,7 @@ spec:
     - {from: rfq_sending, to: awaiting_quotes, on: task.completed.rfq_send, effects: [{start_timer: quote_deadline}]}
     - {from: awaiting_quotes, to: comparison, on: [timer.quotes_closed, event.all_quotes_received, event.first_quote_ready], guard: "attr.quote_count >= 1"}
     - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: comparison}]}
-    - {from: ordering, to: closed, on: task.completed.po_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
+    - {from: ordering, to: closed, on: task.completed.pr_create, effects: [{handover: requester}, {outcome_record: true}, {cancel_timers: true}]}
   timers:
     quote_deadline: {after: 5d, demo_after: 90s, emits: quotes_closed}
   decisions:

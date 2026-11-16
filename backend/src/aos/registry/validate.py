@@ -21,6 +21,7 @@ SUBJECT_FIELDS = {"role", "participant_roles", "id"}
 EFFECT_KEYS = {"start_timer", "cancel_timers", "lock", "handover", "outcome_record", "bind"}
 GUARD_FUNCTIONS = set(ex.GUARD_FUNCTIONS)
 _TEAM_OWNER_RULE = re.compile(r"^team_owner\(([a-z0-9_]+/[a-z0-9_]+)\)$")
+_ORG_ROLE_RULE = re.compile(r"^org_role\(([a-z][a-z0-9_]{0,63})\)$")
 
 
 class _Checker:
@@ -434,17 +435,11 @@ class _Checker:
                 if p.bind == "by_rule" and not p.rule:
                     self.err("E_PARTICIPANT", K, wname, f"spec.participants.{pname}", "by_rule needs a rule")
                 if p.bind == "by_rule" and p.rule:
-                    m = _TEAM_OWNER_RULE.match(p.rule.strip())
-                    if not m:
-                        self.err(
-                            "E_PARTICIPANT",
-                            K,
-                            wname,
-                            f"spec.participants.{pname}.rule",
-                            f"unknown rule function in {p.rule!r}; only team_owner(dept/team) is supported",
-                        )
-                    else:
-                        team_path = m.group(1)
+                    rule_text = p.rule.strip()
+                    team_m = _TEAM_OWNER_RULE.match(rule_text)
+                    role_m = _ORG_ROLE_RULE.match(rule_text)
+                    if team_m is not None:
+                        team_path = team_m.group(1)
                         teams = self._org_team_paths()
                         if teams and team_path not in teams:
                             self.err(
@@ -454,6 +449,14 @@ class _Checker:
                                 f"spec.participants.{pname}.rule",
                                 f"team {team_path!r} is not in the organization",
                             )
+                    elif role_m is None:
+                        self.err(
+                            "E_PARTICIPANT",
+                            K,
+                            wname,
+                            f"spec.participants.{pname}.rule",
+                            f"unknown rule function in {p.rule!r}; use team_owner(dept/team) or org_role(role)",
+                        )
 
             templates_by_state: dict[str, set[str]] = {}
             all_templates: set[str] = set()

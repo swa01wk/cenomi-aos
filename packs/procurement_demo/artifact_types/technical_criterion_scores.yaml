@@ -1,0 +1,25 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: technical_criterion_scores, version: 1, owner: head_of_procurement}
+spec:
+  description: Per-criterion technical scores (0–5) and contribution to the technical envelope out of 100.
+  fields:
+    line_id: {type: string, required: true}
+    supplier_id: {type: string, required: true}
+    supplier: {type: string, required: true}
+    criterion_id: {type: string, required: true}
+    criterion: {type: string, required: true}
+    weight_pct: {type: number, required: true}
+    score_0_5: {type: number, required: true}
+    contribution_pts: {type: number, required: true}
+    evidence: {type: text, classification: shareable}
+  row_based: true
+  row_key: line_id
+  view:
+    type: sheet
+    columns: [supplier, criterion, weight_pct, score_0_5, contribution_pts, evidence]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: all
+    requester: [supplier, criterion, weight_pct, score_0_5, contribution_pts, evidence]

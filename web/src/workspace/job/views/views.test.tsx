@@ -128,6 +128,23 @@ describe("artifact views", () => {
     expect(screen.getByText(/Qty 1/)).toBeInTheDocument();
   });
 
+  it("field list tolerates missing version content (loading edge)", () => {
+    const View = artifactViewComponent("record_preview");
+    render(
+      <View
+        view={{
+          type: "record_preview",
+          fields: [{ name: "reference", label: "Reference", type: "string" }],
+        }}
+        version={{
+          ...version({ reference: "PO-1" }),
+          content: undefined as unknown as components["schemas"]["ArtifactVersion"]["content"],
+        }}
+      />,
+    );
+    expect(screen.getByText("Reference")).toBeInTheDocument();
+  });
+
   it("shows hidden-fields note", () => {
     const View = artifactViewComponent("document");
     render(

@@ -8,6 +8,8 @@ import { newClientTurnId } from "../../components/clientTurnId";
 import { workspaceKeys } from "../useWorkspaceQueries";
 import { formatFieldValue } from "./views/formatFieldValue";
 import { defaultDecisionNote } from "./decisionCardDefaults";
+import { ClarificationNotesEditor } from "./views/ClarificationNotesEditor";
+import type { ProposalReplyContent } from "./views/proposalReplyLabels";
 import styles from "./DecisionCard.module.css";
 
 type PendingItem = components["schemas"]["PendingItem"];
@@ -19,6 +21,8 @@ export function DecisionCard({
   selectionVersion,
   latestArtifactVersion,
   onApprove,
+  onSaveArtifactVersion,
+  myRoles,
   variant = "default",
 }: {
   pending: PendingItem;
@@ -27,6 +31,12 @@ export function DecisionCard({
   selectionVersion?: number;
   latestArtifactVersion?: number;
   variant?: "default" | "retry";
+  myRoles?: string[];
+  onSaveArtifactVersion?: (
+    artifactId: string,
+    baseVersion: number,
+    content: Record<string, unknown>,
+  ) => Promise<void>;
   onApprove: (input: {
     pendingId: string;
     value: string;
@@ -51,16 +61,21 @@ export function DecisionCard({
     pending.options?.[0];
   const value = option?.value ?? "confirm";
   const isAward = pending.event === "decision.supplier_selected";
+  const isVendorRecommend = pending.event === "decision.vendor_recommended";
   const actionLabel = isAward
     ? "Award to this vendor"
-    : (option?.label ?? (pending.event === "task.retry" ? "Retry this step" : "Approve"));
+    : isVendorRecommend
+      ? "Confirm recommendation"
+      : (option?.label ?? (pending.event === "task.retry" ? "Retry this step" : "Approve"));
   const minimum = pending.select_min ?? 0;
   const needsChoice = minimum > 0;
   const short = needsChoice && selected.length < minimum;
   const cardDetail =
     isAward && !pending.detail
       ? "Choose the vendor you are awarding this order to."
-      : pending.detail;
+      : isVendorRecommend && !pending.detail
+        ? "Pick the vendor you recommend for award, or explain a different preference in the note."
+        : pending.detail;
 
   const approve = async () => {
     if (busy || short) return;
@@ -95,6 +110,29 @@ export function DecisionCard({
   const reason = busy ? "Saving" : short ? pending.detail || `Choose at least ${minimum}` : undefined;
   const compactRetry = variant === "retry" || pending.event === "task.retry";
   const [showNote, setShowNote] = useState(!compactRetry);
+  const isClarification =
+    pending.event === "decision.clarification_commercial_approved" ||
+    pending.event === "decision.clarification_send_approved";
+  const clarificationArtId = pending.artifact_ref?.artifact_id;
+  const clarificationVer = pending.artifact_ref?.version ?? latestArtifactVersion ?? 1;
+  const clarificationQuery = useQuery({
+    queryKey: workspaceKeys.artifactVersion(clarificationArtId ?? "none", clarificationVer),
+    enabled: Boolean(isClarification && clarificationArtId),
+    queryFn: async () => {
+      const { data, error } = await client.GET("/artifacts/{id}/versions/{version}", {
+        params: { path: { id: clarificationArtId!, version: clarificationVer } },
+      });
+      if (error) throw error;
+      return data!;
+    },
+  });
+  const clarificationContent = clarificationQuery.data?.content as ProposalReplyContent | undefined;
+  const lane = clarificationContent?.question_lane;
+  const canEditClarification =
+    Boolean(onSaveArtifactVersion) &&
+    clarificationVer === latestArtifactVersion &&
+    ((lane === "commercial" && (myRoles ?? []).includes("buyer")) ||
+      (lane === "technical" && (myRoles ?? []).includes("category_manager")));
 
   return (
     <div
@@ -107,6 +145,18 @@ export function DecisionCard({
       </p>
       {cardDetail && !compactRetry ? <p className={styles.detail}>{cardDetail}</p> : null}
       {compactRetry && pending.detail ? <p className={styles.detailMuted}>{pending.detail}</p> : null}
+      {isClarification && clarificationContent && clarificationArtId ? (
+        <ClarificationNotesEditor
+          content={clarificationContent}
+          artifactId={clarificationArtId}
+          version={clarificationVer}
+          baseContent={(clarificationQuery.data?.content ?? {}) as Record<string, unknown>}
+          canEdit={canEditClarification}
+          onSave={onSaveArtifactVersion}
+        />
+      ) : isClarification && clarificationQuery.isLoading ? (
+        <p className={styles.detail}>Loading draft answer…</p>
+      ) : null}
       {needsChoice && pending.artifact_ref?.artifact_id && view?.row_key ? (
         <RowChoices
           artifactId={pending.artifact_ref.artifact_id}
@@ -115,7 +165,7 @@ export function DecisionCard({
           view={view}
           rowKey={view.row_key}
           minimum={minimum}
-          singlePick={isAward}
+          singlePick={isAward || isVendorRecommend}
           selected={selected}
           onChange={setSelected}
         />

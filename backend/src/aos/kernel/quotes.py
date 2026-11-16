@@ -12,6 +12,41 @@ from psycopg.types.json import Jsonb
 from . import clock, ids
 
 
+async def sync_ack_count_attribute(conn: AsyncConnection, instance_id: str) -> int:
+    """Distinct suppliers that acknowledged receipt (reply_kind ack or acknowledged flag)."""
+    cur = await conn.execute(
+        """
+        select count(*) from (
+          select distinct coalesce(
+            nullif(trim(a.key), ''),
+            nullif(trim(v.content->>'supplier'), ''),
+            a.id::text
+          ) as supplier_key
+          from work.artifacts a
+          join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version
+          where a.instance_id = %s and a.artifact_type = 'proposal' and a.latest_version >= 1
+            and (
+              lower(coalesce(v.content->>'reply_kind', '')) = 'ack'
+              or (v.content->>'acknowledged')::boolean is true
+              or (
+                coalesce((v.content->>'total')::numeric, 0) = 0
+                and lower(coalesce(v.content->>'notes', '')) like '%%acknowledgement%%'
+              )
+            )
+        ) q
+        where supplier_key is not null and supplier_key <> ''
+        """,
+        (instance_id,),
+    )
+    row = await cur.fetchone()
+    count = int(row[0]) if row else 0
+    await conn.execute(
+        "update work.instances set attributes = attributes || %s::jsonb where id = %s",
+        (Jsonb({"ack_count": count}), instance_id),
+    )
+    return count
+
+
 async def sync_proposal_count_attribute(conn: AsyncConnection, instance_id: str) -> int:
     """Set attr.proposal_count to distinct suppliers with at least one saved proposal version."""
     cur = await conn.execute(

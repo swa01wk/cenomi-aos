@@ -1,0 +1,20 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: quote_eval_technical, version: 1, owner: head_of_procurement}
+spec:
+  description: Technical evaluation for Quick Quote (spec compliance, warranty, support).
+  fields:
+    rank: {type: integer, required: true}
+    supplier: {type: string, required: true}
+    supplier_id: {type: string, required: true}
+    technical_score: {type: number, required: true}
+    notes: {type: text, classification: shareable}
+  row_based: true
+  row_key: supplier_id
+  view:
+    type: sheet
+    columns: [rank, supplier, technical_score, notes]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [rank, supplier, technical_score, notes]

@@ -81,6 +81,7 @@ async def scheduler_loop(
     stop: asyncio.Event,
     org: OrgModel,
     packs_dir: Path,
+    demo: bool = False,
 ) -> None:
     while not stop.is_set():
         try:
@@ -90,6 +91,13 @@ async def scheduler_loop(
             t = await run_timer_tick(pool, org=org, packs_dir=packs_dir)
             if t:
                 log.debug("fired %s timer(s)", t)
+            from . import demo_rfp_acks
+
+            a = await demo_rfp_acks.run_demo_rfp_ack_tick(
+                pool, org=org, packs_dir=packs_dir, demo=demo
+            )
+            if a:
+                log.debug("demo RFP ack(s) for %s supplier row(s)", a)
             r = await readiness.run_readiness_tick(pool, org=org, packs_dir=packs_dir)
             if any(x.outcome == "admitted" for x in r):
                 log.debug("readiness admitted %s task(s)", sum(1 for x in r if x.outcome == "admitted"))
@@ -108,6 +116,7 @@ def start_scheduler(
     interval_s: float,
     org: OrgModel,
     packs_dir: Path,
+    demo: bool = False,
 ) -> tuple[asyncio.Task, asyncio.Event]:
     stop = asyncio.Event()
     task = asyncio.create_task(
@@ -118,6 +127,7 @@ def start_scheduler(
             stop=stop,
             org=org,
             packs_dir=packs_dir,
+            demo=demo,
         ),
         name="aos-scheduler",
     )

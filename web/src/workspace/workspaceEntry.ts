@@ -16,8 +16,29 @@ export function isFormalRfpRequest(message: string): boolean {
   return RFP_STRONG.test(message);
 }
 
+/** Quick Quote job whose title/id reads like a formal RFP — reopening it blocks a proper RFP- job. */
+export function isMisroutedQuickQuoteJob(job: {
+  workflow: string;
+  title?: string;
+  instance_id?: string;
+}): boolean {
+  if (job.workflow !== "quick_quote") return false;
+  const hay = `${job.title ?? ""} ${job.instance_id ?? ""}`.toLowerCase();
+  return (
+    /\brfp\b/.test(hay) ||
+    /marketing website|web portal|website redesign|formal rfp|cenomi malls/.test(hay)
+  );
+}
+
 /** Best workflow name for intake routing (mirrors kernel route_intake_message tie-break). */
 export function routeWorkflowName(message: string, workers: Worker[]): string | undefined {
+  if (RFP_STRONG.test(message)) {
+    for (const worker of specialistColleagues(workers)) {
+      if (routableWorkflows(worker).some((w) => w.name === "sourcing_rfp")) {
+        return "sourcing_rfp";
+      }
+    }
+  }
   let best: { name: string; score: number; pri: number } | undefined;
   for (const worker of specialistColleagues(workers)) {
     for (const wf of routableWorkflows(worker)) {

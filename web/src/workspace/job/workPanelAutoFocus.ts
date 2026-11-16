@@ -20,11 +20,12 @@ const STAGE_VIEW_PRIORITY: Record<string, string[]> = {
 
 function artifactIdForView(snapshot: InstanceSnapshot, viewType: string): string | null {
   if (viewType === "tracker") {
-    const quotes = snapshot.artifacts.filter(
-      (a) => a.artifact_type === "quote" && a.latest_version >= 1,
+    const proposals = snapshot.artifacts.filter(
+      (a) => a.artifact_type === "proposal" && a.latest_version >= 1,
     );
     if (
-      quotes.length >= 1 &&
+      proposals.length >= 1 &&
+      snapshot.workflow === "sourcing_rfp" &&
       (snapshot.state === "awaiting_quotes" ||
         snapshot.state === "comparison" ||
         snapshot.state === "awaiting_proposals" ||
@@ -32,6 +33,10 @@ function artifactIdForView(snapshot: InstanceSnapshot, viewType: string): string
     ) {
       return SUPPLIER_QUOTES_TAB_ID;
     }
+    const quote = snapshot.artifacts.find(
+      (a) => a.artifact_type === "quote" && a.latest_version >= 1,
+    );
+    if (quote) return quote.artifact_id;
   }
   const row = snapshot.artifacts.find(
     (a) => a.view?.type === viewType && a.latest_version >= 1,

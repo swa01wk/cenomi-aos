@@ -665,8 +665,28 @@ async def get_instance(id: str, p: PrincipalDep, k: KernelDep, conn: TxDep) -> d
                 org=k.org,
                 packs_dir=k.settings.packs_dir,
             )
+            await quote_capture.sync_proposals_from_mail_threads(
+                conn,
+                k.gateway,
+                k.broker,
+                org_id=p.org_id,
+                instance_id=id,
+                org=k.org,
+                packs_dir=k.settings.packs_dir,
+            )
+            if k.settings.demo:
+                from aos.kernel import demo_rfp_acks
+
+                await demo_rfp_acks.process_due_demo_rfp_acks(
+                    conn,
+                    k.org,
+                    id,
+                    packs_dir=k.settings.packs_dir,
+                    demo=True,
+                )
             await quote_ops.sync_quote_count_attribute(conn, id)
             await quote_ops.sync_proposal_count_attribute(conn, id)
+            await quote_ops.sync_ack_count_attribute(conn, id)
             await quote_ops.ensure_quote_deadline_from_brief(conn, id)
             from aos.kernel import clock, timers as timer_ops
 
@@ -1498,6 +1518,78 @@ async def simulate_vendor_reply(
         subject=body.subject,
     )
     return {"status": "accepted", "inbound": note.get("payload"), "actor": p.person_id}
+
+
+@router.post("/demo/rfp/bootstrap", tags=["demo"])
+async def bootstrap_rfp_demo(
+    k: KernelDep,
+    p: ConsoleDep,
+    conn: TxDep,
+    body: dict | None = None,
+) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_rfp_bootstrap
+
+    payload = body or {}
+    iid = str(payload.get("instance_id") or "RFP-0001")
+    replace = bool(payload.get("replace", True))
+    instance_id = await demo_rfp_bootstrap.bootstrap_full_rfp_demo(
+        conn,
+        k.org,
+        packs_dir=k.settings.packs_dir,
+        instance_id=iid,
+        replace=replace,
+    )
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    st_row = await cur.fetchone()
+    state = str(st_row[0]) if st_row else "comparison"
+    return {"instance_id": instance_id, "state": state}
+
+
+@router.post("/demo/qq/bootstrap", tags=["demo"])
+async def bootstrap_qq_demo(
+    k: KernelDep,
+    p: ConsoleDep,
+    conn: TxDep,
+    body: dict | None = None,
+) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_qq_bootstrap
+
+    payload = body or {}
+    iid = str(payload.get("instance_id") or "QQ-0001")
+    replace = bool(payload.get("replace", True))
+    instance_id = await demo_qq_bootstrap.bootstrap_full_qq_demo(
+        conn,
+        k.org,
+        packs_dir=k.settings.packs_dir,
+        instance_id=iid,
+        replace=replace,
+    )
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    st_row = await cur.fetchone()
+    state = str(st_row[0]) if st_row else "closed"
+    return {"instance_id": instance_id, "state": state}
+
+
+@router.get("/demo/instances/{id}/export", tags=["demo"])
+async def export_demo_instance(id: str, k: KernelDep, p: ConsoleDep, conn: TxDep) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_instance_backup
+
+    try:
+        return await demo_instance_backup.export_instance(conn, id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/demo/instances/import", tags=["demo"])
+async def import_demo_instance(k: KernelDep, p: ConsoleDep, conn: TxDep, body: dict) -> dict:
+    _require_demo(k)
+    from aos.kernel import demo_instance_backup
+
+    iid = await demo_instance_backup.restore_instance(conn, body, replace=True)
+    return {"instance_id": iid}
 
 
 @router.get("/demo/state", tags=["demo"])

@@ -15,8 +15,8 @@ spec:
       conditions:
         - workflow.reached("rfp_invitation_drafting")
         - artifact.verification.leak_check == "PASS"
-    - id: rfp_po_create
-      action: erp_po.create
+    - id: rfp_pr_create
+      action: erp_pr.create
       effect: REQUIRE_APPROVAL
       approval:
         chain:

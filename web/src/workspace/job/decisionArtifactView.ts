@@ -10,6 +10,22 @@ export function decisionSelectionView(
   artifact?: Pick<ArtifactSummary, "view" | "artifact_type" | "latest_version">,
 ): ArtifactView | undefined {
   if (artifact?.view?.row_key) return artifact.view;
+  if (pending.event === "decision.vendor_recommended") {
+    return {
+      type: "sheet",
+      row_key: "supplier_id",
+      columns: ["rank", "supplier", "commercial_score", "technical_score", "weighted_score", "total"],
+      fields: [
+        { name: "rank", label: "Rank", type: "integer" },
+        { name: "supplier", label: "Vendor", type: "string" },
+        { name: "commercial_score", label: "Commercial", type: "number" },
+        { name: "technical_score", label: "Technical", type: "number" },
+        { name: "weighted_score", label: "Weighted", type: "number" },
+        { name: "total", label: "Proposal total", type: "money" },
+        { name: "lead_time_days", label: "Lead time (days)", type: "integer" },
+      ],
+    };
+  }
   if (pending.event === "decision.supplier_selected") {
     return {
       type: "sheet",

@@ -1,4 +1,5 @@
 import type { components } from "../../../api/schema";
+import { DocumentPdfDownload } from "./DocumentPdfDownload";
 import { formatFieldValue } from "./formatFieldValue";
 import styles from "./views.module.css";
 
@@ -10,19 +11,35 @@ const WIDE_TYPES = new Set<FieldDef["type"]>(["text", "list", "object"]);
 
 /** view: document. Fields, labels and order come from the view; no field name is treated specially. Long text and
  *  lists get a full-width section; short fields sit two to a row. */
-export function DocumentView({ view, version }: { view: ArtifactView; version: ArtifactVersion }) {
-  const order = view.columns?.length ? view.columns : view.fields.map((f) => f.name);
-  const byName = new Map(view.fields.map((f) => [f.name, f]));
+export function DocumentView({
+  view,
+  version,
+  artifactType,
+}: {
+  view: ArtifactView;
+  version: ArtifactVersion;
+  artifactType?: string;
+}) {
+  const fieldDefs = view.fields ?? [];
+  const order = view.columns?.length ? view.columns : fieldDefs.map((f) => f.name);
+  const byName = new Map(fieldDefs.map((f) => [f.name, f]));
   const fields = order.map((n) => byName.get(n)).filter((f): f is FieldDef => Boolean(f));
+  const hiddenFields = version.hidden_fields ?? [];
+  const content = (version.content ?? {}) as Record<string, unknown>;
+
+  const type = artifactType ?? version.artifact_type;
 
   return (
     <div className={styles.viewBody}>
-      {version.hidden_fields.length > 0 && (
+      {type === "master_rfp" ? (
+        <DocumentPdfDownload view={view} content={content} artifactType={type} />
+      ) : null}
+      {hiddenFields.length > 0 && (
         <p className={styles.hiddenNote}>Some fields aren&apos;t shared with your role</p>
       )}
       <dl className={styles.docGrid}>
         {fields.map((field) => {
-          const raw: unknown = version.content[field.name];
+          const raw: unknown = content[field.name];
           const empty = raw == null || raw === "" || (Array.isArray(raw) && raw.length === 0);
           const wide = WIDE_TYPES.has(field.type);
           return (

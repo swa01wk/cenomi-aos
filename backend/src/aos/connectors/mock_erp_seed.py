@@ -66,6 +66,15 @@ create index if not exists PO_LINES_ALL_N1 on PO_LINES_ALL(PO_HEADER_ID);
 create index if not exists PO_LINE_LOCATIONS_ALL_N1 on PO_LINE_LOCATIONS_ALL(PO_HEADER_ID);
 create index if not exists RCV_TRANSACTIONS_N1 on RCV_TRANSACTIONS(PO_HEADER_ID);
 create index if not exists PO_ASL_N1 on PO_APPROVED_SUPPLIER_LIST(CATEGORY_ID);
+create table if not exists POR_REQUISITION_HEADERS_ALL(REQUISITION_HEADER_ID integer primary key,
+    SEGMENT1 text unique not null, PRC_BU_ID integer not null, VENDOR_ID integer not null, VENDOR_SITE_ID integer,
+    CURRENCY_CODE text not null, DOCUMENT_STATUS text not null, ATTRIBUTE_CATEGORY text, ATTRIBUTE1 text unique,
+    ATTRIBUTE2 text unique, CREATION_DATE text not null);
+create table if not exists POR_REQUISITION_LINES_ALL(REQUISITION_LINE_ID integer primary key,
+    REQUISITION_HEADER_ID integer not null, LINE_NUM integer not null, ITEM_DESCRIPTION text not null,
+    UOM_CODE text, QUANTITY text, UNIT_PRICE text not null, NEED_BY_DATE text, SHIP_TO_NOTE text,
+    unique (REQUISITION_HEADER_ID, LINE_NUM));
+create index if not exists POR_REQ_HEADERS_N1 on POR_REQUISITION_HEADERS_ALL(VENDOR_ID);
 """
 
 # Tables the earlier, flat mock ERP used. Dropped once, when the Fusion tables are first seeded.
@@ -593,6 +602,111 @@ IT_DEV_VENDORS = (
 )
 
 
+def _supplier_catalog_by_name() -> dict[str, tuple[str, str, str, list[str]]]:
+    out: dict[str, tuple[str, str, str, list[str]]] = {}
+    for name, email, city, term, cats in SUPPLIERS + INACTIVE_SUPPLIERS:
+        out[name] = (email, city, term, cats)
+    return out
+
+
+def _allocate_supplier_segment(store: Store) -> str:
+    used = {str(row["SEGMENT1"]) for row in store.q("select SEGMENT1 from POZ_SUPPLIERS")}
+    for num in _supplier_numbers():
+        if num not in used:
+            return num
+    raise RuntimeError("no supplier segment available for mock ERP seed")
+
+
+def _term_id(store: Store, term_name: str) -> int:
+    row = store.one("select TERM_ID from AP_TERMS_TL where NAME = ?", (term_name,))
+    if row:
+        return int(row["TERM_ID"])
+    return store.x(
+        "insert into AP_TERMS_TL(NAME, DESCRIPTION) values (?, ?)",
+        (term_name, f"Payment terms: {term_name}"),
+    )
+
+
+def _ensure_supplier_from_catalog(store: Store, vendor_name: str) -> int | None:
+    """Insert a catalog supplier when an older ERP volume never ran the full seed."""
+    existing = store.one("select VENDOR_ID from POZ_SUPPLIERS where VENDOR_NAME = ?", (vendor_name,))
+    if existing:
+        return int(existing["VENDOR_ID"])
+    spec = _supplier_catalog_by_name().get(vendor_name)
+    if spec is None:
+        return None
+    email, city, term_name, cat_codes = spec
+    n = sum(ord(c) for c in vendor_name)
+    domain = email.split("@", 1)[1]
+    streets = STREETS.get(city, STREETS["Riyadh"])
+    street = streets[n % len(streets)]
+    dial = CITY_DIAL.get(city, "11")
+    phone = f"+966 {dial} {400 + n * 7 % 500:03d} {1000 + n * 37 % 9000:04d}"
+    number = _allocate_supplier_segment(store)
+    term_id = _term_id(store, term_name)
+    party_row = store.one(
+        "select coalesce(max(cast(substr(PARTY_NUMBER, 4) as integer)), 50000) as m"
+        " from HZ_PARTIES where PARTY_NUMBER like 'HZ-%'",
+    )
+    party_num = f"HZ-{int(party_row['m']) + 1}"
+    party = store.x(
+        "insert into HZ_PARTIES(PARTY_NUMBER, PARTY_NAME, PARTY_TYPE, ADDRESS1, CITY, COUNTRY,"
+        " PRIMARY_PHONE_NUMBER, EMAIL_ADDRESS, URL)"
+        " values (?, ?, 'ORGANIZATION', ?, ?, 'SA', ?, ?, ?)",
+        (party_num, vendor_name, street, city, phone, email, f"https://www.{domain}"),
+    )
+    active = vendor_name not in {row[0] for row in INACTIVE_SUPPLIERS}
+    vid = store.x(
+        "insert into POZ_SUPPLIERS(PARTY_ID, SEGMENT1, VENDOR_NAME, VENDOR_TYPE_LOOKUP_CODE,"
+        " TAX_REGISTRATION_NUMBER, TAXPAYER_ID, ENABLED_FLAG, START_DATE_ACTIVE, END_DATE_ACTIVE,"
+        " CREATION_DATE) values (?, ?, ?, 'VENDOR', ?, ?, ?, ?, ?, ?)",
+        (
+            party,
+            number,
+            vendor_name,
+            _vat(n % 1000),
+            f"{1010000000 + n * 104729 % 89999999}",
+            "Y" if active else "N",
+            "2019-06-01",
+            None if active else "2025-12-31",
+            "2019-06-01T08:00:00",
+        ),
+    )
+    site_code = f"{CITY_CODES.get(city, 'RUH')}-MAIN"
+    site_id = store.x(
+        "insert into POZ_SUPPLIER_SITES_ALL_M(VENDOR_ID, VENDOR_SITE_CODE, PRC_BU_ID, ADDRESS_LINE1, CITY,"
+        " COUNTRY, PHONE, EMAIL_ADDRESS, TERMS_ID, INACTIVE_DATE) values (?, ?, ?, ?, ?, 'SA', ?, ?, ?, ?)",
+        (
+            vid,
+            site_code,
+            PRC_BU,
+            f"{street}, {city}",
+            city,
+            phone,
+            email,
+            term_id,
+            None if active else "2025-12-31",
+        ),
+    )
+    for code in cat_codes:
+        cat = store.one("select CATEGORY_ID from EGP_CATEGORIES_B where CATEGORY_CODE = ?", (code,))
+        if not cat:
+            continue
+        cid = int(cat["CATEGORY_ID"])
+        dup = store.one(
+            "select 1 from PO_APPROVED_SUPPLIER_LIST where VENDOR_ID = ? and CATEGORY_ID = ?",
+            (vid, cid),
+        )
+        if dup:
+            continue
+        store.x(
+            "insert into PO_APPROVED_SUPPLIER_LIST(PRC_BU_ID, VENDOR_ID, VENDOR_SITE_ID, CATEGORY_ID, ASL_STATUS)"
+            " values (?, ?, ?, ?, 'Approved')",
+            (PRC_BU, vid, site_id, cid),
+        )
+    return int(vid)
+
+
 def _ensure_category_asl(store: Store, *, vendor_id: int, category_id: int) -> None:
     site = store.one("select VENDOR_SITE_ID from POZ_SUPPLIER_SITES_ALL_M where VENDOR_ID = ? limit 1", (vendor_id,))
     if not site:
@@ -644,10 +758,13 @@ def ensure_it_dev_rfp_catalog(store: Store) -> None:
                 (iid, INVENTORY_ORG, PURCHASING_CATEGORY_SET, cid),
             )
     for vendor_name in IT_DEV_VENDORS:
-        vrow = store.one("select VENDOR_ID from POZ_SUPPLIERS where VENDOR_NAME = ?", (vendor_name,))
-        if vrow is None:
-            continue
-        _ensure_category_asl(store, vendor_id=int(vrow["VENDOR_ID"]), category_id=cid)
+        vid = _ensure_supplier_from_catalog(store, vendor_name)
+        if vid is None:
+            vrow = store.one("select VENDOR_ID from POZ_SUPPLIERS where VENDOR_NAME = ?", (vendor_name,))
+            if vrow is None:
+                continue
+            vid = int(vrow["VENDOR_ID"])
+        _ensure_category_asl(store, vendor_id=vid, category_id=cid)
 
 
 def ensure_webknot_demo_supplier(store: Store) -> None:

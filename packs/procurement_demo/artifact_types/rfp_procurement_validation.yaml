@@ -1,0 +1,20 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_procurement_validation, version: 1, owner: head_of_procurement}
+spec:
+  description: Procurement validation of the RFP package (BoQ, contract, SLA, scope, pricing model).
+  fields:
+    check_id: {type: string, required: true}
+    area: {type: string, required: true}
+    status: {type: string, required: true, description: "pass, gap, warning"}
+    detail: {type: text, required: true, classification: shareable}
+  row_based: true
+  row_key: check_id
+  view:
+    type: sheet
+    columns: [check_id, area, status, detail]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: [check_id, area, status, detail]
+    requester: [check_id, area, status]

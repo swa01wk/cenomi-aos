@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -307,6 +307,66 @@ async def _ensure_brief_category_for_lookup(
     )
     rrow = await rcur.fetchone()
     actor = str(rrow[0]) if rrow else "requester"
+    await conn.execute(
+        "insert into work.artifact_versions ("
+        " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
+        ") values (%s, %s, %s, %s, 'person', %s, '[]'::jsonb, '[]'::jsonb)",
+        (aid, new_ver, Jsonb(content), content_hash, actor),
+    )
+    await conn.execute(
+        "update work.artifacts set latest_version = %s, status = 'draft' where id = %s",
+        (new_ver, aid),
+    )
+    return True
+
+
+async def heal_brief_missing_delivery_date(
+    conn: AsyncConnection,
+    instance_id: str,
+    defs: dict[str, dict[str, dict]],
+) -> bool:
+    """Demo heal: intake worker saved a strong brief but omitted delivery_date (required for confirm)."""
+    cur = await conn.execute("select state from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    if row is None or str(row[0]) != "intake":
+        return False
+    bound = await _latest_view_artifact(conn, instance_id, "brief")
+    if bound is None:
+        return False
+    aid, ver, _ = bound
+    vcur = await conn.execute(
+        "select content from work.artifact_versions where artifact_id = %s and version = %s",
+        (aid, ver),
+    )
+    vrow = await vcur.fetchone()
+    if vrow is None:
+        return False
+    content = dict(vrow[0] if isinstance(vrow[0], dict) else json.loads(vrow[0]))
+    from .artifacts import parse_artifact_type, validate_artifact_content
+
+    at = parse_artifact_type(defs, "brief")
+    errors = validate_artifact_content(at.spec, content, partial=False)
+    if not errors:
+        return False
+    missing = {
+        e["pointer"].rsplit("/", 1)[-1]
+        for e in errors
+        if e.get("message") == "required field missing"
+    }
+    if missing != {"delivery_date"}:
+        return False
+    delivery = (clock.now().date() + timedelta(days=180)).isoformat()
+    content["delivery_date"] = delivery
+    if validate_artifact_content(at.spec, content, partial=False):
+        return False
+    new_ver = ver + 1
+    content_hash = hashlib.sha256(_canonical_json(content)).hexdigest()
+    bcur = await conn.execute(
+        "select person_id from work.participants where instance_id = %s and role = 'buyer' limit 1",
+        (instance_id,),
+    )
+    brow = await bcur.fetchone()
+    actor = str(brow[0]) if brow else "buyer"
     await conn.execute(
         "insert into work.artifact_versions ("
         " artifact_id, version, content, content_hash, produced_by_kind, produced_by, inputs, sources"
@@ -734,6 +794,88 @@ async def heal_rfq_draft_after_saved_emails(
     return True
 
 
+async def heal_master_rfp_draft_after_artifact(
+    conn: AsyncConnection,
+    instance_id: str,
+    *,
+    org: OrgModel,
+    packs_dir: Path,
+    definition: WorkflowDefinition,
+    defs: dict[str, dict[str, dict]],
+) -> bool:
+    """Master RFP saved but master_rfp_draft failed (often step budget) — close the task so CDO review can open."""
+    cur = await conn.execute("select state, status from work.instances where id = %s", (instance_id,))
+    row = await cur.fetchone()
+    if row is None or str(row[0]) != "master_rfp_drafting" or str(row[1]) != "running":
+        return False
+    bound = await _latest_view_artifact(conn, instance_id, "master_rfp")
+    if bound is None:
+        return False
+    aid, ver, _ = bound
+    vcur = await conn.execute(
+        "select content from work.artifact_versions where artifact_id = %s and version = %s",
+        (aid, ver),
+    )
+    vrow = await vcur.fetchone()
+    if vrow is None:
+        return False
+    content = vrow[0] if isinstance(vrow[0], dict) else json.loads(vrow[0])
+    from .artifacts import parse_artifact_type, validate_artifact_content
+
+    at = parse_artifact_type(defs, "master_rfp")
+    if validate_artifact_content(at.spec, content, partial=False):
+        return False
+    tcur = await conn.execute(
+        "select t.id, t.state from work.tasks t"
+        " where t.instance_id = %s and t.template = 'master_rfp_draft'"
+        " order by t.created_at desc",
+        (instance_id,),
+    )
+    tasks = await tcur.fetchall()
+    if not tasks:
+        return False
+    if any(str(s) == "COMPLETED" for _, s in tasks):
+        return False
+    if any(str(s) in ("RUNNING", "READY", "CREATED", "VERIFYING") for _, s in tasks):
+        return False
+    if not any(str(s) == "EXCEPTION" for _, s in tasks):
+        return False
+    complete_id = str(tasks[0][0])
+    for tid, state in tasks[1:]:
+        if str(state) not in ("EXCEPTION", "CANCELLED"):
+            await conn.execute(
+                "update work.tasks set state = 'CANCELLED', updated_at = now() where id = %s",
+                (str(tid),),
+            )
+    await conn.execute(
+        "update work.tasks set state = 'COMPLETED', updated_at = now() where id = %s",
+        (complete_id,),
+    )
+    from .task_retry import void_open_task_retry
+
+    retry_cur = await conn.execute(
+        "select p.id, p.for_person_id from work.pending_items p"
+        " join work.tasks t on t.id = p.task_id"
+        " where p.instance_id = %s and p.status = 'open' and p.event = 'task.retry'"
+        " and t.template = 'master_rfp_draft'",
+        (instance_id,),
+    )
+    for pending_id, for_person in await retry_cur.fetchall():
+        await void_open_task_retry(
+            conn,
+            instance_id=instance_id,
+            pending_id=str(pending_id),
+            for_person_id=str(for_person),
+            voided_by="kernel",
+        )
+    from . import events as workflow_events
+
+    await workflow_events.on_workflow_task_completed(
+        conn, org, instance_id=instance_id, task_id=complete_id, packs_dir=packs_dir
+    )
+    return True
+
+
 async def heal_intake_when_brief_valid(
     conn: AsyncConnection,
     instance_id: str,
@@ -975,6 +1117,19 @@ async def heal_quote_comparison_after_quote(
     return True
 
 
+_PO_CREATE_TEMPLATES = ("po_create", "rfp_po_create", "pr_create", "rfp_pr_create")
+
+
+async def _po_create_tasks(conn: AsyncConnection, instance_id: str) -> list[tuple[str, str]]:
+    tcur = await conn.execute(
+        "select t.id, t.state from work.tasks t"
+        " where t.instance_id = %s and t.template = any(%s) and t.region is null"
+        " order by t.created_at desc",
+        (instance_id, list(_PO_CREATE_TEMPLATES)),
+    )
+    return [(str(r[0]), str(r[1])) for r in await tcur.fetchall()]
+
+
 async def heal_po_create_after_budget_exhausted(
     conn: AsyncConnection,
     instance_id: str,
@@ -994,21 +1149,15 @@ async def heal_po_create_after_budget_exhausted(
     )
     if await pcur.fetchone() is not None:
         return False
-    tcur = await conn.execute(
-        "select t.id, t.state from work.tasks t"
-        " where t.instance_id = %s and t.template = 'po_create' and t.region is null"
-        " order by t.created_at desc",
-        (instance_id,),
-    )
-    tasks = await tcur.fetchall()
-    if not tasks or any(str(s) == "COMPLETED" for _, s in tasks):
+    tasks = await _po_create_tasks(conn, instance_id)
+    if not tasks or any(s == "COMPLETED" for _, s in tasks):
         return False
-    if any(str(s) in ("RUNNING", "READY", "CREATED", "VERIFYING") for _, s in tasks):
+    if any(s in ("RUNNING", "READY", "CREATED", "VERIFYING") for _, s in tasks):
         return False
     if len(tasks) >= 4:
         return False
-    failed_id = str(tasks[0][0])
-    if str(tasks[0][1]) != "EXCEPTION":
+    failed_id = tasks[0][0]
+    if tasks[0][1] != "EXCEPTION":
         return False
     fail_cur = await conn.execute(
         "select 1 from work.attempts a"
@@ -1066,8 +1215,8 @@ async def heal_po_create_after_budget_exhausted(
         "select p.id, p.for_person_id from work.pending_items p"
         " join work.tasks t on t.id = p.task_id"
         " where p.instance_id = %s and p.status = 'open' and p.event = 'task.retry'"
-        " and t.template = 'po_create'",
-        (instance_id,),
+        " and t.template = any(%s)",
+        (instance_id, list(_PO_CREATE_TEMPLATES)),
     )
     for pending_id, for_person in await retry_cur.fetchall():
         await void_open_task_retry(
@@ -1111,24 +1260,25 @@ async def heal_po_create_after_payload(
     if payload.get("po_amount") is None:
         return False
 
-    tcur = await conn.execute(
-        "select t.id, t.state from work.tasks t"
-        " where t.instance_id = %s and t.template = 'po_create' and t.region is null"
-        " order by t.created_at desc",
-        (instance_id,),
-    )
-    tasks = await tcur.fetchall()
-    if not tasks or any(str(s) == "COMPLETED" for _, s in tasks):
+    wf_cur = await conn.execute("select workflow from work.instances where id = %s", (instance_id,))
+    wf_row = await wf_cur.fetchone()
+    workflow_name = str(wf_row[0]) if wf_row else ""
+
+    tasks = await _po_create_tasks(conn, instance_id)
+    if not tasks or any(s == "COMPLETED" for _, s in tasks):
         return False
-    if any(str(s) in ("RUNNING", "READY", "CREATED", "VERIFYING") for _, s in tasks):
-        return False
+    active = ("RUNNING", "READY", "CREATED", "VERIFYING")
     stuck = ("EXCEPTION", "WAITING_INPUT", "CANCELLED")
-    if not any(str(s) in stuck for _, s in tasks):
+    if any(s in active for _, s in tasks):
+        if workflow_name != "sourcing_rfp":
+            return False
+    elif not any(s in stuck for _, s in tasks):
         return False
 
-    complete_id = str(tasks[0][0])
+    complete_id = tasks[0][0]
+    completable = stuck + (("RUNNING",) if workflow_name == "sourcing_rfp" else ())
     for tid, state in tasks[1:]:
-        if str(state) not in stuck:
+        if state not in completable:
             await conn.execute(
                 "update work.tasks set state = 'CANCELLED', updated_at = now() where id = %s",
                 (str(tid),),
@@ -1143,8 +1293,8 @@ async def heal_po_create_after_payload(
         "select p.id, p.for_person_id from work.pending_items p"
         " join work.tasks t on t.id = p.task_id"
         " where p.instance_id = %s and p.status = 'open' and p.event = 'task.retry'"
-        " and t.template = 'po_create'",
-        (instance_id,),
+        " and t.template = any(%s)",
+        (instance_id, list(_PO_CREATE_TEMPLATES)),
     )
     for pending_id, for_person in await retry_cur.fetchall():
         await void_open_task_retry(
@@ -1468,6 +1618,9 @@ async def open_ready_decisions(
     _org_id, _wf_name, definition, defs = await _load_workflow(conn, instance_id)
     if str(state) in ("intake", "shortlisting"):
         await _ensure_brief_category_for_lookup(conn, instance_id, defs)
+        await heal_brief_missing_delivery_date(conn, instance_id, defs)
+    if str(state) != "intake" or attributes.get("brief_version"):
+        await _void_open_brief_confirm(conn, instance_id, voided_by="kernel")
     await heal_missing_discovery_lookup(conn, instance_id, definition, org=org, packs_dir=packs_dir)
     await heal_empty_supplier_list(conn, instance_id, definition, org=org, packs_dir=packs_dir)
     await heal_stuck_discovery_region_with_list(conn, instance_id, definition)
@@ -1477,10 +1630,16 @@ async def open_ready_decisions(
     await heal_rfq_draft_after_saved_emails(
         conn, instance_id, org=org, packs_dir=packs_dir, definition=definition, attributes=attributes
     )
+    await heal_master_rfp_draft_after_artifact(
+        conn, instance_id, org=org, packs_dir=packs_dir, definition=definition, defs=defs
+    )
     await heal_rfq_send_after_receipts(
         conn, instance_id, org=org, packs_dir=packs_dir, attributes=attributes
     )
     await heal_quote_comparison_after_quote(conn, instance_id, org=org, packs_dir=packs_dir)
+    from .demo_rfp_po_heal import heal_rfp_demo_po_payload
+
+    await heal_rfp_demo_po_payload(conn, instance_id, org=org, packs_dir=packs_dir)
     await heal_po_create_after_payload(conn, instance_id, org=org, packs_dir=packs_dir)
     await heal_po_create_after_budget_exhausted(conn, instance_id, org=org, packs_dir=packs_dir)
     await heal_intake_when_brief_valid(
@@ -1514,6 +1673,13 @@ async def open_ready_decisions(
             continue
         if event == "decision.brief_confirmed" and not await _may_open_brief_confirmed(
             conn, instance_id, defs
+        ):
+            continue
+        if event in (
+            "decision.clarification_send_approved",
+            "decision.clarification_commercial_approved",
+            "decision.bafo_send_approved",
+            "decision.bafo_round_complete",
         ):
             continue
         from . import participants as participant_ops
@@ -1557,7 +1723,17 @@ async def open_ready_decisions(
                 opened.append(f"auto:{event}")
                 continue
         select_min = _selection_minimum(definition, event) if dec.selection else None
-        if event == "decision.supplier_selected" and select_min:
+        if event == "decision.commercial_eval_confirmed":
+            detail = (
+                "Review Module comparison and Module scores in the work panel. Confirm to start BAFO "
+                "negotiation with suppliers on outlier module pricing."
+            )
+        elif event == "decision.vendor_recommended" and select_min:
+            detail = (
+                "Review commercial and technical evaluation tabs and weighted scores. "
+                "Pick the vendor you recommend for award, or add a note if you prefer a different supplier."
+            )
+        elif event == "decision.supplier_selected" and select_min:
             detail = "Choose the vendor you are awarding this order to."
         elif event == "decision.master_rfp_confirmed":
             detail = (
@@ -2134,6 +2310,52 @@ async def decide_pending(
         bound_content=bound_content,
         note=str(note_raw).strip() if isinstance(note_raw, str) and note_raw.strip() else None,
     )
+
+    if str(event) == "decision.clarification_send_approved" and bound_content is not None and artifact_ref:
+        from .demo_clarifications import send_clarification_after_approve
+
+        await send_clarification_after_approve(
+            conn,
+            org,
+            instance_id,
+            artifact_ref=artifact_ref,
+            proposal_content=bound_content,
+            approver_id=person_id,
+            org_id=org_id,
+            lane_label="technical",
+        )
+    if str(event) == "decision.clarification_commercial_approved" and bound_content is not None and artifact_ref:
+        from .demo_clarifications import send_clarification_after_approve
+
+        await send_clarification_after_approve(
+            conn,
+            org,
+            instance_id,
+            artifact_ref=artifact_ref,
+            proposal_content=bound_content,
+            approver_id=person_id,
+            org_id=org_id,
+            lane_label="commercial",
+        )
+
+    if str(event) == "decision.bafo_send_approved" and bound_content is not None and artifact_ref:
+        from .demo_bafo import send_bafo_after_approve
+
+        await send_bafo_after_approve(
+            conn,
+            org,
+            instance_id,
+            artifact_ref=artifact_ref,
+            email_content=bound_content,
+            approver_id=person_id,
+            org_id=org_id,
+            packs_dir=packs_dir,
+        )
+
+    if str(event) == "decision.bafo_round_complete" and apply_result.applied:
+        from .demo_bafo import apply_post_bafo_eval_refresh
+
+        await apply_post_bafo_eval_refresh(conn, instance_id)
 
     if apply_result.applied and artifact_ref is not None:
         await conn.execute(

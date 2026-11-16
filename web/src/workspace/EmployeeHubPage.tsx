@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiProblemError } from "../api/problems";
 import type { Problem } from "../api/problems";
@@ -16,6 +16,8 @@ import styles from "./employeeHub.module.css";
 export default function EmployeeHubPage() {
   const { seat = "" } = useParams();
   const decodedSeat = decodeURIComponent(seat);
+  const [searchParams] = useSearchParams();
+  const forceNew = searchParams.get("fresh") === "1";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workers = useDigitalWorkers();
@@ -27,7 +29,7 @@ export default function EmployeeHubPage() {
   const idempotencyRef = useRef<string | null>(null);
 
   const openInstanceId =
-    worker && jobs.data ? openChatInstanceForSeat(decodedSeat, jobs.data, worker) : undefined;
+    !forceNew && worker && jobs.data ? openChatInstanceForSeat(decodedSeat, jobs.data, worker) : undefined;
 
   const startThread = async () => {
     const text = message.trim();

@@ -1,0 +1,40 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: scoring_method_agreement, version: 1, owner: head_of_procurement}
+spec:
+  description: Agreed scoring and comparison method (requester + procurement) before RFP issue.
+  fields:
+    template_type: {type: string, required: true, classification: shareable}
+    comparison_basis: {type: text, required: true, classification: shareable}
+    agreed_technical_weight: {type: number, required: true}
+    agreed_commercial_weight: {type: number, required: true}
+    min_technical_score: {type: number, required: true}
+    technical_criteria_summary: {type: text, classification: shareable}
+    commercial_basis: {type: text, classification: shareable}
+    scale_0_5: {type: text, classification: shareable}
+    requester_confirmed: {type: string, classification: shareable}
+    procurement_confirmed: {type: string, classification: shareable}
+    approval_rounds_config: {type: text, classification: shareable}
+    upload_support: {type: text, classification: shareable}
+    notes: {type: text, classification: shareable}
+  view:
+    type: document
+    columns:
+      - template_type
+      - comparison_basis
+      - agreed_technical_weight
+      - agreed_commercial_weight
+      - min_technical_score
+      - technical_criteria_summary
+      - commercial_basis
+      - scale_0_5
+      - requester_confirmed
+      - procurement_confirmed
+      - approval_rounds_config
+      - upload_support
+      - notes
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: all
+    requester: all

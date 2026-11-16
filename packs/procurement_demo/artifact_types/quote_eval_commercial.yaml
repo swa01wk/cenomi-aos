@@ -1,0 +1,21 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: quote_eval_commercial, version: 1, owner: head_of_procurement}
+spec:
+  description: Commercial evaluation of Quick Quote responses (price, lines, delivery).
+  fields:
+    rank: {type: integer, required: true}
+    supplier: {type: string, required: true}
+    total: {type: money, required: true, classification: restricted}
+    lead_time_days: {type: integer, required: true}
+    commercial_score: {type: number, required: true}
+    notes: {type: text, classification: shareable}
+  row_based: true
+  row_key: supplier
+  view:
+    type: sheet
+    columns: [rank, supplier, total, lead_time_days, commercial_score, notes]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    requester: [rank, supplier, lead_time_days, commercial_score]

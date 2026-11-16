@@ -286,6 +286,45 @@ class DecisionsKernelTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual((await cur.fetchone())[0], "decision.brief_confirmed")
 
+    async def test_heal_intake_when_brief_missing_only_delivery_date(self) -> None:
+        inst = "RFP-D-DELIV"
+        await self.conn.execute(
+            """
+            insert into work.instances (
+              id, org_id, workflow, pack_version_id, seat, seat_version, title, state, version,
+              attributes, created_by, correlation_id
+            ) values (%s, %s, 'sourcing_rfp', %s, %s, 1, 'Web RFP', 'intake', 1, '{}', 'noura', %s)
+            """,
+            (inst, ORG_ID, self.pack_version_id, SEAT, f"corr_{inst}"),
+        )
+        await self.conn.execute(
+            "insert into work.participants (instance_id, role, person_id, bound_by)"
+            " values (%s, 'buyer', 'noura', 'creation')",
+            (inst,),
+        )
+        await self.conn.execute(
+            """
+            insert into work.tasks (
+              id, instance_id, kind, template, skill, work_type, state, contract, contract_hash, max_attempts
+            ) values (%s, %s, 'task', 'rfp_intake', 'rfp_intake', 'analysis', 'EXCEPTION', '{}', 'hash', 3)
+            """,
+            (ids.new_task_id(), inst),
+        )
+        brief = _brief_v(1)
+        del brief["delivery_date"]
+        await _insert_brief(self.conn, inst, [brief])
+        opened = await decisions.open_ready_decisions(self.conn, inst, org=ORG, packs_dir=self.packs_dir)
+        self.assertTrue(any(str(x).startswith("auto:") for x in opened))
+        vcur = await self.conn.execute(
+            "select v.content->>'delivery_date' from work.artifacts a"
+            " join work.artifact_versions v on v.artifact_id = a.id and v.version = a.latest_version"
+            " where a.instance_id = %s and a.artifact_type = 'brief'",
+            (inst,),
+        )
+        self.assertIsNotNone((await vcur.fetchone())[0])
+        st = await self.conn.execute("select state from work.instances where id = %s", (inst,))
+        self.assertEqual((await st.fetchone())[0], "shortlisting")
+
     async def test_brief_auto_confirmed_when_sourcing_starter_is_confirmer(self) -> None:
         inst = "RFP-D-AUTO"
         await self.conn.execute(

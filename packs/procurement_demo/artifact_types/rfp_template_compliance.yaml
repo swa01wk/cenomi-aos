@@ -1,0 +1,23 @@
+apiVersion: aos/v1
+kind: ArtifactType
+metadata: {name: rfp_template_compliance, version: 1, owner: head_of_procurement}
+spec:
+  description: RFP template compliance — required sections for this RFP type (agent or user upload).
+  fields:
+    section_id: {type: string, required: true}
+    section: {type: string, required: true}
+    required_for_type: {type: string, required: true, classification: shareable}
+    status: {type: string, required: true, description: "present, missing, user_added, suggested"}
+    source: {type: string, description: "agent, upload, user_edit"}
+    suggestion: {type: text, classification: shareable}
+    detail: {type: text, classification: shareable}
+  row_based: true
+  row_key: section_id
+  view:
+    type: sheet
+    columns: [section, status, source, required_for_type, suggestion, detail]
+  visibility:
+    buyer: all
+    procurement_approver: all
+    category_manager: all
+    requester: all

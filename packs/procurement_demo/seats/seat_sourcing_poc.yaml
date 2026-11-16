@@ -20,8 +20,9 @@ spec:
       rfp_authoring,
       proposal_triage,
       rfp_evaluation,
+      bafo_negotiation,
     ]
-  resources: [job_artifacts, erp_supplier, erp_po, mailbox, quotes]
+  resources: [job_artifacts, erp_supplier, erp_po, erp_pr, mailbox, quotes]
   authority_profile: sourcing_supervised@1
   autonomy_mode: supervised
   runtime: {adapter: langgraph_agent, model_alias: enterprise_reasoning}

@@ -71,6 +71,12 @@
 }
 
 /* document */
+.docToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .docGrid {
   margin: 0;
   display: grid;
@@ -187,6 +193,133 @@
   margin: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.fieldBlock {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.fieldBlock:last-child {
+  border-bottom: 0;
+}
+
+.replyTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.replyTimelineItem {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, var(--panel));
+}
+
+.replyTimelineHeading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.evalSheetWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.specStageCallout {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+}
+
+.specStageCalloutTitle {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.specStageCalloutDetail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.evalRubricMissing {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.evalRubricCode {
+  font-size: 12px;
+}
+
+.evalRubricSection {
+  margin-top: 0;
+}
+
+.evalRubricToggle {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2, var(--panel));
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.evalRubricPanel {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.evalRubricBlock + .evalRubricBlock {
+  margin-top: 16px;
+}
+
+.evalRubricHeading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.evalDeriveList {
+  margin: 8px 0 0;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.draftAnswerNote {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-input, var(--line));
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--ink-2);
 }
 
 .orderLines {

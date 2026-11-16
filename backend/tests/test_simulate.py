@@ -166,7 +166,7 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts["rfq_draft"], 1)
         self.assertEqual(counts["rfq_send"], 1)
         self.assertEqual(counts["quote_comparison"], 1)
-        self.assertEqual(counts["po_create"], 1)
+        self.assertEqual(counts["pr_create"], 1)
         self.assertEqual(counts["quote_triage"], 2)
         self.assertEqual(counts["request_intake"], 1)
 

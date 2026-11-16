@@ -7,8 +7,18 @@ spec:
   ceiling: restricted
   budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
   reads: [job_snapshot, proposal, master_rfp]
-  produces: [rfp_evaluation]
-  may_request: [price_calculator, create_po, find_po]
+  produces:
+    [
+      rfp_module_matrix,
+      rfp_module_scores,
+      rfp_eval_commercial,
+      rfp_eval_technical,
+      rfp_evaluation,
+      technical_criterion_scores,
+      commercial_criterion_scores,
+      eval_scoring_policy,
+    ]
+  may_request: [price_calculator, create_pr, find_pr]
   verifiers: [score_recompute]
   runs:
     analysis:

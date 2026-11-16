@@ -1,0 +1,43 @@
+# Scripted RFP PO raise after award (fake model / demo).
+attempts:
+  - turns:
+      - tool_calls:
+          - name: read_artifact
+            args:
+              artifact_type: brief
+          - name: read_artifact
+            args:
+              artifact_type: rfp_evaluation
+          - name: save_draft
+            args:
+              artifact_type: po_payload
+              content:
+                supplier_id: SUP-11836
+                ship_to: Saudi Arabia
+                need_by: "2027-05-02"
+                currency: SAR
+                reference: AOS-RFP-PO1
+                lines:
+                  - item: Cenomi Malls public website redesign — CMS, REST API, bilingual delivery
+                    quantity: 1
+                    unit_price: 4620000
+                po_amount:
+                  amount: 4620000
+                  currency: SAR
+          - name: request_action
+            args:
+              action: create_po
+              tool: create_po
+              args:
+                supplier_id: SUP-11836
+                ship_to: Saudi Arabia
+                need_by: "2027-05-02"
+                currency: SAR
+                reference: AOS-RFP-PO1
+                lines:
+                  - item: Cenomi Malls public website redesign — CMS, REST API, bilingual delivery
+                    quantity: 1
+                    unit_price: 4620000
+      - reply_text: >-
+          I prepared the purchase order for the awarded RFP supplier and sent it for approval.
+          After buyer and CDO sign-off, the PO is created in the ERP.

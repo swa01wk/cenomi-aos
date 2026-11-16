@@ -9,7 +9,7 @@ Two presenter journeys for the `procurement_demo` pack. These steps match the op
 | Stack | `make up` from repo root (API, web on **http://localhost:8080**, Postgres, mock ERP/mail, **worker**). |
 | Pack | `make sync-pack-docker` after pack changes. |
 | Worker | Real model: `OPENAI_API_KEY` in `.env`, worker healthy (`docker logs aos-poc-worker-1`). Scripted path: `AOS_FAKE_SCRIPT=request_intake.happy.yaml` (intake only; not full journey). |
-| Demo API | Set **`AOS_DEMO=1`** on the API service to inject vendor replies via `POST /api/demo/vendor-replies`. |
+| Demo API | Set **`AOS_DEMO=1`** on the API service. RFP jobs auto-simulate **ack → 3 clarifications (with category-manager draft answers) → full proposal** per supplier on a timer (`AOS_DEMO_RFP_*` env vars). Override with `POST /api/demo/vendor-replies` or real mail. |
 | Demo timers | Quote/proposal deadlines use **`demo_after: 90s`** in the pack; advance with **Platform admin** → Demo controls, or `POST /api/demo/clock/advance` `{ "to_next_timer": true }`. |
 
 **Run automated demos (optional):**
@@ -100,7 +100,7 @@ Sign-in shows **Samir Al-Farsi** under Workspace with roles **cdo, executive app
 6. **Master RFP drafting:** Side panel shows the generated **`master_rfp`** document (scope, requirements, evaluation criteria — not the brief).
 7. **CDO review (before any vendor mail):** Sign out → sign in as **Samir Al-Farsi** → **Team queue** (or **My jobs**) → open the **RFP-** job. Edit the **Master RFP** in the work panel if needed, then **Review and approve master RFP** in the thread. Vendor invitation drafts only start after this step.
 8. **RFP invitations:** Sign in as **Noura** again. Worker drafts **`rfp_invitation`** emails (with the master RFP). **Approve and send** as Noura — no second executive send approval; the CDO already signed the RFP document.
-9. **Awaiting proposals:** Inject **proposals** like quotes:
+9. **Awaiting proposals:** With **`AOS_DEMO=1`**, three **acknowledgements** appear on a timer (no email needed). For full **proposals** before evaluation:
     - Demo API vendor reply on each `conversation_id` / `supplier_id`, with RFP reference `RFP-XXXX:SUP-…` and pricing/scoping text the **proposal_triage** skill can parse.
     - Or real mail replies on the invitation threads.
 10. Advance demo clock or wait for **proposal_count ≥ invited_count** (or timer **quotes_closed**).

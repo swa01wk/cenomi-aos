@@ -15,6 +15,7 @@ spec:
   participants:
     buyer: {bind: at_creation, org_roles: [sourcing_user]}
     procurement_approver: {bind: by_rule, rule: team_owner(procurement/procurement)}
+    category_manager: {bind: by_rule, rule: org_role(category_manager)}
   attributes:
     brief_version: int
     shortlist_count: int
@@ -83,11 +84,21 @@ spec:
           verifier: score_recompute
           on_behalf_of: buyer
           budget: {tokens: 80000, cost_usd: 1.5, seconds: 300, steps: 24, actions: 14, retries: 2}
+    bafo:
+      label: BAFO negotiation
+      view: rfp_module_matrix
+      tasks:
+        - template: bafo_authoring
+          skill: bafo_negotiation
+          work_type: document_draft
+          verifier: leak_check
+          on_behalf_of: buyer
+          budget: {tokens: 40000, cost_usd: 0.75, seconds: 180, steps: 16, actions: 10, retries: 2}
     ordering:
-      label: Ordering
+      label: Requisition
       view: po_payload
       tasks:
-        - template: rfp_po_create
+        - template: rfp_pr_create
           skill: rfp_evaluation
           work_type: record_update
           verifier: payload_match
@@ -104,14 +115,19 @@ spec:
       join_guard: same(brief_version)
   transitions:
     - {from: conversation, to: intake, on: event.detail_ready}
-    - {from: intake, to: shortlisting, on: decision.brief_confirmed, by: buyer, sets: {brief_version: artifact_version}}
+    - {from: intake, to: shortlisting, on: decision.brief_confirmed, by: buyer}
     - {from: shortlisting, to: master_rfp_drafting, on: decision.shortlist_confirmed, by: buyer, guard: "attr.shortlist_count >= 3"}
     - {from: master_rfp_drafting, to: rfp_invitation_drafting, on: decision.master_rfp_confirmed, by: procurement_approver}
     - {from: rfp_invitation_drafting, to: rfp_sending, on: task.completed.rfp_invitation_draft}
     - {from: rfp_sending, to: awaiting_proposals, on: task.completed.rfp_send, effects: [{start_timer: quote_deadline}]}
     - {from: awaiting_proposals, to: comparison, on: [timer.quotes_closed, event.all_proposals_received], guard: "attr.proposal_count >= 1"}
-    - {from: comparison, to: ordering, on: decision.supplier_selected, by: buyer, effects: [{lock: rfp_evaluation}]}
-    - {from: ordering, to: closed, on: task.completed.rfp_po_create, effects: [{handover: buyer}, {outcome_record: true}, {cancel_timers: true}]}
+    - {from: awaiting_proposals, to: awaiting_proposals, on: decision.clarification_send_approved, by: category_manager}
+    - {from: awaiting_proposals, to: awaiting_proposals, on: decision.clarification_commercial_approved, by: buyer}
+    - {from: comparison, to: bafo, on: decision.commercial_eval_confirmed, by: buyer}
+    - {from: bafo, to: bafo, on: decision.bafo_send_approved, by: buyer}
+    - {from: bafo, to: comparison, on: decision.bafo_round_complete, by: buyer}
+    - {from: comparison, to: ordering, on: decision.vendor_recommended, by: category_manager, effects: [{lock: rfp_evaluation}]}
+    - {from: ordering, to: closed, on: task.completed.rfp_pr_create, effects: [{handover: buyer}, {outcome_record: true}, {cancel_timers: true}]}
   timers:
     quote_deadline: {after: 5d, demo_after: 90s, emits: quotes_closed}
   decisions:
@@ -122,5 +138,15 @@ spec:
        sets: {shortlist_count: selection_count}}
     master_rfp_confirmed:
       {label: Review and approve master RFP, state: master_rfp_drafting, for: procurement_approver}
-    supplier_selected:
-      {label: Award this RFP, state: comparison, for: buyer, selection: true}
+    clarification_send_approved:
+      {label: Approve and send technical clarification answer, state: awaiting_proposals, for: category_manager}
+    clarification_commercial_approved:
+      {label: Approve and send commercial clarification answer, state: awaiting_proposals, for: buyer}
+    commercial_eval_confirmed:
+      {label: Confirm commercial module review, state: comparison, for: buyer}
+    bafo_send_approved:
+      {label: Approve and send BAFO message, state: bafo, for: buyer}
+    bafo_round_complete:
+      {label: Complete BAFO round, state: bafo, for: buyer}
+    vendor_recommended:
+      {label: Recommend vendor for award, state: comparison, for: category_manager, selection: true}

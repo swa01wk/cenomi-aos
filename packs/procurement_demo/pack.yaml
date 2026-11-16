@@ -2,12 +2,12 @@ apiVersion: aos/v1
 kind: Pack
 metadata:
   name: procurement_demo
-  version: 40
+  version: 56
   owner: head_of_procurement
 spec:
   kernel: aos/v1
-  description: Quick Quote and formal RFP sourcing on the Sourcing Agent — RFQ/RFP intake
-    through purchase order.
+  description: Quick Quote and formal RFP sourcing on the Sourcing Agent — RFQ/RFP
+    intake through purchase order.
   observability:
     stage_targets:
       awaiting_quotes: 5d

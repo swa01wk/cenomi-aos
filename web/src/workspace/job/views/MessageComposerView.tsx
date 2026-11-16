@@ -12,7 +12,7 @@ export function MessageComposerView({
   canEdit,
   onSave,
 }: ArtifactViewComponentProps) {
-  const raw = version.content as Record<string, unknown>;
+  const raw = (version.content ?? {}) as Record<string, unknown>;
   const to = String(raw.to ?? "");
   const subject0 = String(raw.subject ?? "");
   const body0 = String(raw.body ?? "");
