@@ -10,12 +10,13 @@ from psycopg.rows import dict_row
 
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.po_ordered import post_po_ordered_announcement_if_needed
+from aos.kernel.settings import REPO
 
 
 class PoOrderedTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.org = load_org("seed/org.yaml")
+        cls.org = load_org(REPO / "seed" / "org.yaml")
         cls.url = "postgresql://aos_kernel:aos_kernel_dev@127.0.0.1:5432/aos"
 
     async def test_announces_once_when_po_payload_exists(self) -> None:
