@@ -73,7 +73,7 @@ on Mon 30 Nov 2026** | Planning doc: [Cenomi AOS — 10-day UAT slice](https://c
 | BUG-02 | 2 | NFR-02 | 16 Nov | SPEC-00 | Fixed in SPEC-00: CI e2e job could not start (Compose required `.env`) |
 | BUG-03 | 2 | R-X-02 | 16 Nov | SPEC-02 (heal tests with SPEC-01) | Open: backend CI on `main` code runs 428 tests, 25 failures and 34 errors (pack-neutral 554 hits; publish-flow `setUpClass` errors from auto-publish; 4 pack warnings) |
 | BUG-04 | 2 | R-QQ-01 | 16 Nov (first CI run, PR #47) | Saad, day 1 (with SPEC-03) | Open: Playwright stop 4 fails — the workspace landing needs the workspace-coordinator Seat active, but stops 2–3 only configure and activate the first Seat. Configure, approve and activate both Seats in stops 2–3 |
-| BUG-05 | 3 | — | 16 Nov (first CI run) | Fixed in PR #47 | `web/src/api/schema.d.ts` was not regenerated after demo routes were added to `openapi.yaml` |
+| BUG-05 | 3 | — | 16 Nov (first CI run) | Fixed in PR #47 | `web/src/api/schema.d.ts` was not regenerated after demo routes were added to `openapi.yaml`; `workComposerHint.test.ts` expected the old hint copy. `web` job now green |
 
 ## Open questions and risks
 
@@ -99,7 +99,7 @@ on Mon 30 Nov 2026** | Planning doc: [Cenomi AOS — 10-day UAT slice](https://c
 ## Daily log (newest first)
 
 - 2026-11-16 · Claude: first CI run on #47 — stack, publish, Seat activation, evals and journey jobs run; backend red
-  (BUG-03), e2e-core stop 4 red (BUG-04), web types drift fixed (BUG-05), dependency review needs Dependency graph
-  enabled in repo settings.
+  (BUG-03), e2e-core stop 4 red (BUG-04), web job fixed and green (BUG-05); security green (dependency review advisory until Dependency graph
+  is enabled in repo settings).
 - 2026-11-16 · Swaroop/Claude: slice planned; SPEC-00 CI and the plan in PR #47; specs SPEC-01 to SPEC-25 written.
   Next: merge #47, set required checks, start SPEC-01/02 (Swaroop) and SPEC-03 (Saad).
