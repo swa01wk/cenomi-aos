@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { people, signInAs } from "./helpers";
 
+test.afterEach(async ({ page }, testInfo) => {
+  // CI artifacts are not always reachable; print what the page showed so the log alone explains a failure.
+  if (testInfo.status !== testInfo.expectedStatus) {
+    console.log(`--- page at failure: ${page.url()} ---\n${await page.locator("body").innerText().catch(() => "")}`);
+  }
+});
+
 test("stop 5: agent reply streams, brief versions appear, reload keeps state", async ({ page }) => {
   await signInAs(page, people.faisal);
   // Message the sourcing specialist directly so the job runs request intake (the chat home routes small talk and
