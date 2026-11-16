@@ -10,7 +10,7 @@ COMPOSE   := docker compose $(if $(wildcard .env),--env-file .env,) -f deploy/do
 PACK      ?= packs/procurement_demo
 ORG       ?= seed/org.yaml
 
-.PHONY: help install vendor test validate api-types check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean reset-demo
+.PHONY: help install vendor test validate api-types check smoke-real model-real model-fake gate diag db up compose-up worker-token down logs ps dev-api dev-web web-offline e2e clean reset-demo eval e2e-journeys
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -52,6 +52,13 @@ model-real: ## switch the Compose worker to the real model (asks only for a miss
 
 model-fake: ## switch the Compose worker back to the scripted model
 	@bash scripts/dev-model.sh fake
+
+eval: ## agent eval suite (UAT slice): scripted model by default; LIVE=1 [N=5] runs the real model; report in eval-results/
+	cd backend && PYTHONPATH=$(PYPATH) $(PY) -m aos.cli eval ../packs/procurement_demo --org ../seed/org.yaml \
+		--out ../eval-results $(if $(LIVE),--live --runs $(or $(N),5),)
+
+e2e-journeys: ## lifecycle journeys in Playwright (stack up, AOS_VENDOR_SIM=1); J=quick-quote|rfp|negative; E2E_LIVE=1 for the real model
+	cd web && npx playwright test -c playwright.journeys.config.ts $(if $(J),--project=$(J),)
 
 gate: ## M1 exit gate on the real model: fresh stack, stops 1-3, Faisal's chat checked; RUNS=3 repeats the chat
 	@bash scripts/gate.sh $(or $(RUNS),1)

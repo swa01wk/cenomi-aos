@@ -13,3 +13,7 @@ web/gate-results/
 .env
 *.sqlite3
 .DS_Store
+web/journey-results/
+web/playwright-report-journeys/
+web/playwright-report-demo/
+eval-results/
