@@ -21,7 +21,15 @@ test("stop 5: agent reply streams, brief versions appear, reload keeps state", a
   const conversation = page.getByRole("region", { name: "Conversation" });
   await expect(conversation.getByRole("paragraph").filter({ hasText: need })).toBeVisible();
 
-  // Attempt 1 (fake script): saves the first draft, then asks three questions. They arrive over the stream,
+  // Quick Quote opens in conversation: the specialist acknowledges first, and intake starts on the next message
+  // once the thread carries request detail.
+  await expect(conversation.getByText(/I'll help you shape this/).first()).toBeVisible({ timeout: 120_000 });
+  const detail = "4 heavy-duty cleaning trolleys for the north warehouse, please.";
+  await conversation.getByRole("textbox", { name: "Message" }).fill(detail);
+  await conversation.getByRole("button", { name: "Send" }).click();
+  await expect(conversation.getByText(detail, { exact: true })).toBeVisible();
+
+  // Intake attempt 1 (fake script): saves the first draft, then asks three questions. They arrive over the stream,
   // without a reload.
   await expect(conversation.getByText(/Delivery date/).first()).toBeVisible({ timeout: 120_000 });
 
