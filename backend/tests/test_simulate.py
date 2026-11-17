@@ -255,9 +255,11 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS_FAKE_MODEL)
         self.assertEqual(
             report["graph_runs"],
-            {"request_intake": 2, "rfq_draft": 1, "supplier_lookup": 2},
-            "Tasks with a script ran through the graphs: the intake asked once and resumed on the answer, and the"
-            " search ranked again against the brief the answer changed",
+            # Quick Quote opens in conversation, so the script's second turn starts intake rather than answering it:
+            # one intake run. pr_create runs and fails until SPEC-06/07 (see EXPECTED_DEAD_ENDS_FAKE_MODEL).
+            {"pr_create": 1, "request_intake": 1, "rfq_draft": 1, "supplier_lookup": 2},
+            "Tasks with a script ran through the graphs: intake once, and the search ranked again against the"
+            " brief the intake saved",
         )
         self.assertEqual(
             [o for o in report["outputs"] if o[3]],

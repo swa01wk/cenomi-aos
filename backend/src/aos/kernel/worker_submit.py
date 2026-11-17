@@ -111,40 +111,6 @@ async def _store_output_verification(
         )
 
 
-async def _emit_verification_completed(
-    conn: AsyncConnection,
-    *,
-    gate: ClaimedAttempt,
-    verifier_name: str,
-    verdict: str,
-    findings: list[str],
-) -> None:
-    on_behalf = gate.contract.get("on_behalf_of") or {}
-    role = on_behalf.get("role")
-    if not role:
-        return
-    payload: dict[str, Any] = {
-        "instance_id": gate.instance_id,
-        "task_id": gate.task_id,
-        "verifier": verifier_name,
-        "verdict": verdict,
-    }
-    if findings:
-        payload["findings"] = findings
-    await append_outbox_many(
-        conn,
-        [
-            OutboxRow(
-                stream=ids.stream_instance(gate.instance_id),
-                event_type="verification.completed",
-                instance_id=gate.instance_id,
-                audience={"roles": [str(role)]},
-                data=payload,
-            )
-        ],
-    )
-
-
 async def _validate_outputs(
     conn: AsyncConnection,
     *,
@@ -464,13 +430,7 @@ async def submit_result(
             "findings": findings,
         }
         await _store_output_verification(conn, refs=refs, verification=stored_verification)
-        await _emit_verification_completed(
-            conn,
-            gate=gate,
-            verifier_name=str(verifier_name),
-            verdict=verdict,
-            findings=findings,
-        )
+        # verification.completed goes out once, after the submit commits (_record_verification below).
         if verdict == "REWORK":
             accepted_response["verdict"] = "REWORK"
             if gate.attempts_used >= gate.max_attempts:

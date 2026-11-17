@@ -303,7 +303,8 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         inst = await self.reach_rfq_drafting(rec)
         self.assertEqual(await self.run_worker(rec, scenario="leak"), "submitted")
         self.assertEqual(self.task_state(inst, "rfq_draft"), "READY", "leak_check sent it back")
-        expected = [f"rfq_email[{sid}].body contains the value of brief.budget_guidance." for sid in SHORTLIST]
+        # leak_check names the field and the brief value it leaks, never the value; each email carries all findings.
+        expected = ["body: leaks brief.budget_guidance"] * len(SHORTLIST)
         for _key, version, _content, verification in self.output_rows(inst, "rfq_email"):
             self.assertEqual(version, 1)
             self.assertEqual(verification.get("verdict"), "REWORK")

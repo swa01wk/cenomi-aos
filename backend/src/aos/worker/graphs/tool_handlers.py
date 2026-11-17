@@ -106,7 +106,7 @@ async def execute_tool_calls(
                 )
                 saved_row = await ctx.save_draft(body)
                 at = str(body["artifact_type"])
-                # One slot per type, or per type and key for per-item drafts (one RFQ email per supplier):
+                # One slot per type, or per type and key for per-item drafts (several items of one type):
                 # build_save_draft_body reads the same slot, and submit must reference every saved item.
                 saved[draft_slot(at, str(body.get("key") or ""))] = {
                     "artifact_type": at,
