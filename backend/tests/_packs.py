@@ -39,8 +39,12 @@ def copy_demo_pack(
     states = doc["spec"]["states"]
     if not intake_task:
         states["intake"].pop("tasks", None)
-    if initial is not None:
+    if initial is not None and initial != doc["spec"]["initial"]:
+        # Drop the old opening state (and its way out) so the new initial leaves nothing unreachable.
+        old = doc["spec"]["initial"]
         doc["spec"]["initial"] = initial
+        states.pop(old, None)
+        doc["spec"]["transitions"] = [t for t in doc["spec"]["transitions"] if t.get("from") != old]
     if assist_skill is not None:
         for name in ("conversation", "intake"):
             states[name]["assist"] = assist_skill
