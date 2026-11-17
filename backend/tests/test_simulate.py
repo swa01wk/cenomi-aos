@@ -46,6 +46,14 @@ EXPECTED_DEAD_ENDS = [
     "approval (erp_po.create, step 2): not yet governed",
 ]
 
+# Through the fake model the scripted PR raise fails too: it names a fixed supplier and needs request_action, which
+# SPEC-06 and SPEC-07 add. Remove this entry when they land.
+EXPECTED_DEAD_ENDS_FAKE_MODEL = [
+    EXPECTED_DEAD_ENDS[0],
+    "task.pr_create: attempt failed:invalid_output",
+    *EXPECTED_DEAD_ENDS[1:],
+]
+
 
 async def _sync_published(conn, packs_dir: Path) -> str:
     result = await registry_store.sync_pack(
@@ -244,7 +252,7 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self._baseline_counts(), before)
         self.assertEqual(report["reached"], "closed")
         self.assertEqual(report["path"], EXPECTED_PATH)
-        self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS)
+        self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS_FAKE_MODEL)
         self.assertEqual(
             report["graph_runs"],
             {"request_intake": 2, "rfq_draft": 1, "supplier_lookup": 2},

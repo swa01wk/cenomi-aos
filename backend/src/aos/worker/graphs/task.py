@@ -202,7 +202,8 @@ async def finish_node(state: TaskGraphState, config) -> dict[str, Any]:
         raise AttemptFailed("invalid_output", "submit requires a summary.")
     saved = dict(state.get("saved_in_attempt") or {})
     refs = _output_refs(saved)
-    produced_types = set(saved.keys())  # saved_in_attempt is keyed by artifact type
+    # saved_in_attempt is keyed by draft slot (type, or type#key for per-item drafts).
+    produced_types = {str(row.get("artifact_type") or slot.split("#", 1)[0]) for slot, row in saved.items()}
     expected = [
         str(o.get("artifact_type"))
         for o in (contract.get("expected_outputs") or [])

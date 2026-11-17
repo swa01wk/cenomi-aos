@@ -228,7 +228,8 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual((key, version), ("", 1))
         rows = content["rows"]
         self.assertEqual([r["supplier_id"] for r in rows],
-                         ["SUP-10482", "SUP-10217", "SUP-10355", "SUP-10790", "SUP-10611"])
+                         # Rubric: SUP-10611 has one past order (20 + 5 = 25), SUP-10790 none (20).
+                         ["SUP-10482", "SUP-10217", "SUP-10355", "SUP-10611", "SUP-10790"])
         receipts = set(self.sql(
             "select attributes->>'receipt_ref' from evidence.execution_events where event_type = 'ToolCompleted'"
             f" and task_id = (select id from work.tasks where instance_id = '{inst}' and template = 'supplier_lookup')"

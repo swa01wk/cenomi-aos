@@ -38,4 +38,4 @@ attempts:
       # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
       - tool_calls:
           - name: submit
-            args: {summary: "Saved the brief."}
+            args: {summary: "Thanks, your brief is updated."}
