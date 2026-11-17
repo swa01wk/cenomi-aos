@@ -918,13 +918,17 @@ async def heal_intake_when_brief_valid(
         return False
     aid, ver, _ = bound
     vcur = await conn.execute(
-        "select content from work.artifact_versions where artifact_id = %s and version = %s",
+        "select content, verification from work.artifact_versions where artifact_id = %s and version = %s",
         (aid, ver),
     )
     vrow = await vcur.fetchone()
     if vrow is None:
         return False
     content = vrow[0] if isinstance(vrow[0], dict) else json.loads(vrow[0])
+    verification = vrow[1] if isinstance(vrow[1], dict) else json.loads(vrow[1] or "null")
+    if isinstance(verification, dict) and str(verification.get("verdict") or "").upper() not in ("", "PASS"):
+        # The verifier rejected this version: the task's EXCEPTION stands and the retry card decides, not a heal.
+        return False
     from .artifacts import parse_artifact_type, validate_artifact_content
 
     at = parse_artifact_type(defs, "brief")

@@ -47,12 +47,18 @@ class WorkerHarness(unittest.TestCase):
 
     # Worker protocol suites drive assist turns; suites for the intake Task set this.
     INTAKE_TASK = False
+    # Start jobs in this state instead of the workflow's own initial (``conversation``).
+    INITIAL_STATE: str | None = None
+    # Assist skill for the opening states; None keeps the pack's (sourcing_assist, which saves no drafts).
+    ASSIST_SKILL: str | None = None
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = _pg.create_migrated()
         cls.packs = Path(tempfile.mkdtemp(prefix="aos-packs-worker-"))
-        copy_demo_pack(cls.packs, intake_task=cls.INTAKE_TASK)
+        copy_demo_pack(
+            cls.packs, intake_task=cls.INTAKE_TASK, initial=cls.INITIAL_STATE, assist_skill=cls.ASSIST_SKILL
+        )
         cls.settings = Settings.from_env(
             database_url=_pg.kernel_url(cls.db),
             packs_dir=cls.packs,
@@ -542,8 +548,8 @@ class WorkerApiTests(WorkerHarness):
         body = r.json()
         self.assertIn("contract", body)
         self.assertIn("skill_instructions", body)
-        self.assertIn("Request intake", body["skill_instructions"])
-        self.assertEqual(body["contract"]["skill"]["name"], "request_intake")
+        self.assertIn("# Sourcing assist", body["skill_instructions"])
+        self.assertEqual(body["contract"]["skill"]["name"], "sourcing_assist")
 
 
 if __name__ == "__main__":

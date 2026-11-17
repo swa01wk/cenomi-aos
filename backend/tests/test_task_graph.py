@@ -39,6 +39,7 @@ class _RecordingKernel:
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     INTAKE_TASK = True
+    INITIAL_STATE = "intake"
 
     def sql(self, query: str) -> str:
         return _pg.admin_sql(self.db, query).stdout.strip()
