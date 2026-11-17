@@ -35,3 +35,7 @@ attempts:
                 budget_guidance: 15000
       - stream_chunks: ["Thanks", ", your brief is updated."]
         reply_text: "Thanks, your brief is updated."
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Saved the brief."}

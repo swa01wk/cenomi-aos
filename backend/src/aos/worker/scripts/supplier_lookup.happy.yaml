@@ -78,3 +78,7 @@ attempts:
           I found 5 active suppliers for janitorial equipment in the ERP and ranked them with the standard rubric (approved
           list, past orders, on-time delivery). Najd Supplies ranks first. Next, the buyer picks at least 3 for the
           shortlist.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Ranked the suppliers found in the ERP."}

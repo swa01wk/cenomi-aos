@@ -98,7 +98,8 @@ class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         assert attempt is not None
         self.assertEqual(attempt["contract"]["kind"], "task")
         self.assertEqual(attempt["contract"]["template"], "request_intake")
-        self.assertEqual(attempt["contract"]["permission_scope"]["classification_ceiling"], "internal")
+        # The skill allows internal, but the Task acts for the requester, whose clearance caps it (fail low).
+        self.assertEqual(attempt["contract"]["permission_scope"]["classification_ceiling"], "shareable")
         self.assertEqual(attempt["turn_id"], first_turn)
 
     async def test_intake_task_asks_resumes_on_the_answer_and_submits_the_brief(self) -> None:
