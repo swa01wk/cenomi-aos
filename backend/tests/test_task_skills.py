@@ -189,7 +189,18 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.instance(inst, "faisal")["state"], "shortlisting")
 
         await self.tick()
-        self.assertEqual(await self.run_worker(rec), "submitted")
+        outcome = await self.run_worker(rec)
+        self.assertEqual(
+            outcome,
+            "submitted",
+            # Say why: the saved list and its verdict, and every attempt of the supplier search.
+            f"supplier_list: {self.output_rows(inst, 'supplier_list')}\nattempts: "
+            + self.sql(
+                "select a.n || ':' || coalesce(a.outcome, a.state) || ':' || coalesce(a.failure_class, '')"
+                " from work.attempts a join work.tasks t on t.id = a.task_id"
+                f" where t.instance_id = '{inst}' and t.template = 'supplier_lookup' order by a.n;"
+            ),
+        )
         self.assertEqual(self.task_state(inst, "supplier_lookup"), "COMPLETED")
         return inst
 

@@ -13,6 +13,9 @@ from aos.worker.http_client import HttpKernelClient
 from aos.worker.runner import Worker
 from aos.worker.runtime import FakeRuntime
 
+from aos.kernel.settings import REPO
+from aos.registry.loader import parse_yaml
+
 from . import _pg
 from .test_worker_api import WorkerHarness
 from .worker_harness import make_http_client, mock_erp_hook
@@ -37,6 +40,11 @@ class _RecordingKernel:
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
+# Attempts per intake run: the request_intake skill's retries plus the first try.
+_INTAKE_SKILL = parse_yaml((REPO / "packs/procurement_demo/skills/request_intake/skill.yaml").read_text())
+INTAKE_MAX_ATTEMPTS = int(_INTAKE_SKILL["spec"]["budget"]["retries"]) + 1
+
+
 class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     INTAKE_TASK = True
     INITIAL_STATE = "intake"
@@ -81,7 +89,7 @@ class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         inst = await asyncio.to_thread(self._start_job)
         tasks = self.tasks(inst)
         self.assertEqual(tasks["assist"][:2], ("CREATED", 0))
-        self.assertEqual(tasks["request_intake"], ("RUNNING", 1, 4))
+        self.assertEqual(tasks["request_intake"], ("RUNNING", 1, INTAKE_MAX_ATTEMPTS))
         first_turn = self.sql(f"select id from work.turns where instance_id = '{inst}' order by seq limit 1;")
 
         rec = await self.recording_client()
@@ -111,7 +119,7 @@ class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task_of_attempt, "request_intake")
         state, used, mx = self.tasks(inst)["request_intake"]
         self.assertEqual((state, used), ("RUNNING", 2))
-        self.assertEqual(mx, used - 1 + 4, "each answer brings a fresh set of retries")
+        self.assertEqual(mx, used - 1 + INTAKE_MAX_ATTEMPTS, "each answer brings a fresh set of retries")
         self.assertEqual(self.tasks(inst)["assist"][1], 0, "the assist Task never ran")
 
         self.assertEqual(await self.run_worker(rec), "submitted")
