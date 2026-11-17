@@ -344,11 +344,19 @@ class MockMailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([m["folder"] for m in thread["items"]], ["sent", "inbox"])
 
 
+def _prop_type(v: dict) -> str | None:
+    """A property's JSON type; an optional MCP argument (``str | None``) is ``anyOf`` with ``null``."""
+    if v.get("type"):
+        return v["type"]
+    types = [o.get("type") for o in v.get("anyOf") or [] if isinstance(o, dict) and o.get("type") != "null"]
+    return types[0] if len(types) == 1 else None
+
+
 def _worker_args_schema(schema: dict) -> dict:
     props = {
-        k: {"type": v.get("type")}
+        k: {"type": _prop_type(v)}
         for k, v in (schema.get("properties") or {}).items()
-        if k != "token" and isinstance(v, dict) and v.get("type")
+        if k != "token" and isinstance(v, dict) and _prop_type(v)
     }
     required = [r for r in schema.get("required") or [] if r != "token"]
     out: dict = {"type": "object", "properties": props}

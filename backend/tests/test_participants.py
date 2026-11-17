@@ -368,7 +368,9 @@ class ParticipantsKernelTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(snap["pending"][0]["select_min"], 3)
             self.assertIn("at least 3", snap["pending"][0]["detail"])
             listed = await participants.list_queue_instances(conn, self.org, ORG_ID, "noura", QUEUE)
-            self.assertEqual(listed, [])
+            # Not offered as unclaimed work; it shows only as Noura's own review item.
+            self.assertEqual([(x["instance_id"], x["queue_item_kind"]) for x in listed], [(inst, "review")])
+            self.assertEqual(listed[0]["waiting_on"]["person_id"], "noura")
 
     async def test_someone_off_the_queue_does_not_take_the_work(self) -> None:
         inst = "QQ-P11"

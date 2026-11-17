@@ -82,7 +82,7 @@ class KernelApiTests(unittest.TestCase):
         r = self.client.post("/api/console/packs/procurement_demo/validate", headers=self.login("platform_admin"))
         body = r.json()
         self.assertTrue(body["ok"], body["errors"])
-        self.assertEqual(body["counts"]["Seat"], 1)
+        self.assertEqual(body["counts"]["Seat"], 2)  # sourcing specialist and workspace coordinator
         self.assertEqual(self.client.post("/api/console/packs/../seed/validate",
                                           headers=self.login("platform_admin")).status_code, 404)
 
@@ -113,7 +113,7 @@ class KernelApiTests(unittest.TestCase):
         pack_yaml = self.packs / "procurement_demo" / "pack.yaml"
         original = pack_yaml.read_text()
         try:
-            pack_yaml.write_text(original.replace("Quick Quote on", "Quick Quote (edited) on"))
+            pack_yaml.write_text(original.replace("  description: ", "  description: (edited) ", 1))
             r = self.client.post("/api/console/packs/procurement_demo/sync", headers=h)
             self.assertEqual(r.status_code, 409)
             self.assertIn("bump metadata.version", r.json()["detail"])

@@ -235,6 +235,10 @@ async def heal_missing_discovery_lookup(
     )
     if await rcur.fetchone() is not None:
         return True
+    if str(row[0]) != "shortlisting":
+        # During intake the region starts only through its own trigger (a brief with a category); forcing it is a
+        # recovery for a confirmed brief whose search never started.
+        return False
     region_on = parallel.on if parallel.on.startswith("event.") else f"event.{parallel.on}"
     return await ensure_parallel_region_started(
         conn, org, instance_id, region_on=region_on, packs_dir=packs_dir
@@ -525,11 +529,19 @@ async def heal_stuck_discovery_region_with_list(
     if not supplier_list_has_real_rows(list_content if isinstance(list_content, dict) else {}):
         return False
     rcur = await conn.execute(
-        "select state from work.regions where instance_id = %s and name = 'discovery'",
+        "select r.state, r.join_guard, r.started_with, i.attributes from work.regions r"
+        " join work.instances i on i.id = r.instance_id where r.instance_id = %s and r.name = 'discovery'",
         (instance_id,),
     )
     rrow = await rcur.fetchone()
     if rrow is None or str(rrow[0]) not in ("running",):
+        return False
+    started_with = rrow[2] if isinstance(rrow[2], dict) else json.loads(rrow[2] or "{}")
+    attributes = rrow[3] if isinstance(rrow[3], dict) else json.loads(rrow[3] or "{}")
+    from .regions import region_guard_holds
+
+    # A re-run for a newer brief (join guard failed, started_with reset) is not a stuck duplicate: let it run.
+    if not started_with or not region_guard_holds(rrow[1], attributes, started_with):
         return False
     await conn.execute(
         "update work.tasks set state = 'CANCELLED', updated_at = now()"
@@ -1617,7 +1629,8 @@ async def open_ready_decisions(
     attributes = attributes_raw if isinstance(attributes_raw, dict) else json.loads(attributes_raw or "{}")
     _org_id, _wf_name, definition, defs = await _load_workflow(conn, instance_id)
     if str(state) in ("intake", "shortlisting"):
-        await _ensure_brief_category_for_lookup(conn, instance_id, defs)
+        # The brief's category is the agent's ERP lookup (brief_schema checks it); the kernel re-infers it only when
+        # supplier lookup came back empty (heal_empty_supplier_list), never on an ordinary read.
         await heal_brief_missing_delivery_date(conn, instance_id, defs)
     if str(state) != "intake" or attributes.get("brief_version"):
         await _void_open_brief_confirm(conn, instance_id, voided_by="kernel")

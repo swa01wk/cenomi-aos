@@ -30,6 +30,7 @@ ORG_ID = ORG.organization.id
 SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
 EXPECTED_PATH = [
+    "conversation",
     "intake",
     "shortlisting",
     "rfq_drafting",
@@ -40,7 +41,6 @@ EXPECTED_PATH = [
     "closed",
 ]
 EXPECTED_DEAD_ENDS = [
-    "event.intent_identified: already raised",
     "approval (mailbox.send): not yet governed",
     "approval (erp_po.create, step 1): not yet governed",
     "approval (erp_po.create, step 2): not yet governed",
@@ -167,7 +167,8 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts["rfq_send"], 1)
         self.assertEqual(counts["quote_comparison"], 1)
         self.assertEqual(counts["pr_create"], 1)
-        self.assertEqual(counts["quote_triage"], 2)
+        self.assertEqual(counts["quote_triage"], 1)
+        self.assertEqual(counts["quote_triage_late"], 1, "the second reply lands after the first quote moved the job")
         self.assertEqual(counts["request_intake"], 1)
 
     async def test_simulate_pack_version_matches(self) -> None:

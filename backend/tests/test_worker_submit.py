@@ -260,7 +260,7 @@ class WorkerSubmitTests(WorkerHarness):
             "select display_name from registry.seats"
             " where org_id = 'org_demo' and name = 'seat_sourcing_poc' and version = 1;",
         ).stdout.strip()
-        self.assertEqual(display, "Sourcing Agent")
+        self.assertEqual(display, "Noor Al-Rashid")
         turn_name = _pg.admin_sql(
             self.db,
             f"select data->'turn'->'author'->>'name' from evidence.outbox"

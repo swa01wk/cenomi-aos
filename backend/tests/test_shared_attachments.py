@@ -8,10 +8,11 @@ import unittest
 import psycopg
 
 from aos.kernel import shared_attachments
-from aos.kernel.org import load_org
+from aos.kernel.org import load_org, seed_sql
 from aos.kernel.settings import REPO
 
 from . import _pg
+from .test_timers_demo_clock import PACKS, _sync_published
 
 ORG = load_org(REPO / "seed" / "org.yaml")
 ORG_ID = ORG.organization.id
@@ -33,12 +34,14 @@ class SharedAttachmentsTests(unittest.TestCase):
         async def run() -> None:
             async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
                 async with conn.transaction():
+                    await conn.execute(seed_sql(ORG))
+                    await _sync_published(conn, PACKS)
                     await conn.execute(
                         "insert into work.instances (id, org_id, title, workflow, pack_version_id, state, version,"
-                        " seat, seat_version, status, attributes)"
+                        " seat, seat_version, status, attributes, correlation_id, created_by)"
                         " values (%s, %s, 't', 'quick_quote',"
                         " (select id from registry.pack_versions limit 1),"
-                        " 'rfq_sending', 1, 'seat_sourcing_poc', 1, 'running', '{}')",
+                        " 'rfq_sending', 1, 'seat_sourcing_poc', 1, 'running', '{}', 'corr_sha1', 'noura')",
                         (inst, ORG_ID),
                     )
                     await conn.execute(

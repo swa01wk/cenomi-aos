@@ -373,7 +373,7 @@ class ContextEnvelopeTests(unittest.TestCase):
         self.assertNotIn(PLANT_PRICE, json.dumps(messages))
         self.assertFalse(any(PLANT_PRICE in t for t in texts))
         self.assertTrue(any("Need trolleys" in t for t in texts))
-        self.assertIn("Sourcing Agent", authors)
+        self.assertIn("Noor Al-Rashid", authors)  # the Seat's display name
 
     def test_resolve_pending_items_filters_by_viewer(self) -> None:
         inst = self._start("faisal")

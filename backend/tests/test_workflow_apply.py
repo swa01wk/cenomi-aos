@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import shutil
 import tempfile
@@ -16,7 +15,6 @@ from aos.kernel import ids, workflow
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.registry_store import sync_pack
 from aos.kernel.workflow import WorkflowEffectError
-from aos.registry.loader import parse_yaml
 
 from . import _pg
 
@@ -32,18 +30,9 @@ async def _sync_published(conn, packs_dir: Path, *, newer: bool = False) -> str:
     """Sync and publish the pack; ``newer`` publishes the next version with a stricter shortlist guard."""
     root = packs_dir / "procurement_demo"
     if newer:
-        pack_yaml = root / "pack.yaml"
-        version = int(parse_yaml(pack_yaml.read_text())["metadata"]["version"]) + 1
-        lines = pack_yaml.read_text().splitlines()
-        pack_yaml.write_text(
-            "\n".join(
-                f"metadata: {{name: procurement_demo, version: {version}, owner: head_of_procurement}}"
-                if line.startswith("metadata:") and "procurement_demo" in line
-                else line
-                for line in lines
-            )
-            + "\n"
-        )
+        from aos.kernel.pack_publish import bump_pack_manifest_version
+
+        bump_pack_manifest_version(packs_dir, "procurement_demo")
         wf = root / "workflows" / "quick_quote.yaml"
         wf.write_text(
             wf.read_text().replace(

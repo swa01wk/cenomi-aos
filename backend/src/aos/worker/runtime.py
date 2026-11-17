@@ -52,15 +52,19 @@ def _attempt_kind(attempt: WorkerAttempt) -> str:
     return str(contract.get("kind") or "assist")
 
 
-def _assist_fake_script(attempt: WorkerAttempt) -> str:
+def _scenario(explicit: str | None = None) -> str:
+    return (explicit or os.environ.get("AOS_FAKE_SCENARIO", "happy")).strip() or "happy"
+
+
+def _assist_fake_script(attempt: WorkerAttempt, scenario: str | None = None) -> str:
     """Pick a scripted reply for assist attempts: skill script, then env override, then generic stream."""
     from .scripts_loader import SCRIPTS_DIR
 
     contract = attempt.get("contract") if isinstance(attempt.get("contract"), dict) else {}
     skill = str((contract.get("skill") or {}).get("name") or "")
-    scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"
+    sc = _scenario(scenario)
     if skill:
-        candidate = f"{skill}.{scenario}.yaml"
+        candidate = f"{skill}.{sc}.yaml"
         if (SCRIPTS_DIR / candidate).is_file():
             return candidate
     env_script = os.environ.get("AOS_FAKE_SCRIPT", "").strip()
@@ -69,16 +73,21 @@ def _assist_fake_script(attempt: WorkerAttempt) -> str:
     return "assist.stream.yaml"
 
 
-def _fake_script_name(attempt: WorkerAttempt, explicit: str | None) -> str:
+def _fake_script_name(attempt: WorkerAttempt, explicit: str | None, scenario: str | None = None) -> str:
     if explicit and explicit.strip():
         return explicit.strip()
-    kind = _attempt_kind(attempt)
-    if kind == "assist":
-        return _assist_fake_script(attempt)
-    skill = (contract.get("skill") or {}).get("name") if isinstance(contract := attempt.get("contract"), dict) else None
-    skill = str(skill or "unknown")
-    scenario = os.environ.get("AOS_FAKE_SCENARIO", "happy").strip() or "happy"
-    return f"{skill}.{scenario}.yaml"
+    if _attempt_kind(attempt) == "assist":
+        return _assist_fake_script(attempt, scenario)
+    from .scripts_loader import task_script
+
+    contract = attempt.get("contract") if isinstance(attempt.get("contract"), dict) else {}
+    sc = _scenario(scenario)
+    # Template first (rfq_draft), then skill (rfq_authoring); a scenario a Task has no script for runs happy.
+    found = task_script(contract, sc)
+    if found:
+        return found
+    skill = str((contract.get("skill") or {}).get("name") or "unknown")
+    return f"{skill}.{sc}.yaml"
 
 
 class ScriptedRuntime:
@@ -120,9 +129,14 @@ class FakeRuntime:
         *,
         checkpointer: CheckpointerHandle,
         script: str | None = None,
+        scenario: str | None = None,
     ):
         self._checkpointer = checkpointer
         self._script = script
+        self._scenario = scenario
+
+    def _script_name(self, attempt: WorkerAttempt) -> str:
+        return _fake_script_name(attempt, self._script, self._scenario)
 
     async def start(self, attempt: WorkerAttempt, ctx: AttemptContext) -> AgentResult:
         resolved = await _prepare_checkpoint_thread(attempt, ctx, self._checkpointer, is_resume=False)
@@ -137,7 +151,7 @@ class FakeRuntime:
         from .graph_runner import run_attempt_graph, run_task_graph
         from .scripts_loader import load_fake_script
 
-        script_name = _fake_script_name(attempt, self._script)
+        script_name = self._script_name(attempt)
         try:
             script = load_fake_script(script_name, attempt_n=int(attempt.get("n") or 1))
         except FileNotFoundError as exc:

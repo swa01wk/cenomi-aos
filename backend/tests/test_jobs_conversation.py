@@ -148,6 +148,8 @@ class JobsConversationTests(unittest.TestCase):
             delete from evidence.outbox;
             delete from evidence.execution_events;
             delete from work.turns;
+            delete from work.artifact_versions;
+            delete from work.artifacts;
             delete from work.attempts;
             delete from work.tasks;
             delete from work.pending_items;
@@ -275,7 +277,10 @@ class JobsConversationTests(unittest.TestCase):
             pack_yaml.read_text().replace("name: procurement_demo", "name: procurement_alt", 1)
         )
         wf = alt / "workflows" / "quick_quote.yaml"
-        wf.write_text(wf.read_text().replace("request_intake", "alt_intake"))
+        # The initial state's ``assist`` names the chat skill for a new job.
+        wf.write_text(
+            wf.read_text().replace("request_intake", "alt_intake").replace("assist: sourcing_assist", "assist: alt_intake")
+        )
         shutil.copytree(
             alt / "skills" / "request_intake",
             alt / "skills" / "alt_intake",

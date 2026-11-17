@@ -9,8 +9,10 @@ import psycopg
 
 from aos.kernel import ids, quotes
 from aos.kernel.contracts import _canonical_json
+from aos.kernel.org import seed_sql
 
 from . import _pg
+from .test_timers_demo_clock import ORG, PACKS, _sync_published
 
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
@@ -18,6 +20,8 @@ class QuoteCountSyncTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.db = _pg.create_migrated()
         self.conn = await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db))
+        await self.conn.execute(seed_sql(ORG))
+        self.pvid = await _sync_published(self.conn, PACKS)
 
     async def asyncTearDown(self) -> None:
         await self.conn.close()
@@ -30,10 +34,10 @@ class QuoteCountSyncTests(unittest.IsolatedAsyncioTestCase):
             insert into work.instances (
               id, org_id, workflow, pack_version_id, seat, seat_version, title, state, version,
               attributes, created_by, correlation_id
-            ) values (%s, 'org_poc', 'quick_quote', 'pv1', 'seat', 1, 'T', 'awaiting_quotes', 1,
+            ) values (%s, %s, 'quick_quote', %s, 'seat_sourcing_poc', 1, 'T', 'awaiting_quotes', 1,
                       '{"invited_count": 3}'::jsonb, 'faisal', 'c1')
             """,
-            (inst,),
+            (inst, ORG.organization.id, self.pvid),
         )
         aid = ids.new_artifact_id()
         content = {
