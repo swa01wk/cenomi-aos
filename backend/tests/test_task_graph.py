@@ -39,12 +39,12 @@ class _RecordingKernel:
         return await self._inner.ask_questions(attempt, blocks=blocks, questions=questions)
 
 
-@unittest.skipUnless(_pg.available(), "no local Postgres")
 # Attempts per intake run: the request_intake skill's retries plus the first try.
 _INTAKE_SKILL = parse_yaml((REPO / "packs/procurement_demo/skills/request_intake/skill.yaml").read_text())
 INTAKE_MAX_ATTEMPTS = int(_INTAKE_SKILL["spec"]["budget"]["retries"]) + 1
 
 
+@unittest.skipUnless(_pg.available(), "no local Postgres")
 class IntakeTaskTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     INTAKE_TASK = True
     INITIAL_STATE = "intake"
