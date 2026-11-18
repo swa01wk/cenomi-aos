@@ -5,7 +5,11 @@ alwaysApply: true
 
 # Story workflow
 
-- Work on exactly one story ID (e.g. `M1-BE-03`) per chat. If the request names none, ask which story it is.
+- Work on exactly one story ID (e.g. `M1-BE-03`, or `SPEC-07` for the UAT-1 slice) per chat. If the request names
+  none, ask which story it is.
+- UAT-1 slice: the story is a spec in `plans/UAT-1/specs/`; its `spec.md` is the contract for the chat. When done,
+  update its row and the daily log in `plans/STATUS.md` (not `PROGRESS.md`) and use the commit title
+  `SPEC-xx: <title>`. No heal or demo path may run when `AOS_DEMO=0`.
 - Before editing, reply with a short plan: files, operations (`openapi.yaml` operationIds), tables, events and the
   tests you will write. Wait for approval when the user asked for a plan first.
 - Write the story's listed tests along with the code. Run `make check` and report the result. "Done" means green,

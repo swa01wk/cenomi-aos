@@ -369,7 +369,8 @@ class WorkflowEventsTests(unittest.IsolatedAsyncioTestCase):
             changed={"quote_count"},
             packs_dir=self.packs_dir,
         )
-        self.assertEqual(await _count_events(self.conn, inst, "WorkflowEventRaised"), 0)
+        # first_quote_ready (quote_count >= 1) fires on the first quote; all_quotes_received waits for every invitee.
+        self.assertEqual(await self._raised(inst), ["first_quote_ready"])
 
         await self.conn.execute(
             "update work.instances set attributes = %s where id = %s",
@@ -382,9 +383,18 @@ class WorkflowEventsTests(unittest.IsolatedAsyncioTestCase):
             changed={"quote_count", "invited_count"},
             packs_dir=self.packs_dir,
         )
-        self.assertEqual(await _count_events(self.conn, inst, "WorkflowEventRaised"), 1)
+        self.assertEqual(await self._raised(inst), ["first_quote_ready", "all_quotes_received"])
         cur = await self.conn.execute("select state from work.instances where id = %s", (inst,))
         self.assertEqual((await cur.fetchone())[0], "comparison")
+
+    async def _raised(self, inst: str) -> list[str]:
+        cur = await self.conn.execute(
+            "select redacted_summary from evidence.execution_events where run_id = %s"
+            " and event_type = 'WorkflowEventRaised' order by aggregate_seq",
+            (inst,),
+        )
+        return [r[0].removeprefix("Raised event ").removesuffix(".") for r in await cur.fetchall()]
+
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class DecisionEventOrderTests(unittest.IsolatedAsyncioTestCase):

@@ -45,6 +45,7 @@ class _RecordingKernel:
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class RequestIntakeAssistTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
+    ASSIST_SKILL = "request_intake"
     async def _client(self) -> _RecordingKernel:
         return await make_http_client(self, invoke_hook=mock_erp_hook)  # type: ignore[return-value]
 

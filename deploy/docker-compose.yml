@@ -23,7 +23,9 @@ services:
   api:
     build: {context: .., dockerfile: backend/Dockerfile}
     env_file:
-      - ../.env
+      # Optional: CI and fresh clones run without a .env (compose >= 2.24).
+      - path: ../.env
+        required: false
     volumes:
       # Live pack tree: local edits and startup auto-bump stay on the host (avoids image-only drift).
       - ../packs:/app/packs
@@ -35,6 +37,10 @@ services:
       AOS_CONNECTOR_SECRETS: '{"mock_erp":"${MOCK_ERP_SECRET:-dev-erp-secret}","mock_mail":"${MOCK_MAIL_SECRET:-dev-mail-secret}"}'
       AOS_CONNECTOR_URLS: '{"mock_erp":"http://mock-erp:8101/mcp","mock_mail":"http://mock-mail:8102/mcp"}'
       AOS_DEMO: ${AOS_DEMO:-0}
+      # Vendor simulator (UAT slice): simulated suppliers reply by mail only; independent of AOS_DEMO.
+      AOS_VENDOR_SIM: ${AOS_VENDOR_SIM:-0}
+      # Short timers (demo_after) and clock advance, without heals or bootstrap; on for UAT.
+      AOS_DEMO_CLOCK: ${AOS_DEMO_CLOCK:-0}
       AOS_SYNC_PACK_ON_START: ${AOS_SYNC_PACK_ON_START:-1}
       AOS_RFQ_TEST_TO: ${AOS_RFQ_TEST_TO:-}
       AOS_RFQ_TEST_SUPPLIER_ID: ${AOS_RFQ_TEST_SUPPLIER_ID:-SUP-11632}
@@ -64,7 +70,8 @@ services:
     build: {context: .., dockerfile: backend/Dockerfile}
     command: ["python", "-m", "aos.connectors.mock_mail", "--host", "0.0.0.0", "--db", "/data/mock_mail.sqlite"]
     env_file:
-      - ../.env
+      - path: ../.env
+        required: false
     environment:
       MOCK_MAIL_SECRET: ${MOCK_MAIL_SECRET:-dev-mail-secret}
       AOS_INBOUND_SECRET: ${AOS_INBOUND_SECRET:-dev-inbound-secret}

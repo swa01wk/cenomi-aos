@@ -124,7 +124,9 @@ class ContextEnvelopeTests(unittest.TestCase):
             insert into registry.eval_runs (id, org_id, seat, seat_version, suite, model, status, passed, total)
             values
               ('ev_ctx_refusals', 'org_demo', '{SEAT}', 1, 'refusals', 'fake', 'passed', 4, 4),
-              ('ev_ctx_dry_run', 'org_demo', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1)
+              ('ev_ctx_dry_run', 'org_demo', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_ctx_inbound_quotes', 'org_demo', '{SEAT}', 1, 'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_ctx_inbound_trigger', 'org_demo', '{SEAT}', 1, 'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )
@@ -371,7 +373,7 @@ class ContextEnvelopeTests(unittest.TestCase):
         self.assertNotIn(PLANT_PRICE, json.dumps(messages))
         self.assertFalse(any(PLANT_PRICE in t for t in texts))
         self.assertTrue(any("Need trolleys" in t for t in texts))
-        self.assertIn("Sourcing Agent", authors)
+        self.assertIn("Noor Al-Rashid", authors)  # the Seat's display name
 
     def test_resolve_pending_items_filters_by_viewer(self) -> None:
         inst = self._start("faisal")

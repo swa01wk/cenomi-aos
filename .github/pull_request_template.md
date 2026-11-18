@@ -1,6 +1,9 @@
 ## Story
 
-<!-- One story per PR, e.g. M1-BE-03 Seat lifecycle — docs/specs/milestones/M1-seat-and-chat.md -->
+<!-- One story per PR, e.g. M1-BE-03 Seat lifecycle — docs/specs/milestones/M1-seat-and-chat.md,
+     or a UAT-1 spec, e.g. SPEC-07 — plans/UAT-1/specs/SPEC-07-qq-comparison-ordering/spec.md -->
+
+Requirements: R-.. | Tests: T-..-..
 
 ## What changed
 
@@ -19,4 +22,5 @@ None
 - [ ] `make check` passes (tests + `aos validate`), with Postgres running (`AOS_TEST_REQUIRE_PG=1`)
 - [ ] Screens match `design/png` and `design/boards` (attach a screenshot for UI stories)
 - [ ] No pack, workflow or domain names in platform code (`test_pack_neutral.py`)
-- [ ] `docs/specs/milestones/PROGRESS.md` updated
+- [ ] `docs/specs/milestones/PROGRESS.md` updated (M-stories) or `plans/STATUS.md` row and daily log updated (UAT-1 specs)
+- [ ] With `AOS_DEMO=0`, no heal, bootstrap or demo path runs for this change (UAT-1)

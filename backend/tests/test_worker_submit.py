@@ -55,6 +55,9 @@ def _agent_result(attempt: dict, *, blocks: list | None = None, consumed: dict |
 
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class WorkerSubmitTests(WorkerHarness):
+    # These suites save brief drafts from an assist turn; the pack's own assist skill produces none.
+    ASSIST_SKILL = "request_intake"
+
     def _worker_headers(self, attempt: dict, worker_id: str = "worker-test-1") -> dict:
         return {
             **self.worker_auth(worker_id),
@@ -260,7 +263,7 @@ class WorkerSubmitTests(WorkerHarness):
             "select display_name from registry.seats"
             " where org_id = 'org_demo' and name = 'seat_sourcing_poc' and version = 1;",
         ).stdout.strip()
-        self.assertEqual(display, "Sourcing Agent")
+        self.assertEqual(display, "Noor Al-Rashid")
         turn_name = _pg.admin_sql(
             self.db,
             f"select data->'turn'->'author'->>'name' from evidence.outbox"

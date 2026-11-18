@@ -41,3 +41,7 @@ attempts:
       - reply_text: >-
           I prepared the purchase order for the awarded RFP supplier and sent it for approval.
           After buyer and CDO sign-off, the PO is created in the ERP.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted the purchase order."}

@@ -11,7 +11,7 @@ from pathlib import Path
 import psycopg
 import yaml
 
-from aos.kernel.org import load_org
+from aos.kernel.org import load_org, seed_sql
 from aos.kernel.pack_publish import bump_pack_manifest_version, ensure_pack_published
 from aos.kernel.registry_store import sync_pack
 from aos.kernel.settings import REPO
@@ -47,6 +47,7 @@ class PackPublishTests(unittest.TestCase):
             async def first_sync() -> str:
                 async with await psycopg.AsyncConnection.connect(_pg.kernel_url(db)) as conn:
                     async with conn.transaction():
+                        await conn.execute(seed_sql(ORG))
                         r = await sync_pack(
                             conn, org=ORG, packs_dir=packs, name="procurement_demo", actor="test"
                         )

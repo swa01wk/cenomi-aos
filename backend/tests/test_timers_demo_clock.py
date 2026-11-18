@@ -82,6 +82,20 @@ async def _insert_instance(
         " values (%s, 'requester', 'faisal', 'creation'), (%s, 'buyer', 'noura', 'claim')",
         (instance_id, instance_id),
     )
+    # The kernel recounts quote_count from saved quotes before a timer fires, so back the attribute with quotes.
+    for n in range(int(attrs.get("quote_count") or 0)):
+        aid = ids.new_artifact_id()
+        content = {"supplier_id": f"SUP-{n + 1}", "supplier": f"Supplier {n + 1}", "unit_price": 100, "total": 400}
+        await conn.execute(
+            "insert into work.artifacts (id, instance_id, artifact_type, key, name, status, latest_version)"
+            " values (%s, %s, 'quote', %s, 'Quote', 'draft', 1)",
+            (aid, instance_id, f"SUP-{n + 1}"),
+        )
+        await conn.execute(
+            "insert into work.artifact_versions (artifact_id, version, content, content_hash, produced_by_kind,"
+            " produced_by, inputs, sources) values (%s, 1, %s, %s, 'attempt', 'att_test', '[]', '[]')",
+            (aid, json.dumps(content), f"hash-{aid}"),
+        )
 
 
 async def _insert_due_timer(

@@ -132,7 +132,11 @@ class SeatLifecycleTests(unittest.TestCase):
               ('ev_test_refusals', (select id from org.organizations limit 1), '{SEAT}', {SEAT_DEF_VERSION},
                'refusals', 'fake', 'passed', 4, 4),
               ('ev_test_dry_run', (select id from org.organizations limit 1), '{SEAT}', {SEAT_DEF_VERSION},
-               'dry_run', 'fake', 'passed', 1, 1)
+               'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_test_inbound_quotes', (select id from org.organizations limit 1), '{SEAT}', {SEAT_DEF_VERSION},
+               'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_test_inbound_trigger', (select id from org.organizations limit 1), '{SEAT}', {SEAT_DEF_VERSION},
+               'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )

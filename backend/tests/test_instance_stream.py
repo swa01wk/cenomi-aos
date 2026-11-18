@@ -196,7 +196,11 @@ class InstanceStreamTests(unittest.TestCase):
               ('ev_stream_refusals', (select id from org.organizations limit 1), '{SEAT}', 1,
                'refusals', 'fake', 'passed', 4, 4),
               ('ev_stream_dry_run', (select id from org.organizations limit 1), '{SEAT}', 1,
-               'dry_run', 'fake', 'passed', 1, 1)
+               'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_stream_inbound_quotes', (select id from org.organizations limit 1), '{SEAT}', 1,
+               'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_stream_inbound_trigger', (select id from org.organizations limit 1), '{SEAT}', 1,
+               'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )

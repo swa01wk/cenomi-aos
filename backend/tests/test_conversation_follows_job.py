@@ -112,7 +112,9 @@ class ConversationFollowsJobTests(unittest.TestCase):
             insert into registry.eval_runs (id, org_id, seat, seat_version, suite, model, status, passed, total)
             values
               ('ev_cf_refusals', '{ORG_ID}', '{SEAT}', 1, 'refusals', 'fake', 'passed', 4, 4),
-              ('ev_cf_dry', '{ORG_ID}', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1)
+              ('ev_cf_dry', '{ORG_ID}', '{SEAT}', 1, 'dry_run', 'fake', 'passed', 1, 1),
+              ('ev_cf_inbound_quotes', '{ORG_ID}', '{SEAT}', 1, 'inbound_quotes', 'fake', 'passed', 1, 1),
+              ('ev_cf_inbound_trigger', '{ORG_ID}', '{SEAT}', 1, 'inbound_trigger', 'fake', 'passed', 1, 1)
             on conflict (id) do nothing;
             """,
         )
@@ -384,7 +386,7 @@ class ConversationFollowsJobTests(unittest.TestCase):
             f"select blocks from work.turns where instance_id = '{inst}' and author_kind = 'seat' order by seq desc limit 1",
         ).stdout
         self.assertNotIn("Restricted supplier", row)
-        self.assertIn("Intake", row)
+        self.assertIn("Chat", row)  # a new Quick Quote job is in its conversation state, labelled Chat
 
     def test_job_snapshot_open_decision(self) -> None:
         inst = self._start()
@@ -596,6 +598,8 @@ class ConversationFollowsJobTests(unittest.TestCase):
         async def _brief_and_decide() -> str:
             async with await psycopg.AsyncConnection.connect(_pg.kernel_url(self.db)) as conn:
                 async with conn.transaction():
+                    # New jobs open in the conversation state; the brief decision belongs to intake.
+                    await conn.execute("update work.instances set state = 'intake' where id = %s", (inst,))
                     await _insert_task_completed(conn, inst, "request_intake")
                     aid = await _insert_brief(conn, inst, [_brief_v(1), _brief_v(2)])
                     await conn.execute(

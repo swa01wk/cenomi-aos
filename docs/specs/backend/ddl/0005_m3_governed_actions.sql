@@ -76,17 +76,8 @@ create table work.action_executions (
 );
 create index actions_unknown on work.action_executions (updated_at) where state in ('EXECUTING','UNKNOWN');
 
-create table work.inbound_messages (
-  source text not null,                             -- mock_mail
-  message_id text not null,
-  conversation_id text not null,
-  instance_id text,
-  payload jsonb not null,
-  received_at timestamptz not null default now(),
-  processed_at timestamptz,
-  primary key (source, message_id)                  -- duplicate notifications are dropped here
-);
+-- work.inbound_messages moved to backend/migrations/0005_m3_inbound_messages.sql.
 
 grant select, insert, update, delete on gov.policy_decisions, gov.approvals, gov.approval_steps,
-  work.action_executions, work.inbound_messages to aos_kernel;
+  work.action_executions to aos_kernel;
 grant usage on all sequences in schema gov to aos_kernel;

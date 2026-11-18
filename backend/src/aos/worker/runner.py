@@ -146,6 +146,8 @@ class Worker:
                     return "fenced"
                 return "failed:budget_exhausted"
             except Exception as exc:
+                # Unexpected: keep the traceback in the worker log; the attempt record only gets the class.
+                log.exception("attempt %s failed internally", attempt.get("attempt_id"))
                 await self._fail(attempt, "internal", repr(exc))
                 return "failed:internal"
 

@@ -30,6 +30,7 @@ ORG_ID = ORG.organization.id
 SEAT = "seat_sourcing_poc"
 WORKFLOW = "quick_quote"
 EXPECTED_PATH = [
+    "conversation",
     "intake",
     "shortlisting",
     "rfq_drafting",
@@ -40,10 +41,17 @@ EXPECTED_PATH = [
     "closed",
 ]
 EXPECTED_DEAD_ENDS = [
-    "event.intent_identified: already raised",
     "approval (mailbox.send): not yet governed",
     "approval (erp_po.create, step 1): not yet governed",
     "approval (erp_po.create, step 2): not yet governed",
+]
+
+# Through the fake model the scripted PR raise fails too: it names a fixed supplier and needs request_action, which
+# SPEC-06 and SPEC-07 add. Remove this entry when they land.
+EXPECTED_DEAD_ENDS_FAKE_MODEL = [
+    EXPECTED_DEAD_ENDS[0],
+    "task.pr_create: attempt failed:invalid_output",
+    *EXPECTED_DEAD_ENDS[1:],
 ]
 
 
@@ -167,7 +175,8 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counts["rfq_send"], 1)
         self.assertEqual(counts["quote_comparison"], 1)
         self.assertEqual(counts["pr_create"], 1)
-        self.assertEqual(counts["quote_triage"], 2)
+        self.assertEqual(counts["quote_triage"], 1)
+        self.assertEqual(counts["quote_triage_late"], 1, "the second reply lands after the first quote moved the job")
         self.assertEqual(counts["request_intake"], 1)
 
     async def test_simulate_pack_version_matches(self) -> None:
@@ -243,10 +252,11 @@ class SimulateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self._baseline_counts(), before)
         self.assertEqual(report["reached"], "closed")
         self.assertEqual(report["path"], EXPECTED_PATH)
-        self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS)
+        self.assertEqual(report["dead_ends"], EXPECTED_DEAD_ENDS_FAKE_MODEL)
         self.assertEqual(
             report["graph_runs"],
-            {"request_intake": 2, "rfq_draft": 1, "supplier_lookup": 2},
+            # pr_create runs and fails until SPEC-06/07 (see EXPECTED_DEAD_ENDS_FAKE_MODEL).
+            {"pr_create": 1, "request_intake": 2, "rfq_draft": 1, "supplier_lookup": 2},
             "Tasks with a script ran through the graphs: the intake asked once and resumed on the answer, and the"
             " search ranked again against the brief the answer changed",
         )

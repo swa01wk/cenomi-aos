@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from ..draft_body import build_save_draft_body
+from ..draft_body import build_save_draft_body, draft_slot
 from ..errors import AttemptWaitingForInput, Fenced, ToolInvocationError
 from ..protocol import AttemptContext, AttemptFailed
 from ..untrusted import already_observed
@@ -106,7 +106,10 @@ async def execute_tool_calls(
                 )
                 saved_row = await ctx.save_draft(body)
                 at = str(body["artifact_type"])
-                saved[at] = {
+                # One slot per type, or per type and key for per-item drafts (several items of one type):
+                # build_save_draft_body reads the same slot, and submit must reference every saved item.
+                saved[draft_slot(at, str(body.get("key") or ""))] = {
+                    "artifact_type": at,
                     "artifact_id": saved_row.get("artifact_id"),
                     "version": saved_row.get("version"),
                     "content_hash": saved_row.get("content_hash"),

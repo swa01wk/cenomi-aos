@@ -6,22 +6,36 @@ import json
 import unittest
 
 import psycopg
-from psycopg.rows import dict_row
 
 from aos.kernel.org import load_org, seed_sql
 from aos.kernel.po_ordered import post_po_ordered_announcement_if_needed
+from aos.kernel.settings import REPO
+
+from . import _pg
+from .test_timers_demo_clock import PACKS, _sync_published
 
 
+@unittest.skipUnless(_pg.available(), "no local Postgres")
 class PoOrderedTests(unittest.IsolatedAsyncioTestCase):
+    """Runs on its own migrated database (it used the developer's `aos` database, which CI does not have)."""
+
     @classmethod
     def setUpClass(cls) -> None:
-        cls.org = load_org("seed/org.yaml")
-        cls.url = "postgresql://aos_kernel:aos_kernel_dev@127.0.0.1:5432/aos"
+        cls.org = load_org(REPO / "seed" / "org.yaml")
+        cls.db = _pg.create_migrated()
+        cls.url = _pg.kernel_url(cls.db)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        _pg.drop(cls.db)
 
     async def test_announces_once_when_po_payload_exists(self) -> None:
         inst = "QQ-PO-TEST-1"
-        async with await psycopg.AsyncConnection.connect(self.url, row_factory=dict_row) as conn:
-            await conn.execute(seed_sql(self.org))
+        async with await psycopg.AsyncConnection.connect(self.url) as setup:
+            await setup.execute(seed_sql(self.org))
+            await _sync_published(setup, PACKS)
+            await setup.commit()
+        async with await psycopg.AsyncConnection.connect(self.url) as conn:
             await conn.execute(
                 "insert into work.instances (id, org_id, workflow, pack_version_id, seat, seat_version,"
                 " state, version, status, title, attributes, correlation_id, created_by, idempotency_key)"
@@ -65,7 +79,7 @@ class PoOrderedTests(unittest.IsolatedAsyncioTestCase):
             )
             rows = await cur.fetchall()
             self.assertEqual(len(rows), 1)
-            self.assertIn("AOS-PO-TEST", json.dumps(rows[0]["blocks"]))
+            self.assertIn("AOS-PO-TEST", json.dumps(rows[0][0]))
 
 
 if __name__ == "__main__":

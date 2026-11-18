@@ -40,3 +40,7 @@ attempts:
       - reply_text: >-
           I prepared the purchase order payload for Bayan (SUP-11632) and sent it for approval. Once approvals
           complete, the PO will be created in the ERP.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted the purchase order."}

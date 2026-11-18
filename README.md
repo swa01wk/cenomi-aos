@@ -28,7 +28,9 @@ paste). Coding agents start at [`AGENTS.md`](AGENTS.md). Everything needed for M
 Plans: the Claude Doc *AOS POC Milestone Plan and North Star*. It sits alongside the *AOS POC Implementation Plan*
 and the *Technical Architecture and Implementation Plan*.
 
-## Status: milestone M0 — Foundations
+## Status: UAT-1 slice (handover 30 Nov 2026) — see [`plans/STATUS.md`](plans/STATUS.md)
+
+### Earlier: milestone M0 — Foundations
 
 | Area | What exists | Proof |
 |---|---|---|

@@ -134,7 +134,7 @@ class ConsoleReadsTests(unittest.TestCase):
         body = r.json()
         self.assertEqual(body["name"], WORKFLOW)
         self.assertEqual(body["version"], 1)
-        self.assertEqual(body["initial"], "intake")
+        self.assertEqual(body["initial"], "conversation")  # Quick Quote chats first, then intake
         by_template = {}
         for st in body["states"]:
             for t in st.get("tasks") or []:
@@ -144,7 +144,9 @@ class ConsoleReadsTests(unittest.TestCase):
         self.assertTrue(by_template["pr_create"])
         tr = next(t for t in body["transitions"] if t["from"] == "awaiting_quotes" and t["to"] == "comparison")
         self.assertIsInstance(tr["on"], list)
-        self.assertEqual(len(tr["on"]), 2)
+        self.assertEqual(
+            set(tr["on"]), {"timer.quotes_closed", "event.all_quotes_received", "event.first_quote_ready"}
+        )
 
     def test_needs_approval_ignores_renamed_gate_rule_id(self) -> None:
         alt_packs = Path(tempfile.mkdtemp(prefix="aos-console-gate-"))

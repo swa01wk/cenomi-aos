@@ -46,9 +46,16 @@ class DemoPackPasses(unittest.TestCase):
     def test_demo_pack_is_valid(self) -> None:
         report = validate_pack(PACK, org=ORG)
         self.assertTrue(report.ok, "\n".join(map(str, report.issues)))
-        self.assertEqual(report.warnings, [])
-        self.assertEqual(report.counts["WorkflowDefinition"], 1)
-        self.assertEqual(report.counts["Skill"], 6)
+        # SPEC-04 widens leak_check to the RFP and BAFO emails and adds score_recompute; then this list is empty.
+        known = {
+            ("W_VERIFIER_SCOPE", "skills/bafo_negotiation/skill.yaml"),
+            ("W_VERIFIER_SCOPE", "skills/master_rfp_authoring/skill.yaml"),
+            ("W_VERIFIER_SCOPE", "skills/rfp_authoring/skill.yaml"),
+            ("W_VERIFIER_SCOPE", "skills/rfp_evaluation/skill.yaml"),
+        }
+        self.assertLessEqual({(w.code, w.file) for w in report.warnings}, known)
+        self.assertEqual(report.counts["WorkflowDefinition"], 3)
+        self.assertEqual(report.counts["Seat"], 2)
 
     def test_cli_exit_codes(self) -> None:
         self.assertEqual(cli_main(["validate", str(PACK), "--org", str(REPO / "seed" / "org.yaml")]), 0)
@@ -106,8 +113,10 @@ class BrokenPacksFail(PackCase):
         self.assertFailsWith("E_UNGOVERNED_EFFECT")
 
     def test_require_approval_needs_a_rule_naming_approvers(self) -> None:
-        self.edit("policies/quick_quote_gates.yaml",
-                  lambda d: d["spec"].__setitem__("rules", [r for r in d["spec"]["rules"] if r["id"] != "pr_create"]))
+        # Both workflows' gate policies name approvers for erp_pr.create; drop them all.
+        for rel in ("policies/quick_quote_gates.yaml", "policies/sourcing_rfp_gates.yaml"):
+            self.edit(rel, lambda d: d["spec"].__setitem__(
+                "rules", [r for r in d["spec"]["rules"] if r.get("action") != "erp_pr.create"]))
         self.assertFailsWith("E_NO_APPROVAL_CHAIN")
 
     def test_dead_end_and_unreachable_states(self) -> None:
@@ -127,7 +136,7 @@ class BrokenPacksFail(PackCase):
 
     def test_decision_needs_a_participant(self) -> None:
         def fn(d):
-            d["spec"]["transitions"][0]["by"] = "cfo"
+            next(t for t in d["spec"]["transitions"] if t.get("by"))["by"] = "cfo"
         self.edit("workflows/quick_quote.yaml", fn)
         self.assertFailsWith("E_REF")
 

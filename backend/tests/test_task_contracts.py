@@ -25,6 +25,21 @@ def _defs():
     return out
 
 
+def _defs_and_digest():
+    loaded = load_pack(PACK)
+    return _defs(), loaded.digest
+
+
+def _templates(defs) -> dict[str, dict]:
+    """Every task template in the pack's workflows, by template name."""
+    out: dict[str, dict] = {}
+    for wf in (defs.get("WorkflowDefinition") or {}).values():
+        for state in ((wf.get("spec") or {}).get("states") or {}).values():
+            for tpl in (state or {}).get("tasks") or []:
+                out.setdefault(tpl["template"], tpl)
+    return out
+
+
 def _seat():
     return _defs()["Seat"]["seat_sourcing_poc"]
 
@@ -38,7 +53,7 @@ class TaskContractTests(unittest.TestCase):
         loaded = load_pack(PACK)
         meta = loaded.manifest
         assert meta is not None
-        pinned = int(meta.version) - 1
+        pinned = int(meta.metadata.version) - 1
         if pinned < 1:
             self.skipTest("pack version 1 has no older pin")
         contracts.verify_pinned_pack_on_disk(PACKS_DIR, "procurement_demo", pinned, loaded.digest)

@@ -37,3 +37,7 @@ attempts:
       - reply_text: >-
           I drafted a request for quotation for each of the 3 shortlisted suppliers. Next, the buyer reviews the
           emails and asks to send them.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted one RFQ email per shortlisted supplier."}

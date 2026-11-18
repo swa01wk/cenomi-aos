@@ -452,6 +452,15 @@ async def run_seat_evals(
                     seat_version=body.version,
                     model=body.model,
                 )
+                if not jobs:
+                    # A Seat with no eval suites has nothing to wait for: promote it now, or it stays CONFIGURED.
+                    await seats.maybe_promote_seat_to_testing(
+                        conn,
+                        org=k.org,
+                        org_id=p.org_id,
+                        name=seat,
+                        seat_version=body.version,
+                    )
                 row = await conn.execute(
                     "select pack_name from registry.pack_versions where id = %s and org_id = %s",
                     (pack_version_id, p.org_id),

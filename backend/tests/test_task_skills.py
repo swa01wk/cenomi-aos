@@ -95,6 +95,7 @@ class WorkerPartsTests(unittest.TestCase):
 @unittest.skipUnless(_pg.available(), "no local Postgres")
 class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
     INTAKE_TASK = True
+    INITIAL_STATE = "intake"
 
     def sql(self, query: str) -> str:
         return _pg.admin_sql(self.db, query).stdout.strip()
@@ -188,7 +189,18 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.instance(inst, "faisal")["state"], "shortlisting")
 
         await self.tick()
-        self.assertEqual(await self.run_worker(rec), "submitted")
+        outcome = await self.run_worker(rec)
+        self.assertEqual(
+            outcome,
+            "submitted",
+            # Say why: the saved list and its verdict, and every attempt of the supplier search.
+            f"supplier_list: {self.output_rows(inst, 'supplier_list')}\nattempts: "
+            + self.sql(
+                "select a.n || ':' || coalesce(a.outcome, a.state) || ':' || coalesce(a.failure_class, '')"
+                " from work.attempts a join work.tasks t on t.id = a.task_id"
+                f" where t.instance_id = '{inst}' and t.template = 'supplier_lookup' order by a.n;"
+            ),
+        )
         self.assertEqual(self.task_state(inst, "supplier_lookup"), "COMPLETED")
         return inst
 
@@ -216,7 +228,8 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         self.assertEqual((key, version), ("", 1))
         rows = content["rows"]
         self.assertEqual([r["supplier_id"] for r in rows],
-                         ["SUP-10482", "SUP-10217", "SUP-10355", "SUP-10790", "SUP-10611"])
+                         # Rubric: SUP-10611 has one past order (20 + 5 = 25), SUP-10790 none (20).
+                         ["SUP-10482", "SUP-10217", "SUP-10355", "SUP-10611", "SUP-10790"])
         receipts = set(self.sql(
             "select attributes->>'receipt_ref' from evidence.execution_events where event_type = 'ToolCompleted'"
             f" and task_id = (select id from work.tasks where instance_id = '{inst}' and template = 'supplier_lookup')"
@@ -290,7 +303,8 @@ class TaskSkillTests(WorkerHarness, unittest.IsolatedAsyncioTestCase):
         inst = await self.reach_rfq_drafting(rec)
         self.assertEqual(await self.run_worker(rec, scenario="leak"), "submitted")
         self.assertEqual(self.task_state(inst, "rfq_draft"), "READY", "leak_check sent it back")
-        expected = [f"rfq_email[{sid}].body contains the value of brief.budget_guidance." for sid in SHORTLIST]
+        # leak_check names the field and the brief value it leaks, never the value; each email carries all findings.
+        expected = ["body: leaks brief.budget_guidance"] * len(SHORTLIST)
         for _key, version, _content, verification in self.output_rows(inst, "rfq_email"):
             self.assertEqual(version, 1)
             self.assertEqual(verification.get("verdict"), "REWORK")

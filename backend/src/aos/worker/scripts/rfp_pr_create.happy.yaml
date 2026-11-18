@@ -41,3 +41,7 @@ attempts:
       - reply_text: >-
           Purchase requisition submitted in Oracle Fusion Procurement. Fusion approval and PO conversion
           continue outside AOS — this job is complete.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted the purchase requisition."}

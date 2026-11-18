@@ -35,6 +35,10 @@ attempts:
                 subject: "Request for quotation: Cleaning trolleys"
                 body: *leaky
       - reply_text: I drafted a request for quotation for each of the 3 shortlisted suppliers.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted one RFQ email per shortlisted supplier."}
   - turns:
       - tool_calls:
           - name: save_draft
@@ -73,3 +77,7 @@ attempts:
       - reply_text: >-
           I removed the budget figure from all 3 requests for quotation, as the check asked. Next, the buyer reviews
           the emails and asks to send them.
+      # Task attempts end with submit; assist runs stop at the reply above and never reach this turn.
+      - tool_calls:
+          - name: submit
+            args: {summary: "Drafted one RFQ email per shortlisted supplier."}

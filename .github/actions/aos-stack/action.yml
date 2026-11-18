@@ -1,0 +1,84 @@
+name: AOS stack
+description: >-
+  Build and start the Docker Compose stack (postgres, api, web, mock-erp, mock-mail, worker) for Playwright and eval
+  runs. Mints a worker token, never writes a .env, and keeps live mail (IMAP/SMTP to Gmail) off.
+
+inputs:
+  runtime:
+    description: "fake (scripted model) or langgraph (real model; needs the model inputs below)"
+    default: fake
+  vendor-sim:
+    description: "1 to let the vendor simulator reply to RFQs and RFP invitations by mail"
+    default: "0"
+  demo:
+    description: "AOS_DEMO for the api service; keep 0 for anything that counts as UAT evidence"
+    default: "0"
+  demo-clock:
+    description: "1 for short quote/proposal windows (demo_after) and clock advance, as in UAT"
+    default: "1"
+  fake-script:
+    description: "AOS_FAKE_SCRIPT override for the assist chat (fake runtime only)"
+    default: ""
+  openai-api-key:
+    description: "real model key (langgraph runtime)"
+    default: ""
+  openai-model:
+    description: "real model name (langgraph runtime)"
+    default: ""
+  price-in:
+    description: "USD per million input tokens (langgraph runtime)"
+    default: ""
+  price-out:
+    description: "USD per million output tokens (langgraph runtime)"
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Check model inputs
+      if: inputs.runtime == 'langgraph'
+      shell: bash
+      env:
+        KEY: ${{ inputs.openai-api-key }}
+        MODEL: ${{ inputs.openai-model }}
+      run: |
+        [ -n "$KEY" ] && [ -n "$MODEL" ] || { echo "::error::langgraph runtime needs OPENAI_API_KEY and OPENAI_MODEL secrets"; exit 1; }
+
+    - name: Mint worker token
+      shell: bash
+      env:
+        AOS_WORKER_TOKEN: unused
+      run: |
+        # Build first so build output can't end up in the captured token.
+        docker compose -f deploy/docker-compose.yml build api
+        TOKEN=$(docker compose -f deploy/docker-compose.yml run --rm --no-deps -T api aos worker-token --worker-id ci-worker 2>/dev/null | tail -n 1 | tr -d '\r')
+        [[ "$TOKEN" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]] || { echo "::error::worker token not minted"; exit 1; }
+        echo "::add-mask::$TOKEN"
+        echo "AOS_WORKER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+    - name: Start stack
+      shell: bash
+      env:
+        AOS_RUNTIME: ${{ inputs.runtime }}
+        AOS_VENDOR_SIM: ${{ inputs.vendor-sim }}
+        AOS_DEMO: ${{ inputs.demo }}
+        AOS_DEMO_CLOCK: ${{ inputs.demo-clock }}
+        AOS_FAKE_SCRIPT: ${{ inputs.fake-script }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        OPENAI_MODEL: ${{ inputs.openai-model }}
+        AOS_MODEL_PRICE_IN_PER_MTOK: ${{ inputs.price-in }}
+        AOS_MODEL_PRICE_OUT_PER_MTOK: ${{ inputs.price-out }}
+        # Stops 1–3 publish the pack through the Console, as a user would; no auto-publish on start.
+        AOS_SYNC_PACK_ON_START: "0"
+        # CI never touches real mailboxes: outbound stays in mock_mail, no IMAP polling.
+        AOS_IMAP_POLL: "0"
+        AOS_IMAP_BACKGROUND: "0"
+        AOS_RFQ_TEST_ROUTE_ALL: "0"
+        AOS_RFQ_TEST_TO: ""
+        AOS_POLLED_INBOX: ""
+      run: |
+        # Persist for later steps (logs, teardown, re-up) in the same job.
+        for v in AOS_RUNTIME AOS_VENDOR_SIM AOS_DEMO AOS_DEMO_CLOCK AOS_SYNC_PACK_ON_START AOS_IMAP_POLL AOS_IMAP_BACKGROUND AOS_RFQ_TEST_ROUTE_ALL; do
+          echo "$v=${!v}" >> "$GITHUB_ENV"
+        done
+        docker compose -f deploy/docker-compose.yml up -d --build --wait postgres api web mock-erp mock-mail worker

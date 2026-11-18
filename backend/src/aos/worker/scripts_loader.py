@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -61,8 +63,22 @@ def _turn_from_dict(raw: dict[str, Any]) -> ScriptedTurn:
     )
 
 
-def load_fake_script(name: str, *, attempt_n: int | None = None) -> FakeScript:
-    data = yaml.safe_load(script_path(name).read_text())
+_RELATIVE_DATE = re.compile(r"\{\{today([+-]\d+)d\}\}")
+
+
+def _expand_dates(value: Any, today: date) -> Any:
+    """Replace ``{{today+Nd}}`` in script strings with an ISO date, so scripted dates never go stale."""
+    if isinstance(value, str):
+        return _RELATIVE_DATE.sub(lambda m: (today + timedelta(days=int(m.group(1)))).isoformat(), value)
+    if isinstance(value, list):
+        return [_expand_dates(v, today) for v in value]
+    if isinstance(value, dict):
+        return {k: _expand_dates(v, today) for k, v in value.items()}
+    return value
+
+
+def load_fake_script(name: str, *, attempt_n: int | None = None, today: date | None = None) -> FakeScript:
+    data = _expand_dates(yaml.safe_load(script_path(name).read_text()), today or date.today())
     if not isinstance(data, dict):
         raise RuntimeError(f"script {name!r} must be a mapping")
     attempts_raw = data.get("attempts")
